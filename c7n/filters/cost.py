@@ -23,7 +23,9 @@ class Cost(Filter):
         filters:
           - type: cost
             op: greater-than
+            # USD
             value: 4
+            # monthly price = unit price * 730 hours
             quantity: 730
 
 
@@ -69,25 +71,32 @@ class Cost(Filter):
         return super(Cost, self).validate()
 
     def process_resource(self, resource, client, query):
+        price = self.get_price(resource, client, query)
+        op = self.data.get('operator', 'ge')
+        value = self.data.get('value', -1)
+        return OPERATORS[op](price["USD"], value)
+
+    def get_price(self, resource, client, query):
         params = self.get_params(resource)
         cache_key = str(params)
 
         with self.cache:
             price = self.cache.get(cache_key)
             if not price:
-                price = self.get_infracost(client, query, params)
+                price = self.invoke_infracost(client, query, params)
                 # TODO support configurable currency
                 price["USD"] = float(price["USD"]) * self.data.get("quantity", 1)
                 self.cache.save(cache_key, price)
 
         resource[self.ANNOTATION_KEY] = price
-        op = self.data.get('operator', 'ge')
-        value = self.data.get('value', -1)
-        return OPERATORS[op](price["USD"], value)
+        return price
 
-    def get_infracost(self, client, query, params):
+    def invoke_infracost(self, client, query, params):
         result = client.execute(query, variable_values=params)
         self.log.info(f"Infracost {params}: {result}")
+        total = len(result["products"][0]["prices"])
+        if total > 1:
+            self.log.warning(f"Found {total} price options, expecting 1")
         return result["products"][0]["prices"][0]
 
     def process(self, resources, event=None):
@@ -95,7 +104,7 @@ class Cost(Filter):
             url=self.api_endpoint + "/graphql",
             headers={'X-Api-Key': self.api_key},
             verify=True,
-            retries=3,
+            retries=5,
         )
         client = Client(transport=transport, fetch_schema_from_transport=True)
         query = gql(self.get_query())
