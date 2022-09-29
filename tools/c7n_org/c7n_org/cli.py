@@ -164,6 +164,7 @@ def init(config, use, debug, verbose, accounts, tags, policies, resource=None, p
     logging.getLogger('s3transfer').setLevel(logging.WARNING)
     logging.getLogger('custodian.s3').setLevel(logging.ERROR)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('gql').setLevel(logging.WARNING)
 
     accounts = comma_expand(accounts)
     policies = comma_expand(policies)
