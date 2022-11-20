@@ -32,11 +32,30 @@ class CVM(QueryResourceManager):
         service = "cvm"
         version = "2017-03-12"
         enum_spec = ("DescribeInstances", "Response.InstanceSet[]", {})
-        metrics_instance_id_name = "InstanceId"
         paging_def = {"method": PageMethod.Offset, "limit": {"key": "Limit", "value": 20}}
         resource_prefix = "instance"
         taggable = True
         batch_size = 10
+        metrics_enabled = True
+        metrics_dimension_def = [("InstanceId", "InstanceId")]
+        metrics_instance_id_name = "InstanceId"
+        metrics_namespace = "QCE/CVM"
+
+    def get_qcs_for_cbs(self, resources):
+        """
+        get cvm resource qcs
+        Get the qcs of the cvm to which the cbs belongs
+        """
+        # qcs::${ServiceType}:${Region}:${Account}:${ResourcePrefix}/${ResourceId}
+        qcs_list = []
+        for r in resources:
+            qcs = DescribeSource.get_qcs(r["InstanceType"].lower(),
+                                         self.config.region,
+                                         None,
+                                         "instance",
+                                         r["InstanceId"])
+            qcs_list.append(qcs)
+        return qcs_list
 
 
 class CvmAction(TencentCloudBaseAction):
