@@ -660,7 +660,7 @@ class EBS(QueryResourceManager):
             resources = self._get_cached_resources(ids)
             if resources is not None:
                 return resources
-        # News customisation: devided into smaller batch 
+        # NOTE devided into smaller batch
         # because there are a lot of missing volume id when copy related tag for snapshots
         batch_size = 50
         if len(ids) > batch_size:
