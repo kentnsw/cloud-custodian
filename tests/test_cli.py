@@ -535,7 +535,7 @@ class RunTest(CliTest):
         resources_file = temp_dir + "/test_cli_vars_option/resources.json"
         cmd = ["custodian", "run", "-s", temp_dir, policy_file]
 
-        # NOTE case 1 no vars file specified    
+        # NOTE case 1 no vars file specified
         self.run_and_expect_success(cmd)
         assert not os.path.exists(resources_file)
 
