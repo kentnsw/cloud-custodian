@@ -538,18 +538,20 @@ class RunTest(CliTest):
         # NOTE case 1 no vars file specified    
         self.run_and_expect_success(cmd)
         assert not os.path.exists(resources_file)
+
         # NOTE case 2 vars file specified, not meet conditions
         vars_file = self.write_policy_file(
             {"vars": {"holiday_start": "2020/01/01"}}
         )
+        cmd = ["custodian", "run", "-s", temp_dir, "--vars", vars_file, policy_file]
         self.run_and_expect_success(cmd)
         assert not os.path.exists(resources_file)
+
         # NOTE case 3 vars file specified, meet conditions
         vars_file = self.write_policy_file(
             {"vars": {"holiday_start": "2099/01/01"}}
         )
-        cmd.pop()
-        cmd.extend(["--vars", vars_file, policy_file])
+        cmd = ["custodian", "run", "-s", temp_dir, "--vars", vars_file, policy_file]
         self.run_and_expect_success(cmd)
         assert os.path.exists(resources_file)
 
