@@ -495,10 +495,9 @@ class UtilTest(BaseTest):
         data = utils.load_file(yml_file, vars={"resource": resource})
         self.assertTrue(data["policies"][0]["resource"] == resource)
 
-        # Fail to substitute
-        self.assertRaises(
-            utils.VarsSubstitutionError, utils.load_file, yml_file, vars={"foo": "bar"}
-        )
+        # Keep the var if not found
+        data = utils.load_file(yml_file, vars={"foo": "bar"})
+        self.assertTrue(data["policies"][0]["resource"] == "{resource}")
 
         # JSON load
         json_file = os.path.join(os.path.dirname(__file__), "data", "ec2-instance.json")
