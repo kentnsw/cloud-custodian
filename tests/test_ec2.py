@@ -20,7 +20,8 @@ from .common import BaseTest
 import pytest
 from pytest_terraform import terraform
 
-
+# this one doesn't work as a functional test as it enables stop protection, which prevents
+# the terraform teardown, we would need to also remove the stop protection in the test.
 @terraform('ec2_stop_protection_enabled')
 def test_ec2_stop_protection_enabled(test, ec2_stop_protection_enabled):
     aws_region = 'us-east-1'
@@ -63,6 +64,7 @@ def test_ec2_stop_protection_enabled(test, ec2_stop_protection_enabled):
     )
 
 
+@pytest.mark.audited
 @terraform('ec2_stop_protection_disabled')
 def test_ec2_stop_protection_disabled(test, ec2_stop_protection_disabled):
     aws_region = 'us-east-1'
@@ -1025,6 +1027,25 @@ class TestTag(BaseTest):
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]["InstanceId"], "i-098dae2615acb5809")
 
+    def test_ec2_multiple_mark_for_op_tags(self):
+        session_factory = self.replay_flight_data("test_ec2_multiple_mark_for_op_tags")
+        policy = self.load_policy(
+            {
+                "name": "ec2-mark-for-op-tags",
+                "resource": "ec2",
+                "filters": [
+                    {
+                        "type": "marked-for-op",
+                        "tag": "c7n-tag-compliance",
+                        "op": "terminate"
+                    }
+                ],
+            },
+            session_factory=session_factory,
+        )
+        resources = policy.run()
+        self.assertEqual(len(resources), 3)
+
 
 class TestStop(BaseTest):
 
@@ -1077,6 +1098,91 @@ class TestStop(BaseTest):
 
         self.assertEqual(len(stopped), 1)
         self.assertEqual(len(hibernated), 1)
+
+    def test_ec2_stop_with_protection_enabled(self):
+        # Test conditions: single running instance, with stop protection
+        session_factory = self.replay_flight_data("test_ec2_stop_with_protection_enabled")
+        policy = self.load_policy(
+            {
+                "name": "ec2-test-stop-with-protection-enabled",
+                "resource": "ec2",
+                "filters": [{"InstanceId": "i-000b2f5125402eb55"}],
+                "actions": [{"type": "stop", "force": True}],
+            },
+            session_factory=session_factory,
+        )
+        resources = policy.run()
+        self.assertEqual(len(resources), 1)
+
+        perms = policy.get_permissions()
+        self.assertTrue("ec2:ModifyInstanceAttribute" in perms)
+
+        instances = utils.query_instances(
+            session_factory(), InstanceIds=["i-000b2f5125402eb55"]
+        )
+        self.assertEqual(instances[0]["State"]["Name"], "stopped")
+
+    def test_ec2_stop_with_protection_enabled_handle_error(self):
+        policy = self.load_policy(
+            {
+                "name": "ec2-test-stop-with-protection-enabled",
+                "resource": "ec2",
+                "filters": [{"InstanceId": "i-000b2f5125402eb55"}],
+                "actions": [{"type": "stop", "force": True}],
+            }
+        )
+
+        stop_action = policy.resource_manager.actions[0]
+
+        client = mock.MagicMock()
+        client.modify_instance_attribute.side_effect = ClientError(
+            {'Error': {
+                'Code': 'IncorrectInstanceState',
+                'Message': ("The instance 'i-000b2f5125402eb55' must be in a "
+                            "'running', 'pending', 'stopping' or "
+                            "'stopped' state for this operation")
+            }}, 'ModifyInstanceAttribute')
+
+        self.assertEqual(
+            None,
+            stop_action.disable_protection(client, 'stop', [{'InstanceId': 'i-foo'}]),
+        )
+
+        client2 = mock.MagicMock()
+        client2.modify_instance_attribute.side_effect = ClientError(
+            {'Error': {
+                'Code': 'UnauthorizedOperation',
+                'Message': "You are not authorized to perform this operation."
+            }}, 'ModifyInstanceAttribute')
+
+        self.assertRaises(
+            ClientError,
+            stop_action.disable_protection,
+            client2, 'stop', [{'InstanceId': 'i-foo'}],
+        )
+
+    def test_ec2_stop_with_protection_enabled_ephemeral(self):
+        # Test conditions: single running instance (ephemeral), with stop protection
+        session_factory = self.replay_flight_data("test_ec2_stop_with_protection_enabled_ephemeral")
+        policy = self.load_policy(
+            {
+                "name": "ec2-test-stop-with-protection-enabled-ephemeral",
+                "resource": "ec2",
+                "filters": [{"InstanceId": "i-0a3e363a5366795dd"}],
+                "actions": [{"type": "stop", "terminate-ephemeral": True, "force": True}],
+            },
+            session_factory=session_factory,
+        )
+        resources = policy.run()
+        self.assertEqual(len(resources), 1)
+
+        perms = policy.get_permissions()
+        self.assertTrue("ec2:ModifyInstanceAttribute" in perms)
+
+        instances = utils.query_instances(
+            session_factory(), InstanceIds=["i-0a3e363a5366795dd"]
+        )
+        self.assertEqual(instances[0]["State"]["Name"], "terminated")
 
 
 class TestReboot(BaseTest):
@@ -1937,6 +2043,28 @@ class TestModifySecurityGroupAction(BaseTest):
                 client.describe_instances(InstanceIds=["i-094207d64930768dc"])),
             ["launch-wizard-2"])
 
+    def test_ec2_add_by_tag(self):
+        session_factory = self.replay_flight_data("test_ec2_add_by_tag")
+        policy = self.load_policy({
+            "name": "add-remove-sg-with-name",
+            "resource": "ec2",
+            "query": [
+                {'instance-id': "i-08797f38d2e80c9d0"}],
+            "actions": [
+                {"type": "modify-security-groups",
+                 "add-by-tag": {
+                      "key": "environment",
+                      "values": ["production"]}}]},
+            session_factory=session_factory, config={'region': 'us-west-2'}
+        )
+        resources = policy.run()
+        self.assertEqual(len(resources), 1)
+        client = session_factory().client('ec2')
+        self.assertEqual(
+            jmespath.search(
+                "Reservations[].Instances[].SecurityGroups[].GroupId",
+                client.describe_instances(InstanceIds=["i-08797f38d2e80c9d0"])),
+            ['sg-0cba7a01d343d5c65', 'sg-02e14ba7dd2dbe44b', 'sg-0e630ac9094eff5c5'])
 
 class TestAutoRecoverAlarmAction(BaseTest):
 

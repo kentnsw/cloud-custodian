@@ -5,9 +5,8 @@ Cloud Custodian
 
 ---
 
-[![](https://badges.gitter.im/cloud-custodian/cloud-custodian.svg)](https://gitter.im/cloud-custodian/cloud-custodian?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![slack](https://img.shields.io/badge/slack-chat-yellow)](https://communityinviter.com/apps/cloud-custodian/c7n-chat)
 [![CI](https://github.com/cloud-custodian/cloud-custodian/workflows/CI/badge.svg?event=push)](https://github.com/cloud-custodian/cloud-custodian/actions?query=workflow%3ACI+branch%3Amaster+event%3Apush)
-[![](https://dev.azure.com/cloud-custodian/cloud-custodian/_apis/build/status/Custodian%20-%20CI?branchName=master)](https://dev.azure.com/cloud-custodian/cloud-custodian/_build)
 [![](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![](https://codecov.io/gh/cloud-custodian/cloud-custodian/branch/master/graph/badge.svg)](https://codecov.io/gh/cloud-custodian/cloud-custodian)
 [![](https://requires.io/github/cloud-custodian/cloud-custodian/requirements.svg?branch=master)](https://requires.io/github/cloud-custodian/cloud-custodian/requirements/?branch=master)
@@ -24,6 +23,9 @@ ensuring real time compliance to security policies (like encryption and
 access requirements), tag policies, and cost management via garbage
 collection of unused resources and off-hours resource management.
 
+Custodian also supports running policies on infrastructure as code assets
+to provide feedback directly on developer workstations or within CI pipelines.
+
 Custodian policies are written in simple YAML configuration files that
 enable users to specify policies on a resource type (EC2, ASG, Redshift,
 CosmosDB, PubSub Topic) and are constructed from a vocabulary of filters
@@ -34,7 +36,7 @@ provider to provide for real time enforcement of policies with builtin
 provisioning. Or it can be run as a simple cron job on a server to
 execute against large existing fleets.
 
-Cloud Custodian is a CNCF Sandbox project, lead by a community of hundreds
+Cloud Custodian is a CNCF Incubating project, lead by a community of hundreds
 of contributors.
 
 Features
@@ -42,6 +44,7 @@ Features
 
 -   Comprehensive support for public cloud services and resources with a
     rich library of actions and filters to build policies with.
+-   Run policies on infrastructure as code (terraform, etc) assets.	
 -   Supports arbitrary filtering on resources with nested boolean
     conditions.
 -   Dry run any policy to see what it would do.
@@ -64,6 +67,7 @@ Links
 -   [Project Roadmap](https://github.com/orgs/cloud-custodian/projects/1)
 -   [Developer Install](https://cloudcustodian.io/docs/developer/installing.html)
 -   [Presentations](https://www.google.com/search?q=cloud+custodian&source=lnms&tbm=vid)
+-   [YouTube Channel](https://www.youtube.com/channel/UCdeXCdFLluylWnFfS0-jbDA)
 
 Quick Install
 -------------
@@ -241,6 +245,8 @@ tools here
 <https://github.com/cloud-custodian/cloud-custodian/tree/master/tools>:
 
 - [**_Org_:**](https://cloudcustodian.io/docs/tools/c7n-org.html) Multi-account policy execution.
+
+- [**_ShiftLeft_:**](https://cloudcustodian.io/docs/tools/c7n-left.html) Shift Left ~ run policies against Infrastructure as Code assets like terraform.
 
 - [**_PolicyStream_:**](https://cloudcustodian.io/docs/tools/c7n-policystream.html) Git history as stream of logical policy changes.
 
