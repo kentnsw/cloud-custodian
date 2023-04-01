@@ -40,6 +40,7 @@ class MySQL(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "InstanceId"
         endpoint = "cdb.tencentcloudapi.com"
         service = "cdb"
@@ -61,9 +62,9 @@ class MySQL(QueryResourceManager):
     def augment(self, resources):
         for resource in resources:
             field_format = self.resource_type.datetime_fields_format["CreateTime"]
-            resource["CreateTime"] = isoformat_datetime_str(resource["CreateTime"],
-                                                            field_format[0],
-                                                            field_format[1])
+            resource["CreateTime"] = isoformat_datetime_str(
+                resource["CreateTime"], field_format[0], field_format[1]
+            )
         return resources
 
 

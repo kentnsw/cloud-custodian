@@ -76,46 +76,52 @@ def universal_augment(self, resources):
     # unless the call is being made to us-east-1
     region = getattr(self.resource_type, 'global_resource', None) and 'us-east-1' or self.region
 
-    client = utils.local_session(
-        self.session_factory).client('resourcegroupstaggingapi', region_name=region)
+    client = utils.local_session(self.session_factory).client(
+        'resourcegroupstaggingapi', region_name=region
+    )
 
     # Lazy for non circular :-(
     from c7n.query import RetryPageIterator
+
     paginator = client.get_paginator('get_resources')
     paginator.PAGE_ITERATOR_CLS = RetryPageIterator
 
     rfetch = [r for r in resources if 'Tags' not in r]
 
-    for arn_resource_set in utils.chunks(
-            zip(self.get_arns(rfetch), rfetch), 100):
+    for arn_resource_set in utils.chunks(zip(self.get_arns(rfetch), rfetch), 100):
         arn_resource_map = dict(arn_resource_set)
         resource_tag_results = client.get_resources(
-            ResourceARNList=list(arn_resource_map.keys())).get(
-                'ResourceTagMappingList', ())
-        resource_tag_map = {
-            r['ResourceARN']: r['Tags'] for r in resource_tag_results}
+            ResourceARNList=list(arn_resource_map.keys())
+        ).get('ResourceTagMappingList', ())
+        resource_tag_map = {r['ResourceARN']: r['Tags'] for r in resource_tag_results}
         for arn, r in arn_resource_map.items():
             r['Tags'] = resource_tag_map.get(arn, [])
 
     return resources
 
 
-def _common_tag_processer(executor_factory, batch_size, concurrency, client,
-                          process_resource_set, id_key, resources, tags,
-                          log):
+def _common_tag_processer(
+    executor_factory,
+    batch_size,
+    concurrency,
+    client,
+    process_resource_set,
+    id_key,
+    resources,
+    tags,
+    log,
+):
 
     error = None
     with executor_factory(max_workers=concurrency) as w:
         futures = []
         for resource_set in utils.chunks(resources, size=batch_size):
-            futures.append(
-                w.submit(process_resource_set, client, resource_set, tags))
+            futures.append(w.submit(process_resource_set, client, resource_set, tags))
 
         for f in as_completed(futures):
             if f.exception():
                 error = f.exception()
-                log.error(
-                    "Exception with tags: %s  %s", tags, f.exception())
+                log.error("Exception with tags: %s  %s", tags, f.exception())
 
     if error:
         raise error
@@ -156,12 +162,14 @@ class TagTrim(Action):
                   - downtime
                   - custodian_status
     """
+
     max_tag_count = 50
 
     schema = utils.type_schema(
         'tag-trim',
         space={'type': 'integer'},
-        preserve={'type': 'array', 'items': {'type': 'string'}})
+        preserve={'type': 'array', 'items': {'type': 'string'}},
+    )
     schema_alias = True
 
     permissions = ('ec2:DeleteTags',)
@@ -172,8 +180,9 @@ class TagTrim(Action):
         self.preserve = set(self.data.get('preserve'))
         self.space = self.data.get('space', 3)
 
-        client = utils.local_session(
-            self.manager.session_factory).client(self.manager.resource_type.service)
+        client = utils.local_session(self.manager.session_factory).client(
+            self.manager.resource_type.service
+        )
 
         futures = {}
         mid = self.manager.get_model().id
@@ -183,17 +192,15 @@ class TagTrim(Action):
                 futures[w.submit(self.process_resource, client, r)] = r
             for f in as_completed(futures):
                 if f.exception():
-                    self.log.warning(
-                        "Error processing tag-trim on resource:%s",
-                        futures[f][mid])
+                    self.log.warning("Error processing tag-trim on resource:%s", futures[f][mid])
 
     def process_resource(self, client, i):
         # Can't really go in batch parallel without some heuristics
         # without some more complex matching wrt to grouping resources
         # by common tags populations.
         tag_map = {
-            t['Key']: t['Value'] for t in i.get('Tags', [])
-            if not t['Key'].startswith('aws:')}
+            t['Key']: t['Value'] for t in i.get('Tags', []) if not t['Key'].startswith('aws:')
+        }
 
         # Space == 0 means remove all but specified
         if self.space and len(tag_map) + self.space <= self.max_tag_count:
@@ -205,13 +212,11 @@ class TagTrim(Action):
 
         if self.space:
             # Free up slots to fit
-            remove = len(candidates) - (
-                self.max_tag_count - (self.space + len(preserve)))
+            remove = len(candidates) - (self.max_tag_count - (self.space + len(preserve)))
             candidates = list(sorted(candidates))[:remove]
 
         if not candidates:
-            self.log.warning(
-                "Could not find any candidates to trim %s" % i[self.id_key])
+            self.log.warning("Could not find any candidates to trim %s" % i[self.id_key])
             return
 
         self.process_tag_removal(i, candidates)
@@ -221,7 +226,8 @@ class TagTrim(Action):
             client.delete_tags,
             Tags=[{'Key': c} for c in tags],
             Resources=[resource[self.id_key]],
-            DryRun=self.manager.config.dryrun)
+            DryRun=self.manager.config.dryrun,
+        )
 
 
 class TagActionFilter(Filter):
@@ -262,26 +268,29 @@ class TagActionFilter(Filter):
             - type: stop
 
     """
+
     schema = utils.type_schema(
         'marked-for-op',
         tag={'type': 'string'},
         tz={'type': 'string'},
         skew={'type': 'number', 'minimum': 0},
         skew_hours={'type': 'number', 'minimum': 0},
-        op={'type': 'string'})
+        op={'type': 'string'},
+    )
     schema_alias = True
 
     def validate(self):
         op = self.data.get('op')
         if self.manager and op not in self.manager.action_registry.keys():
             raise PolicyValidationError(
-                "Invalid marked-for-op op:%s in %s" % (op, self.manager.data))
+                "Invalid marked-for-op op:%s in %s" % (op, self.manager.data)
+            )
 
         tz = tzutil.gettz(Time.TZ_ALIASES.get(self.data.get('tz', 'utc')))
         if not tz:
             raise PolicyValidationError(
-                "Invalid timezone specified '%s' in %s" % (
-                    self.data.get('tz'), self.manager.data))
+                "Invalid timezone specified '%s' in %s" % (self.data.get('tz'), self.manager.data)
+            )
         return self
 
     def __call__(self, i):
@@ -311,8 +320,7 @@ class TagActionFilter(Filter):
         try:
             action_date = parse(action_date_str)
         except Exception:
-            self.log.warning("could not parse tag:%s value:%s on %s" % (
-                tag, v, i['InstanceId']))
+            self.log.warning("could not parse tag:%s value:%s on %s" % (tag, v, i['InstanceId']))
             return False
 
         if action_date.tzinfo:
@@ -322,8 +330,7 @@ class TagActionFilter(Filter):
         else:
             current_date = datetime.now()
 
-        return current_date >= (
-            action_date - timedelta(days=skew, hours=skew_hours))
+        return current_date >= (action_date - timedelta(days=skew, hours=skew_hours))
 
 
 class TagCountFilter(Filter):
@@ -342,35 +349,31 @@ class TagCountFilter(Filter):
            - type: tag-count
              count: 8
     """
+
     schema = utils.type_schema(
-        'tag-count',
-        count={'type': 'integer', 'minimum': 0},
-        op={'enum': list(OPERATORS.keys())})
+        'tag-count', count={'type': 'integer', 'minimum': 0}, op={'enum': list(OPERATORS.keys())}
+    )
     schema_alias = True
 
     def __call__(self, i):
         count = self.data.get('count', 10)
         op_name = self.data.get('op', 'gte')
         op = OPERATORS.get(op_name)
-        tag_count = len([
-            t['Key'] for t in i.get('Tags', [])
-            if not t['Key'].startswith('aws:')])
+        tag_count = len([t['Key'] for t in i.get('Tags', []) if not t['Key'].startswith('aws:')])
         return op(tag_count, count)
 
 
 class Tag(Action):
-    """Tag an ec2 resource.
-    """
+    """Tag an ec2 resource."""
 
     batch_size = 25
     concurrency = 2
 
-    deprecations = (
-        deprecated.alias('mark'),
-    )
+    deprecations = (deprecated.alias('mark'),)
 
     schema = utils.type_schema(
-        'tag', aliases=('mark',),
+        'tag',
+        aliases=('mark',),
         tags={'type': 'object'},
         key={'type': 'string'},
         value={'type': 'string'},
@@ -383,8 +386,8 @@ class Tag(Action):
     def validate(self):
         if self.data.get('key') and self.data.get('tag'):
             raise PolicyValidationError(
-                "Can't specify both key and tag, choose one in %s" % (
-                    self.manager.data,))
+                "Can't specify both key and tag, choose one in %s" % (self.manager.data,)
+            )
         return self
 
     def process(self, resources):
@@ -412,8 +415,16 @@ class Tag(Action):
 
         client = self.get_client()
         _common_tag_processer(
-            self.executor_factory, batch_size, self.concurrency, client,
-            self.process_resource_set, self.id_key, resources, tags, self.log)
+            self.executor_factory,
+            batch_size,
+            self.concurrency,
+            client,
+            self.process_resource_set,
+            self.id_key,
+            resources,
+            tags,
+            self.log,
+        )
 
     def process_resource_set(self, client, resource_set, tags):
         mid = self.manager.get_model().id
@@ -421,31 +432,31 @@ class Tag(Action):
             client.create_tags,
             Resources=[v[mid] for v in resource_set],
             Tags=tags,
-            DryRun=self.manager.config.dryrun)
+            DryRun=self.manager.config.dryrun,
+        )
 
     def interpolate_single_value(self, tag):
-        """Interpolate in a single tag value.
-        """
+        """Interpolate in a single tag value."""
         params = {
             'account_id': self.manager.config.account_id,
             'now': utils.FormatDate.utcnow(),
-            'region': self.manager.config.region}
+            'region': self.manager.config.region,
+        }
         return str(tag).format(**params)
 
     def interpolate_values(self, tags):
-        """Interpolate in a list of tags - 'old' ec2 format
-        """
+        """Interpolate in a list of tags - 'old' ec2 format"""
         for t in tags:
             t['Value'] = self.interpolate_single_value(t['Value'])
 
     def get_client(self):
         return utils.local_session(self.manager.session_factory).client(
-            self.manager.resource_type.service)
+            self.manager.resource_type.service
+        )
 
 
 class RemoveTag(Action):
-    """Remove tags from ec2 resources.
-    """
+    """Remove tags from ec2 resources."""
 
     deprecations = (
         deprecated.alias('unmark'),
@@ -456,8 +467,10 @@ class RemoveTag(Action):
     concurrency = 2
 
     schema = utils.type_schema(
-        'remove-tag', aliases=('unmark', 'untag', 'remove-tag'),
-        tags={'type': 'array', 'items': {'type': 'string'}})
+        'remove-tag',
+        aliases=('unmark', 'untag', 'remove-tag'),
+        tags={'type': 'array', 'items': {'type': 'string'}},
+    )
     schema_alias = True
     permissions = ('ec2:DeleteTags',)
 
@@ -469,29 +482,35 @@ class RemoveTag(Action):
 
         client = self.get_client()
         _common_tag_processer(
-            self.executor_factory, batch_size, self.concurrency, client,
-            self.process_resource_set, self.id_key, resources, tags, self.log)
+            self.executor_factory,
+            batch_size,
+            self.concurrency,
+            client,
+            self.process_resource_set,
+            self.id_key,
+            resources,
+            tags,
+            self.log,
+        )
 
     def process_resource_set(self, client, resource_set, tag_keys):
         return self.manager.retry(
             client.delete_tags,
             Resources=[v[self.id_key] for v in resource_set],
             Tags=[{'Key': k} for k in tag_keys],
-            DryRun=self.manager.config.dryrun)
+            DryRun=self.manager.config.dryrun,
+        )
 
     def get_client(self):
         return utils.local_session(self.manager.session_factory).client(
-            self.manager.resource_type.service)
+            self.manager.resource_type.service
+        )
 
 
 class RenameTag(Action):
-    """ Create a new tag with identical value & remove old tag
-    """
+    """Create a new tag with identical value & remove old tag"""
 
-    schema = utils.type_schema(
-        'rename-tag',
-        old_key={'type': 'string'},
-        new_key={'type': 'string'})
+    schema = utils.type_schema('rename-tag', old_key={'type': 'string'}, new_key={'type': 'string'})
     schema_alias = True
 
     permissions = ('ec2:CreateTags', 'ec2:DeleteTags')
@@ -499,14 +518,10 @@ class RenameTag(Action):
     tag_count_max = 50
 
     def delete_tag(self, client, ids, key, value):
-        client.delete_tags(
-            Resources=ids,
-            Tags=[{'Key': key, 'Value': value}])
+        client.delete_tags(Resources=ids, Tags=[{'Key': key, 'Value': value}])
 
     def create_tag(self, client, ids, key, value):
-        client.create_tags(
-            Resources=ids,
-            Tags=[{'Key': key, 'Value': value}])
+        client.create_tags(Resources=ids, Tags=[{'Key': key, 'Value': value}])
 
     def process_rename(self, client, tag_value, resource_set):
         """
@@ -521,17 +536,18 @@ class RenameTag(Action):
         new_key = self.data.get('new_key')
 
         # We have a preference to creating the new tag when possible first
-        resource_ids = [r[self.id_key] for r in resource_set if len(
-            r.get('Tags', [])) < self.tag_count_max]
+        resource_ids = [
+            r[self.id_key] for r in resource_set if len(r.get('Tags', [])) < self.tag_count_max
+        ]
         if resource_ids:
             self.create_tag(client, resource_ids, new_key, tag_value)
 
-        self.delete_tag(
-            client, [r[self.id_key] for r in resource_set], old_key, tag_value)
+        self.delete_tag(client, [r[self.id_key] for r in resource_set], old_key, tag_value)
 
         # For resources with 50 tags, we need to delete first and then create.
-        resource_ids = [r[self.id_key] for r in resource_set if len(
-            r.get('Tags', [])) > self.tag_count_max - 1]
+        resource_ids = [
+            r[self.id_key] for r in resource_set if len(r.get('Tags', [])) > self.tag_count_max - 1
+        ]
         if resource_ids:
             self.create_tag(client, resource_ids, new_key, tag_value)
 
@@ -548,16 +564,14 @@ class RenameTag(Action):
     def filter_resources(self, resources):
         old_key = self.data.get('old_key', None)
         filtered_resources = [
-            r for r in resources
-            if old_key in (t['Key'] for t in r.get('Tags', []))
+            r for r in resources if old_key in (t['Key'] for t in r.get('Tags', []))
         ]
         return filtered_resources
 
     def process(self, resources):
         count = len(resources)
         resources = self.filter_resources(resources)
-        self.log.info(
-            "Filtered from %s resources to %s" % (count, len(resources)))
+        self.log.info("Filtered from %s resources to %s" % (count, len(resources)))
         self.id_key = self.manager.get_model().id
         resource_set = self.create_set(resources)
 
@@ -565,18 +579,16 @@ class RenameTag(Action):
         with self.executor_factory(max_workers=3) as w:
             futures = []
             for r in resource_set:
-                futures.append(
-                    w.submit(self.process_rename, client, r, resource_set[r]))
+                futures.append(w.submit(self.process_rename, client, r, resource_set[r]))
             for f in as_completed(futures):
                 if f.exception():
-                    self.log.error(
-                        "Exception renaming tag set \n %s" % (
-                            f.exception()))
+                    self.log.error("Exception renaming tag set \n %s" % (f.exception()))
         return resources
 
     def get_client(self):
         return utils.local_session(self.manager.session_factory).client(
-            self.manager.resource_type.service)
+            self.manager.resource_type.service
+        )
 
 
 class TagDelayedAction(Action):
@@ -601,9 +613,8 @@ class TagDelayedAction(Action):
             - type: mark-for-op
               op: stop
     """
-    deprecations = (
-        deprecated.optional_fields(('hours', 'days')),
-    )
+
+    deprecations = (deprecated.optional_fields(('hours', 'days')),)
 
     schema = utils.type_schema(
         'mark-for-op',
@@ -612,7 +623,8 @@ class TagDelayedAction(Action):
         days={'type': 'number', 'minimum': 0},
         hours={'type': 'number', 'minimum': 0},
         tz={'type': 'string'},
-        op={'type': 'string'})
+        op={'type': 'string'},
+    )
     schema_alias = True
 
     batch_size = 200
@@ -627,15 +639,14 @@ class TagDelayedAction(Action):
         op = self.data.get('op')
         if self.manager and op not in self.manager.action_registry.keys():
             raise PolicyValidationError(
-                "mark-for-op specifies invalid op:%s in %s" % (
-                    op, self.manager.data))
+                "mark-for-op specifies invalid op:%s in %s" % (op, self.manager.data)
+            )
 
-        self.tz = tzutil.gettz(
-            Time.TZ_ALIASES.get(self.data.get('tz', 'utc')))
+        self.tz = tzutil.gettz(Time.TZ_ALIASES.get(self.data.get('tz', 'utc')))
         if not self.tz:
             raise PolicyValidationError(
-                "Invalid timezone specified %s in %s" % (
-                    self.tz, self.manager.data))
+                "Invalid timezone specified %s in %s" % (self.tz, self.manager.data)
+            )
         return self
 
     def generate_timestamp(self, days, hours):
@@ -643,7 +654,7 @@ class TagDelayedAction(Action):
         if days is None or hours is None:
             # maintains default value of days being 4 if nothing is provided
             days = 4
-        action_date = (n + timedelta(days=days, hours=hours))
+        action_date = n + timedelta(days=days, hours=hours)
         if hours > 0:
             action_date_string = action_date.strftime('%Y/%m/%d %H%M %Z')
         else:
@@ -658,9 +669,9 @@ class TagDelayedAction(Action):
             'msg': self.data.get('msg', self.default_template),
             'tz': self.data.get('tz', 'utc'),
             'days': self.data.get('days', 0),
-            'hours': self.data.get('hours', 0)}
-        d['action_date'] = self.generate_timestamp(
-            d['days'], d['hours'])
+            'hours': self.data.get('hours', 0),
+        }
+        d['action_date'] = self.generate_timestamp(d['days'], d['hours'])
         return d
 
     def process(self, resources):
@@ -668,32 +679,39 @@ class TagDelayedAction(Action):
         self.tz = tzutil.gettz(Time.TZ_ALIASES.get(cfg['tz']))
         self.id_key = self.manager.get_model().id
 
-        msg = cfg['msg'].format(
-            op=cfg['op'], action_date=cfg['action_date'])
+        msg = cfg['msg'].format(op=cfg['op'], action_date=cfg['action_date'])
 
-        self.log.info("Tagging %d resources for %s on %s" % (
-            len(resources), cfg['op'], cfg['action_date']))
+        self.log.info(
+            "Tagging %d resources for %s on %s" % (len(resources), cfg['op'], cfg['action_date'])
+        )
 
         tags = [{'Key': cfg['tag'], 'Value': msg}]
 
         # if the tag implementation has a specified batch size, it's typically
         # due to some restraint on the api so we defer to that.
-        batch_size = getattr(
-            self.manager.action_registry.get('tag'), 'batch_size', self.batch_size)
+        batch_size = getattr(self.manager.action_registry.get('tag'), 'batch_size', self.batch_size)
 
         client = self.get_client()
         _common_tag_processer(
-            self.executor_factory, batch_size, self.concurrency, client,
-            self.process_resource_set, self.id_key, resources, tags, self.log)
+            self.executor_factory,
+            batch_size,
+            self.concurrency,
+            client,
+            self.process_resource_set,
+            self.id_key,
+            resources,
+            tags,
+            self.log,
+        )
 
     def process_resource_set(self, client, resource_set, tags):
         tagger = self.manager.action_registry['tag']({}, self.manager)
         tagger.process_resource_set(client, resource_set, tags)
 
     def get_client(self):
-        return utils.local_session(
-            self.manager.session_factory).client(
-                self.manager.resource_type.service)
+        return utils.local_session(self.manager.session_factory).client(
+            self.manager.resource_type.service
+        )
 
 
 class NormalizeTag(Action):
@@ -738,19 +756,18 @@ class NormalizeTag(Action):
     schema = utils.type_schema(
         'normalize-tag',
         key={'type': 'string'},
-        action={'type': 'string',
-                'items': {
-                    'enum': ['upper', 'lower', 'title' 'strip', 'replace']}},
-        value={'type': 'string'})
+        action={
+            'type': 'string',
+            'items': {'enum': ['upper', 'lower', 'title' 'strip', 'replace']},
+        },
+        value={'type': 'string'},
+    )
 
     permissions = ('ec2:CreateTags',)
 
     def create_tag(self, client, ids, key, value):
 
-        self.manager.retry(
-            client.create_tags,
-            Resources=ids,
-            Tags=[{'Key': key, 'Value': value}])
+        self.manager.retry(client.create_tags, Resources=ids, Tags=[{'Key': key, 'Value': value}])
 
     def process_transform(self, tag_value, resource_set):
         """
@@ -760,17 +777,14 @@ class NormalizeTag(Action):
         - Transform Tag value
         - Assign new value for key
         """
-        self.log.info("Transforming tag value on %s instances" % (
-            len(resource_set)))
+        self.log.info("Transforming tag value on %s instances" % (len(resource_set)))
         key = self.data.get('key')
 
         c = utils.local_session(self.manager.session_factory).client('ec2')
 
         self.create_tag(
-            c,
-            [r[self.id_key] for r in resource_set if len(
-                r.get('Tags', [])) < 50],
-            key, tag_value)
+            c, [r[self.id_key] for r in resource_set if len(r.get('Tags', [])) < 50], key, tag_value
+        )
 
     def create_set(self, instances):
         key = self.data.get('key', None)
@@ -784,17 +798,13 @@ class NormalizeTag(Action):
 
     def filter_resources(self, resources):
         key = self.data.get('key', None)
-        filtered_resources = [
-            r for r in resources
-            if key in (t['Key'] for t in r.get('Tags', []))
-        ]
+        filtered_resources = [r for r in resources if key in (t['Key'] for t in r.get('Tags', []))]
         return filtered_resources
 
     def process(self, resources):
         count = len(resources)
         resources = self.filter_resources(resources)
-        self.log.info(
-            "Filtered from %s resources to %s" % (count, len(resources)))
+        self.log.info("Filtered from %s resources to %s" % (count, len(resources)))
         self.id_key = self.manager.get_model().id
         resource_set = self.create_set(resources)
         with self.executor_factory(max_workers=3) as w:
@@ -812,13 +822,10 @@ class NormalizeTag(Action):
                 elif action == 'strip' and value and value in r:
                     new_value = r.strip(value)
                 if new_value:
-                    futures.append(
-                        w.submit(self.process_transform, new_value, resource_set[r]))
+                    futures.append(w.submit(self.process_transform, new_value, resource_set[r]))
             for f in as_completed(futures):
                 if f.exception():
-                    self.log.error(
-                        "Exception renaming tag set \n %s" % (
-                            f.exception()))
+                    self.log.error("Exception renaming tag set \n %s" % (f.exception()))
         return resources
 
 
@@ -871,31 +878,40 @@ class UniversalTag(Tag):
         client = self.get_client()
 
         _common_tag_processer(
-            self.executor_factory, batch_size, self.concurrency, client,
-            self.process_resource_set, self.id_key, resources, tags, self.log)
+            self.executor_factory,
+            batch_size,
+            self.concurrency,
+            client,
+            self.process_resource_set,
+            self.id_key,
+            resources,
+            tags,
+            self.log,
+        )
 
     def process_resource_set(self, client, resource_set, tags):
         arns = self.manager.get_arns(resource_set)
-        return universal_retry(
-            client.tag_resources, ResourceARNList=arns, Tags=tags)
+        return universal_retry(client.tag_resources, ResourceARNList=arns, Tags=tags)
 
     def interpolate_values(self, tags):
-        """Interpolate in a list of tags - 'new' resourcegroupstaggingapi format
-        """
+        """Interpolate in a list of tags - 'new' resourcegroupstaggingapi format"""
         for key in list(tags.keys()):
             tags[key] = self.interpolate_single_value(tags[key])
 
     def get_client(self):
         # For global resources, manage tags from us-east-1
-        region = (getattr(self.manager.resource_type, 'global_resource', None)
-            and 'us-east-1' or self.manager.region)
+        region = (
+            getattr(self.manager.resource_type, 'global_resource', None)
+            and 'us-east-1'
+            or self.manager.region
+        )
         return utils.local_session(self.manager.session_factory).client(
-            'resourcegroupstaggingapi', region_name=region)
+            'resourcegroupstaggingapi', region_name=region
+        )
 
 
 class UniversalUntag(RemoveTag):
-    """Removes the specified tags from the specified resources.
-    """
+    """Removes the specified tags from the specified resources."""
 
     batch_size = 20
     concurrency = 1
@@ -903,15 +919,18 @@ class UniversalUntag(RemoveTag):
 
     def get_client(self):
         # For global resources, manage tags from us-east-1
-        region = (getattr(self.manager.resource_type, 'global_resource', None)
-            and 'us-east-1' or self.manager.region)
+        region = (
+            getattr(self.manager.resource_type, 'global_resource', None)
+            and 'us-east-1'
+            or self.manager.region
+        )
         return utils.local_session(self.manager.session_factory).client(
-            'resourcegroupstaggingapi', region_name=region)
+            'resourcegroupstaggingapi', region_name=region
+        )
 
     def process_resource_set(self, client, resource_set, tag_keys):
         arns = self.manager.get_arns(resource_set)
-        return universal_retry(
-            client.untag_resources, ResourceARNList=arns, TagKeys=tag_keys)
+        return universal_retry(client.untag_resources, ResourceARNList=arns, TagKeys=tag_keys)
 
 
 class UniversalTagDelayedAction(TagDelayedAction):
@@ -939,8 +958,7 @@ class UniversalTagDelayedAction(TagDelayedAction):
     concurrency = 1
 
     def process(self, resources):
-        self.tz = tzutil.gettz(
-            Time.TZ_ALIASES.get(self.data.get('tz', 'utc')))
+        self.tz = tzutil.gettz(Time.TZ_ALIASES.get(self.data.get('tz', 'utc')))
         self.id_key = self.manager.get_model().id
 
         # Move this to policy? / no resources bypasses actions?
@@ -955,11 +973,9 @@ class UniversalTagDelayedAction(TagDelayedAction):
         hours = self.data.get('hours', 0)
         action_date = self.generate_timestamp(days, hours)
 
-        msg = msg_tmpl.format(
-            op=op, action_date=action_date)
+        msg = msg_tmpl.format(op=op, action_date=action_date)
 
-        self.log.info("Tagging %d resources for %s on %s" % (
-            len(resources), op, action_date))
+        self.log.info("Tagging %d resources for %s on %s" % (len(resources), op, action_date))
 
         tags = {tag: msg}
 
@@ -967,20 +983,31 @@ class UniversalTagDelayedAction(TagDelayedAction):
         client = self.get_client()
 
         _common_tag_processer(
-            self.executor_factory, batch_size, self.concurrency, client,
-            self.process_resource_set, self.id_key, resources, tags, self.log)
+            self.executor_factory,
+            batch_size,
+            self.concurrency,
+            client,
+            self.process_resource_set,
+            self.id_key,
+            resources,
+            tags,
+            self.log,
+        )
 
     def process_resource_set(self, client, resource_set, tags):
         arns = self.manager.get_arns(resource_set)
-        return universal_retry(
-            client.tag_resources, ResourceARNList=arns, Tags=tags)
+        return universal_retry(client.tag_resources, ResourceARNList=arns, Tags=tags)
 
     def get_client(self):
         # For global resources, manage tags from us-east-1
-        region = (getattr(self.manager.resource_type, 'global_resource', None)
-            and 'us-east-1' or self.manager.region)
+        region = (
+            getattr(self.manager.resource_type, 'global_resource', None)
+            and 'us-east-1'
+            or self.manager.region
+        )
         return utils.local_session(self.manager.session_factory).client(
-            'resourcegroupstaggingapi', region_name=region)
+            'resourcegroupstaggingapi', region_name=region
+        )
 
 
 class CopyRelatedResourceTag(Tag):
@@ -1043,11 +1070,8 @@ class CopyRelatedResourceTag(Tag):
         resource={'type': 'string'},
         skip_missing={'type': 'boolean'},
         key={'type': 'string'},
-        tags={'oneOf': [
-            {'enum': ['*']},
-            {'type': 'array'}
-        ]},
-        required=['tags', 'key', 'resource']
+        tags={'oneOf': [{'enum': ['*']}, {'type': 'array'}]},
+        required=['tags', 'key', 'resource'],
     )
     schema_alias = True
 
@@ -1058,10 +1082,10 @@ class CopyRelatedResourceTag(Tag):
         related_resource = self.data['resource']
         if '.' in self.data['resource']:
             related_resource = self.data['resource'].split('.')[-1]
-        load_resources((f'aws.{related_resource}', ))
+        load_resources((f'aws.{related_resource}',))
         if (
-            related_resource not in aws_resources.keys() and
-            related_resource != "resourcegroupstaggingapi"
+            related_resource not in aws_resources.keys()
+            and related_resource != "resourcegroupstaggingapi"
         ):
             raise PolicyValidationError(
                 "Error: Invalid resource type selected: %s" % related_resource
@@ -1069,9 +1093,7 @@ class CopyRelatedResourceTag(Tag):
         # ideally should never raise here since we shouldn't be applying this
         # action to a resource if it doesn't have a tag action implemented
         if self.manager.action_registry.get('tag') is None:
-            raise PolicyValidationError(
-                "Error: Tag action missing on resource"
-            )
+            raise PolicyValidationError("Error: Tag action missing on resource")
         return self
 
     def process(self, resources):
@@ -1083,8 +1105,7 @@ class CopyRelatedResourceTag(Tag):
         else:
             search_path = "[].[%s]" % self.data['key']
 
-        for rrid, r in zip(jmespath.search(search_path, resources),
-                           resources):
+        for rrid, r in zip(jmespath.search(search_path, resources), resources):
             related_resources.append((rrid.pop(), r))
 
         related_ids = {r[0] for r in related_resources}
@@ -1101,9 +1122,13 @@ class CopyRelatedResourceTag(Tag):
         missing_related_tags = related_ids.difference(related_tag_map.keys())
         if not self.data.get('skip_missing', True) and (missing_related_tags or missing):
             raise PolicyExecutionError(
-                "Unable to find all %d %s related resources tags %d missing" % (
-                    len(related_ids), self.data['resource'],
-                    len(missing_related_tags) + int(missing)))
+                "Unable to find all %d %s related resources tags %d missing"
+                % (
+                    len(related_ids),
+                    self.data['resource'],
+                    len(missing_related_tags) + int(missing),
+                )
+            )
 
         # rely on resource manager tag action implementation as it can differ between resources
         tag_action = self.manager.action_registry.get('tag')({}, self.manager)
@@ -1113,31 +1138,38 @@ class CopyRelatedResourceTag(Tag):
         stats = Counter()
 
         for related, r in related_resources:
-            if (related is None or
-                related in missing_related_tags or
-                    not related_tag_map[related]):
+            if related is None or related in missing_related_tags or not related_tag_map[related]:
                 stats['missing'] += 1
             elif self.process_resource(
-                    client, r, related_tag_map[related], self.data['tags'], tag_action):
+                client, r, related_tag_map[related], self.data['tags'], tag_action
+            ):
                 stats['tagged'] += 1
             else:
                 stats['unchanged'] += 1
 
         self.log.info(
             'Tagged %d resources from related, missing-skipped %d unchanged %d',
-            stats['tagged'], stats['missing'], stats['unchanged'])
+            stats['tagged'],
+            stats['missing'],
+            stats['unchanged'],
+        )
 
     def process_resource(self, client, r, related_tags, tag_keys, tag_action):
         tags = {}
         resource_tags = {
-            t['Key']: t['Value'] for t in r.get('Tags', []) if not t['Key'].startswith('aws:')}
+            t['Key']: t['Value'] for t in r.get('Tags', []) if not t['Key'].startswith('aws:')
+        }
 
         if tag_keys == '*':
-            tags = {k: v for k, v in related_tags.items()
-                    if resource_tags.get(k) != v and not k.startswith('aws:')}
+            tags = {
+                k: v
+                for k, v in related_tags.items()
+                if resource_tags.get(k) != v and not k.startswith('aws:')
+            }
         else:
-            tags = {k: v for k, v in related_tags.items()
-                    if k in tag_keys and resource_tags.get(k) != v}
+            tags = {
+                k: v for k, v in related_tags.items() if k in tag_keys and resource_tags.get(k) != v
+            }
         if not tags:
             return
         if not isinstance(tag_action, UniversalTag):
@@ -1163,18 +1195,21 @@ class CopyRelatedResourceTag(Tag):
         if ids:
             if ids[0].startswith('arn:aws:iam'):
                 related_region = 'us-east-1'
-        client = utils.local_session(
-            self.manager.session_factory).client(
-                'resourcegroupstaggingapi', region_name=related_region)
+        client = utils.local_session(self.manager.session_factory).client(
+            'resourcegroupstaggingapi', region_name=related_region
+        )
         from c7n.query import RetryPageIterator
+
         paginator = client.get_paginator('get_resources')
         paginator.PAGE_ITERATOR_CLS = RetryPageIterator
 
-        resource_tag_results = client.get_resources(
-            ResourceARNList=list(ids))['ResourceTagMappingList']
+        resource_tag_results = client.get_resources(ResourceARNList=list(ids))[
+            'ResourceTagMappingList'
+        ]
         resource_tag_map = {
             r['ResourceARN']: {r['Key']: r['Value'] for r in r['Tags']}
-            for r in resource_tag_results}
+            for r in resource_tag_results
+        }
         return resource_tag_map
 
     @classmethod
@@ -1201,8 +1236,7 @@ def universal_retry(method, ResourceARNList, **kw):
     """
     max_attempts = 6
 
-    for idx, delay in enumerate(
-            utils.backoff_delays(1.5, 2 ** 8, jitter=True)):
+    for idx, delay in enumerate(utils.backoff_delays(1.5, 2**8, jitter=True)):
         response = method(ResourceARNList=ResourceARNList, **kw)
         failures = response.get('FailedResourcesMap', {})
         if not failures:

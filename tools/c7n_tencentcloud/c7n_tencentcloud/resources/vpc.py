@@ -18,6 +18,7 @@ class VPC(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "VpcId"
         endpoint = "vpc.tencentcloudapi.com"
         service = "vpc"
@@ -38,11 +39,16 @@ class FlowLogFilter(Filter):
     schema = type_schema(
         'flow-logs',
         enabled={'type': 'boolean', 'default': False},
-        match={'type': 'array', 'items': {
-            'oneOf': [
-                {'$ref': '#/definitions/filters/value'},
-                {'type': 'object', 'minProperties': 1, 'maxProperties': 1},
-            ]}})
+        match={
+            'type': 'array',
+            'items': {
+                'oneOf': [
+                    {'$ref': '#/definitions/filters/value'},
+                    {'type': 'object', 'minProperties': 1, 'maxProperties': 1},
+                ]
+            },
+        },
+    )
 
     def __init__(self, data, manager=None):
         super().__init__(data, manager)
@@ -51,9 +57,9 @@ class FlowLogFilter(Filter):
     def process(self, resources, event=None):
         client = self.manager.get_client()
         paging_def = {"method": PageMethod.Offset, "limit": {"key": "Limit", "value": 20}}
-        flow_logs = client.execute_paged_query("DescribeFlowLogs", {},
-                                               "Response.FlowLog[]",
-                                               paging_def)
+        flow_logs = client.execute_paged_query(
+            "DescribeFlowLogs", {}, "Response.FlowLog[]", paging_def
+        )
         enabled = self.data.get('enabled', False)
         matchers = []
         for matcher in self.data.get('match', []):

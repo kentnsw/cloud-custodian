@@ -8,7 +8,6 @@ from mock import MagicMock
 
 
 class AutoTagCreator(BaseTest):
-
     def test_auto_tag_assumed(self):
         # verify auto tag works with assumed roles and can optionally update
         session_factory = self.replay_flight_data("test_ec2_autotag_assumed")
@@ -166,9 +165,7 @@ class AutoTagCreator(BaseTest):
         resources = policy.push(event, None)
         auto_tag_user.data = {"tag": "Owner", "principal_id_tag": "OwnerId"}
         result = auto_tag_user.process(resources, event)
-        self.assertEqual(
-            result, {"Owner": "Radiant", "OwnerId": "AROAIFMJLHZRIKEFRKUUF"}
-        )
+        self.assertEqual(result, {"Owner": "Radiant", "OwnerId": "AROAIFMJLHZRIKEFRKUUF"})
 
         # check that it does not sets principalId with assumeRole
         policy = self.load_policy(
@@ -321,9 +318,7 @@ class AutoTagCreator(BaseTest):
         resources = policy.push(event, None)
         auto_tag_user.data = {"tag": "Owner", "value": "userName"}
         result = auto_tag_user.process(resources, event)
-        self.assertEqual(
-            result, {"Owner": "GR_Dev_Developer"}
-        )
+        self.assertEqual(result, {"Owner": "GR_Dev_Developer"})
 
     def test_auto_tag_user_with_sourceipaddress_value_class_method_process(self):
         # check that it works with IAMUser creator
@@ -378,9 +373,7 @@ class AutoTagCreator(BaseTest):
         resources = policy.push(event, None)
         auto_tag_user.data = {"tag": "Owner", "value": "sourceIPAddress"}
         result = auto_tag_user.process(resources, event)
-        self.assertEqual(
-            result, {"Owner": "204.63.44.142"}
-        )
+        self.assertEqual(result, {"Owner": "204.63.44.142"})
 
     def test_auto_tag_user_with_principal_id_value_class_method_process(self):
         # check that it works with IAMUser creator
@@ -435,6 +428,4 @@ class AutoTagCreator(BaseTest):
         resources = policy.push(event, None)
         auto_tag_user.data = {"tag": "CreatorId", "value": "principalId"}
         result = auto_tag_user.process(resources, event)
-        self.assertEqual(
-            result, {"CreatorId": "AROAIFMJLHZRIKEFRKUUF:Radiant"}
-        )
+        self.assertEqual(result, {"CreatorId": "AROAIFMJLHZRIKEFRKUUF:Radiant"})

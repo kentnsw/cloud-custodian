@@ -12,18 +12,10 @@ class TestLabelAction(KubeTest):
             {
                 'name': 'label-namespace',
                 'resource': 'k8s.namespace',
-                'filters': [
-                    {'metadata.labels': None},
-                    {'metadata.name': 'test'}
-                ],
-                'actions': [
-                    {
-                        'type': 'label',
-                        'labels': {'test': 'value'}
-                    }
-                ]
+                'filters': [{'metadata.labels': None}, {'metadata.name': 'test'}],
+                'actions': [{'type': 'label', 'labels': {'test': 'value'}}],
             },
-            session_factory=factory
+            session_factory=factory,
         )
         resources = p.run()
         self.assertTrue(resources)
@@ -40,18 +32,10 @@ class TestLabelAction(KubeTest):
             {
                 'name': 'label-service',
                 'resource': 'k8s.service',
-                'filters': [
-                    {'metadata.labels.test': 'absent'},
-                    {'metadata.name': 'hello-node'}
-                ],
-                'actions': [
-                    {
-                        'type': 'label',
-                        'labels': {'test': 'value'}
-                    }
-                ]
+                'filters': [{'metadata.labels.test': 'absent'}, {'metadata.name': 'hello-node'}],
+                'actions': [{'type': 'label', 'labels': {'test': 'value'}}],
             },
-            session_factory=factory
+            session_factory=factory,
         )
         resources = p.run()
         self.assertTrue(resources)
@@ -72,28 +56,11 @@ class TestKubeEventLabelAction(KubeTest):
             {
                 'name': 'test-label-no-labels',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'warn',
-                    'operations': ['CREATE']
-                },
-                'filters': [
-                    {
-                        'type': 'value',
-                        'key': 'metadata.labels',
-                        'value': 'absent'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'event-label',
-                        'labels': {
-                            'foo': 'bar'
-                        }
-                    }
-                ]
+                'mode': {'type': 'k8s-admission', 'on-match': 'warn', 'operations': ['CREATE']},
+                'filters': [{'type': 'value', 'key': 'metadata.labels', 'value': 'absent'}],
+                'actions': [{'type': 'event-label', 'labels': {'foo': 'bar'}}],
             },
-            session_factory=factory
+            session_factory=factory,
         )
         resources = policy.push(event)
         result = evaluate_result('warn', resources)
@@ -102,11 +69,7 @@ class TestKubeEventLabelAction(KubeTest):
         resources[0]['c7n:patches']
         self.assertEqual(
             resources[0]['c7n:patches'][0],
-            {
-                'op': 'add',
-                'path': '/metadata/labels',
-                'value': {'foo': 'bar'}
-            }
+            {'op': 'add', 'path': '/metadata/labels', 'value': {'foo': 'bar'}},
         )
 
     def test_admission_event_auto_label_user(self):
@@ -115,17 +78,12 @@ class TestKubeEventLabelAction(KubeTest):
             {
                 'name': 'label-pod',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'allow',
-                    'operations': ['CREATE']
-                },
+                'mode': {'type': 'k8s-admission', 'on-match': 'allow', 'operations': ['CREATE']},
                 'actions': [
                     {
                         'type': 'auto-label-user',
                     }
-                ]
-
+                ],
             },
             session_factory=factory,
         )
@@ -137,7 +95,7 @@ class TestKubeEventLabelAction(KubeTest):
         self.assertEqual(len(resources[0]['c7n:patches']), 1)
         self.assertEqual(
             resources[0]['c7n:patches'],
-            [{"op": "add", "path": "/metadata/labels/OwnerContact", "value": "kubernetes-admin"}]
+            [{"op": "add", "path": "/metadata/labels/OwnerContact", "value": "kubernetes-admin"}],
         )
 
     def test_admission_event_label(self):
@@ -146,22 +104,13 @@ class TestKubeEventLabelAction(KubeTest):
             {
                 'name': 'label-pod',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'allow',
-                    'operations': ['CREATE']
-                },
+                'mode': {'type': 'k8s-admission', 'on-match': 'allow', 'operations': ['CREATE']},
                 'actions': [
                     {
                         'type': 'event-label',
-                        'labels': {
-                            'foo': 'bar',
-                            'role': 'different role',
-                            'test': None
-                        }
+                        'labels': {'foo': 'bar', 'role': 'different role', 'test': None},
                     }
-                ]
-
+                ],
             },
             session_factory=factory,
         )
@@ -177,5 +126,5 @@ class TestKubeEventLabelAction(KubeTest):
                 {'op': 'remove', 'path': '/metadata/labels/test'},
                 {"op": "add", "path": "/metadata/labels/foo", "value": "bar"},
                 {"op": "replace", "path": "/metadata/labels/role", "value": "different role"},
-            ]
+            ],
         )

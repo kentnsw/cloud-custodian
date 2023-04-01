@@ -8,16 +8,13 @@ from c7n.utils import type_schema
 from c7n.filters.offhours import OffHour, OnHour
 from c7n_gcp.actions import MethodAction
 from c7n_gcp.provider import resources
-from c7n_gcp.query import (
-    QueryResourceManager, TypeInfo, ChildResourceManager, ChildTypeInfo
-)
+from c7n_gcp.query import QueryResourceManager, TypeInfo, ChildResourceManager, ChildTypeInfo
 from datetime import datetime
 from dateutil.parser import parse
 
 
 @resources.register('sql-instance')
 class SqlInstance(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'sqladmin'
         version = 'v1beta4'
@@ -28,7 +25,12 @@ class SqlInstance(QueryResourceManager):
         labels_op = 'patch'
         name = id = 'name'
         default_report_fields = [
-            "name", "state", "databaseVersion", "settings.tier", "settings.dataDiskSizeGb"]
+            "name",
+            "state",
+            "databaseVersion",
+            "settings.tier",
+            "settings.dataDiskSizeGb",
+        ]
         asset_type = "sqladmin.googleapis.com/Instance"
         scc_type = "google.cloud.sql.Instance"
         metric_key = 'resource.labels.database_id'
@@ -38,8 +40,12 @@ class SqlInstance(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'instance': resource_info['database_id'].rsplit(':', 1)[-1]})
+                'get',
+                {
+                    'project': resource_info['project_id'],
+                    'instance': resource_info['database_id'].rsplit(':', 1)[-1],
+                },
+            )
 
         @staticmethod
         def get_metric_resource_name(resource):
@@ -48,15 +54,11 @@ class SqlInstance(QueryResourceManager):
         @staticmethod
         def get_label_params(resource, all_labels):
             path_param_re = re.compile('.*?/projects/(.*?)/instances/(.*)')
-            project, instance = path_param_re.match(
-                resource['selfLink']).groups()
+            project, instance = path_param_re.match(resource['selfLink']).groups()
             return {
-                'project': project, 'instance': instance,
-                'body': {
-                    'settings': {
-                        'userLabels': all_labels
-                    }
-                }
+                'project': project,
+                'instance': instance,
+                'body': {'settings': {'userLabels': all_labels}},
             }
 
     def augment(self, resources):
@@ -71,10 +73,8 @@ SqlInstance.filter_registry.register('onhour', OnHour)
 
 
 class SqlInstanceAction(MethodAction):
-
     def get_resource_params(self, model, resource):
-        project, instance = self.path_param_re.match(
-            resource['selfLink']).groups()
+        project, instance = self.path_param_re.match(resource['selfLink']).groups()
         return {'project': project, 'instance': instance}
 
 
@@ -83,8 +83,7 @@ class SqlInstanceDelete(SqlInstanceAction):
 
     schema = type_schema('delete')
     method_spec = {'op': 'delete'}
-    path_param_re = re.compile(
-        '.*?/projects/(.*?)/instances/(.*)')
+    path_param_re = re.compile('.*?/projects/(.*?)/instances/(.*)')
 
 
 @SqlInstance.action_registry.register('stop')
@@ -96,11 +95,12 @@ class SqlInstanceStop(MethodAction):
     method_perm = 'update'
 
     def get_resource_params(self, model, resource):
-        project, instance = self.path_param_re.match(
-            resource['selfLink']).groups()
-        return {'project': project,
-                'instance': instance,
-                'body': {'settings': {'activationPolicy': 'NEVER'}}}
+        project, instance = self.path_param_re.match(resource['selfLink']).groups()
+        return {
+            'project': project,
+            'instance': instance,
+            'body': {'settings': {'activationPolicy': 'NEVER'}},
+        }
 
 
 @SqlInstance.action_registry.register('start')
@@ -112,22 +112,18 @@ class SqlInstanceStart(MethodAction):
     method_perm = 'update'
 
     def get_resource_params(self, model, resource):
-        project, instance = self.path_param_re.match(
-            resource['selfLink']).groups()
-        return {'project': project,
-                'instance': instance,
-                'body': {'settings': {'activationPolicy': 'ALWAYS'}}}
+        project, instance = self.path_param_re.match(resource['selfLink']).groups()
+        return {
+            'project': project,
+            'instance': instance,
+            'body': {'settings': {'activationPolicy': 'ALWAYS'}},
+        }
 
 
 class SQLInstanceChildTypeInfo(ChildTypeInfo):
     service = 'sqladmin'
     version = 'v1beta4'
-    parent_spec = {
-        'resource': 'sql-instance',
-        'child_enum_params': [
-            ('name', 'instance')
-        ]
-    }
+    parent_spec = {'resource': 'sql-instance', 'child_enum_params': [('name', 'instance')]}
     perm_service = 'cloudsql'
 
     @classmethod
@@ -141,7 +137,6 @@ class SQLInstanceChildTypeInfo(ChildTypeInfo):
 
 @resources.register('sql-user')
 class SqlUser(ChildResourceManager):
-
     class resource_type(SQLInstanceChildTypeInfo):
         component = 'users'
         enum_spec = ('list', 'items[]', None)
@@ -151,17 +146,19 @@ class SqlUser(ChildResourceManager):
 
 
 class SqlInstanceChildWithSelfLink(ChildResourceManager):
-    """A ChildResourceManager for resources that reference SqlInstance in selfLink.
-    """
+    """A ChildResourceManager for resources that reference SqlInstance in selfLink."""
 
     def _get_parent_resource_info(self, child_instance):
         """
         :param child_instance: a dictionary to get parent parameters from
         :return: project_id and database_id extracted from child_instance
         """
-        return {'project_id': re.match('.*?/projects/(.*?)/instances/.*',
-                                    child_instance['selfLink']).group(1),
-                'database_id': child_instance['instance']}
+        return {
+            'project_id': re.match(
+                '.*?/projects/(.*?)/instances/.*', child_instance['selfLink']
+            ).group(1),
+            'database_id': child_instance['instance'],
+        }
 
 
 @resources.register('sql-backup-run')
@@ -169,13 +166,21 @@ class SqlBackupRun(SqlInstanceChildWithSelfLink):
     """GCP Resource
     https://cloud.google.com/sql/docs/mysql/admin-api/rest/v1beta4/backupRuns
     """
+
     class resource_type(SQLInstanceChildTypeInfo):
         component = 'backupRuns'
         enum_spec = ('list', 'items[]', None)
         get_requires_event = True
         name = id = 'id'
         default_report_fields = [
-            name, "status", "instance", "location", "enqueuedTime", "startTime", "endTime"]
+            name,
+            "status",
+            "instance",
+            "location",
+            "enqueuedTime",
+            "startTime",
+            "endTime",
+        ]
         urn_component = "backup-run"
 
         @staticmethod
@@ -183,9 +188,11 @@ class SqlBackupRun(SqlInstanceChildWithSelfLink):
             project = jmespath.search('protoPayload.response.targetProject', event)
             instance = jmespath.search('protoPayload.response.targetId', event)
             insert_time = jmespath.search('protoPayload.response.insertTime', event)
-            parameters = {'project': project,
-                          'instance': instance,
-                          'id': SqlBackupRun.resource_type._from_insert_time_to_id(insert_time)}
+            parameters = {
+                'project': project,
+                'instance': instance,
+                'id': SqlBackupRun.resource_type._from_insert_time_to_id(insert_time),
+            }
             return client.execute_command('get', parameters)
 
         @staticmethod
@@ -207,14 +214,14 @@ class SqlSslCert(SqlInstanceChildWithSelfLink):
     """GCP Resource
     https://cloud.google.com/sql/docs/mysql/admin-api/rest/v1beta4/sslCerts
     """
+
     class resource_type(SQLInstanceChildTypeInfo):
         component = 'sslCerts'
         enum_spec = ('list', 'items[]', None)
         get_requires_event = True
         id = 'sha1Fingerprint'
         name = "commonName"
-        default_report_fields = [
-            id, name, "instance", "expirationTime"]
+        default_report_fields = [id, name, "instance", "expirationTime"]
         urn_component = "ssl-cert"
 
         @staticmethod
@@ -222,7 +229,9 @@ class SqlSslCert(SqlInstanceChildWithSelfLink):
             self_link = jmespath.search('protoPayload.response.clientCert.certInfo.selfLink', event)
             self_link_re = '.*?/projects/(.*?)/instances/(.*?)/sslCerts/(.*)'
             project, instance, sha_1_fingerprint = re.match(self_link_re, self_link).groups()
-            parameters = {'project': project,
-                          'instance': instance,
-                          'sha1Fingerprint': sha_1_fingerprint}
+            parameters = {
+                'project': project,
+                'instance': instance,
+                'sha1Fingerprint': sha_1_fingerprint,
+            }
             return client.execute_command('get', parameters)

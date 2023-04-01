@@ -31,14 +31,13 @@ class AlertsFilter(ValueFilter):
         return matched
 
     def get_findings(self):
-        query_params = {
-            'pageSize': 1000
-        }
+        query_params = {'pageSize': 1000}
         session = local_session(self.manager.session_factory)
         client = session.client("monitoring", "v3", "projects.alertPolicies")
         project = session.get_default_project()
-        findings_paged_list = list(client.execute_paged_query('list',
-            {'name': 'projects/' + project, **query_params}))
+        findings_paged_list = list(
+            client.execute_paged_query('list', {'name': 'projects/' + project, **query_params})
+        )
         findings_list = []
         for findings_page in findings_paged_list:
             if findings_page.get('alertPolicies'):
@@ -48,8 +47,12 @@ class AlertsFilter(ValueFilter):
     def process_resource(self, resource):
         resource_name = resource['name']
         enabled_alerts = jmespath.search("[?enabled]", self.findings_list)
-        search_string = "[*].conditions[?contains(conditionThreshold.filter,\
-        'metric.type=\"logging.googleapis.com/user/" + resource_name + "\"')]"
+        search_string = (
+            "[*].conditions[?contains(conditionThreshold.filter,\
+        'metric.type=\"logging.googleapis.com/user/"
+            + resource_name
+            + "\"')]"
+        )
         result = jmespath.search(search_string, enabled_alerts)
 
         if not any(result):

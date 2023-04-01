@@ -4,7 +4,6 @@ from .common import BaseTest
 
 
 class TestTransferServer(BaseTest):
-
     def test_resources(self):
         session_factory = self.replay_flight_data("test_transfer_server")
         p = self.load_policy(
@@ -57,7 +56,6 @@ class TestTransferServer(BaseTest):
 
 
 class TransferUser(BaseTest):
-
     def test_resources(self):
         session_factory = self.replay_flight_data("test_transfer_user")
         p = self.load_policy(

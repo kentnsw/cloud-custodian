@@ -30,9 +30,8 @@ class Route53Base:
     def generate_arn(self):
         if self._generate_arn is None:
             self._generate_arn = functools.partial(
-                generate_arn,
-                self.get_model().service,
-                resource_type=self.get_model().arn_type)
+                generate_arn, self.get_model().service, resource_type=self.get_model().arn_type
+            )
         return self._generate_arn
 
     def get_arn(self, r):
@@ -40,14 +39,12 @@ class Route53Base:
 
     def augment(self, resources):
         _describe_route53_tags(
-            self.get_model(), resources, self.session_factory,
-            self.executor_factory, self.retry)
+            self.get_model(), resources, self.session_factory, self.executor_factory, self.retry
+        )
         return resources
 
 
-def _describe_route53_tags(
-        model, resources, session_factory, executor_factory, retry):
-
+def _describe_route53_tags(model, resources, session_factory, executor_factory, retry):
     def process_tags(resources):
         client = local_session(session_factory).client('route53')
         resource_map = {}
@@ -61,10 +58,13 @@ def _describe_route53_tags(
             results = retry(
                 client.list_tags_for_resources,
                 ResourceType=model.arn_type,
-                ResourceIds=resource_batch)
+                ResourceIds=resource_batch,
+            )
             for resource_tag_set in results['ResourceTagSets']:
-                if ('ResourceId' in resource_tag_set and
-                        resource_tag_set['ResourceId'] in resource_map):
+                if (
+                    'ResourceId' in resource_tag_set
+                    and resource_tag_set['ResourceId'] in resource_map
+                ):
                     resource_map[resource_tag_set['ResourceId']]['Tags'] = resource_tag_set['Tags']
 
     with executor_factory(max_workers=2) as w:
@@ -73,7 +73,6 @@ def _describe_route53_tags(
 
 @resources.register('hostedzone')
 class HostedZone(Route53Base, QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53'
         arn_type = 'hostedzone'
@@ -109,7 +108,6 @@ HostedZone.action_registry.register('set-shield', SetShieldProtection)
 
 @resources.register('healthcheck')
 class HealthCheck(Route53Base, QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53'
         arn_type = 'healthcheck'
@@ -122,7 +120,6 @@ class HealthCheck(Route53Base, QueryResourceManager):
 
 @resources.register('rrset')
 class ResourceRecordSet(ChildResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53'
         arn_type = 'rrset'
@@ -135,7 +132,6 @@ class ResourceRecordSet(ChildResourceManager):
 
 @resources.register('r53domain')
 class Route53Domain(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53domains'
         arn_type = 'r53domain'
@@ -148,9 +144,9 @@ class Route53Domain(QueryResourceManager):
     def augment(self, domains):
         client = local_session(self.session_factory).client('route53domains')
         for d in domains:
-            d['Tags'] = self.retry(
-                client.list_tags_for_domain,
-                DomainName=d['DomainName'])['TagList']
+            d['Tags'] = self.retry(client.list_tags_for_domain, DomainName=d['DomainName'])[
+                'TagList'
+            ]
         return domains
 
 
@@ -172,14 +168,13 @@ class Route53DomainAddTag(Tag):
                 key: DesiredTag
                 value: DesiredValue
     """
+
     permissions = ('route53domains:UpdateTagsForDomain',)
 
     def process_resource_set(self, client, domains, tags):
         mid = self.manager.resource_type.id
         for d in domains:
-            client.update_tags_for_domain(
-                DomainName=d[mid],
-                TagsToUpdate=tags)
+            client.update_tags_for_domain(DomainName=d[mid], TagsToUpdate=tags)
 
 
 @Route53Domain.action_registry.register('remove-tag')
@@ -199,13 +194,12 @@ class Route53DomainRemoveTag(RemoveTag):
               - type: remove-tag
                 tags: ['ExpiredTag']
     """
+
     permissions = ('route53domains:DeleteTagsForDomain',)
 
     def process_resource_set(self, client, domains, keys):
         for d in domains:
-            client.delete_tags_for_domain(
-                DomainName=d[self.id_key],
-                TagsToDelete=keys)
+            client.delete_tags_for_domain(DomainName=d[self.id_key], TagsToDelete=keys)
 
 
 @HostedZone.action_registry.register('delete')
@@ -243,14 +237,13 @@ class Delete(BaseAction):
                 self.delete_records(client, hz)
             try:
                 self.manager.retry(
-                    client.delete_hosted_zone,
-                    Id=hz['Id'],
-                    ignore_err_codes=('NoSuchHostedZone'))
+                    client.delete_hosted_zone, Id=hz['Id'], ignore_err_codes=('NoSuchHostedZone')
+                )
             except client.exceptions.HostedZoneNotEmpty as e:
                 self.log.warning(
-                    "HostedZone: %s cannot be deleted, "
-                    "set force to remove all records in zone",
-                    hz['Name'])
+                    "HostedZone: %s cannot be deleted, " "set force to remove all records in zone",
+                    hz['Name'],
+                )
                 error = e
         if error:
             raise error
@@ -278,12 +271,13 @@ class Delete(BaseAction):
                                 'Name': rrset['Name'],
                                 'Type': rrset['Type'],
                                 'TTL': rrset['TTL'],
-                                'ResourceRecords': rrset['ResourceRecords']
+                                'ResourceRecords': rrset['ResourceRecords'],
                             },
                         }
                     ]
                 },
-                ignore_err_codes=('InvalidChangeBatch'))
+                ignore_err_codes=('InvalidChangeBatch'),
+            )
 
 
 @HostedZone.action_registry.register('set-query-logging')
@@ -328,32 +322,37 @@ class SetQueryLogging(BaseAction):
         'logs:DescribeLogGroups',
         'logs:CreateLogGroup',
         'logs:GetResourcePolicy',
-        'logs:PutResourcePolicy')
+        'logs:PutResourcePolicy',
+    )
 
     schema = type_schema(
-        'set-query-logging', **{
+        'set-query-logging',
+        **{
             'set-permissions': {'type': 'boolean'},
             'log-group-prefix': {'type': 'string', 'default': '/aws/route53'},
             'log-group': {'type': 'string', 'default': 'auto'},
-            'state': {'type': 'boolean'}})
+            'state': {'type': 'boolean'},
+        }
+    )
 
     statement = {
         "Sid": "Route53LogsToCloudWatchLogs",
         "Effect": "Allow",
         "Principal": {"Service": ["route53.amazonaws.com"]},
         "Action": ["logs:PutLogEvents", "logs:CreateLogStream"],
-        "Resource": None}
+        "Resource": None,
+    }
 
     def validate(self):
         if not self.data.get('state', True):
             # By forcing use of a filter we ensure both getting to right set of
             # resources as well avoiding an extra api call here, as we'll reuse
             # the annotation from the filter for logging config.
-            if not [f for f in self.manager.iter_filters() if isinstance(
-                    f, IsQueryLoggingEnabled)]:
+            if not [f for f in self.manager.iter_filters() if isinstance(f, IsQueryLoggingEnabled)]:
                 raise ValueError(
                     "set-query-logging when deleting requires "
-                    "use of query-logging-enabled filter in policy")
+                    "use of query-logging-enabled filter in policy"
+                )
         return self
 
     def get_permissions(self):
@@ -388,16 +387,18 @@ class SetQueryLogging(BaseAction):
                     pass
                 continue
             log_arn = "arn:aws:logs:us-east-1:{}:log-group:{}".format(
-                self.manager.account_id, zone_log_names[r['Id']])
+                self.manager.account_id, zone_log_names[r['Id']]
+            )
             client.create_query_logging_config(
-                HostedZoneId=r['Id'],
-                CloudWatchLogsLogGroupArn=log_arn)
+                HostedZoneId=r['Id'], CloudWatchLogsLogGroupArn=log_arn
+            )
 
     def get_zone_log_name(self, zone):
         if self.data.get('log-group', 'auto') == 'auto':
             log_group_name = "%s/%s" % (
                 self.data.get('log-group-prefix', '/aws/route53').rstrip('/'),
-                zone['Name'][:-1])
+                zone['Name'][:-1],
+            )
         else:
             log_group_name = self.data['log-group']
         return log_group_name
@@ -413,17 +414,16 @@ class SetQueryLogging(BaseAction):
         else:
             common_prefix = os.path.commonprefix(list(group_names))
             if common_prefix not in ('', '/'):
-                groups = log_manager.get_resources(
-                    [common_prefix], augment=False)
+                groups = log_manager.get_resources([common_prefix], augment=False)
             else:
-                groups = list(itertools.chain(*[
-                    log_manager.get_resources([g]) for g in group_names]))
+                groups = list(
+                    itertools.chain(*[log_manager.get_resources([g]) for g in group_names])
+                )
 
         missing = group_names.difference({g['logGroupName'] for g in groups})
 
         # Logs groups must be created in us-east-1 for route53.
-        client = local_session(
-            self.manager.session_factory).client('logs', region_name='us-east-1')
+        client = local_session(self.manager.session_factory).client('logs', region_name='us-east-1')
 
         for g in missing:
             client.create_log_group(logGroupName=g)
@@ -436,28 +436,33 @@ class SetQueryLogging(BaseAction):
             return
         if self.data.get('log-group', 'auto') != 'auto':
             p_resource = "arn:aws:logs:us-east-1:{}:log-group:{}:*".format(
-                self.manager.account_id, self.data['log-group'])
+                self.manager.account_id, self.data['log-group']
+            )
         else:
             p_resource = "arn:aws:logs:us-east-1:{}:log-group:{}/*".format(
                 self.manager.account_id,
-                self.data.get('log-group-prefix', '/aws/route53').rstrip('/'))
+                self.data.get('log-group-prefix', '/aws/route53').rstrip('/'),
+            )
 
         statement = dict(self.statement)
         statement['Resource'] = p_resource
 
         client.put_resource_policy(
             policyName='Route53LogWrites',
-            policyDocument=json.dumps(
-                {"Version": "2012-10-17", "Statement": [statement]}))
+            policyDocument=json.dumps({"Version": "2012-10-17", "Statement": [statement]}),
+        )
 
     def check_route53_permissions(self, client, group_names):
         group_names = set(group_names)
         for p in client.describe_resource_policies().get('resourcePolicies', []):
             for s in json.loads(p['policyDocument']).get('Statement', []):
-                if (s['Effect'] == 'Allow' and
-                        s['Principal'].get('Service', ['']) == "route53.amazonaws.com"):
+                if (
+                    s['Effect'] == 'Allow'
+                    and s['Principal'].get('Service', ['']) == "route53.amazonaws.com"
+                ):
                     group_names.difference_update(
-                        fnmatch.filter(group_names, s['Resource'].rsplit(':', 1)[-1]))
+                        fnmatch.filter(group_names, s['Resource'].rsplit(':', 1)[-1])
+                    )
                     if not group_names:
                         return True
         return not bool(group_names)
@@ -466,16 +471,23 @@ class SetQueryLogging(BaseAction):
 def get_logging_config_paginator(client):
     return Paginator(
         client.list_query_logging_configs,
-        {'input_token': 'NextToken', 'output_token': 'NextToken',
-         'result_key': 'QueryLoggingConfigs'},
-        client.meta.service_model.operation_model('ListQueryLoggingConfigs'))
+        {
+            'input_token': 'NextToken',
+            'output_token': 'NextToken',
+            'result_key': 'QueryLoggingConfigs',
+        },
+        client.meta.service_model.operation_model('ListQueryLoggingConfigs'),
+    )
 
 
 @HostedZone.filter_registry.register('query-logging-enabled')
 class IsQueryLoggingEnabled(Filter):
 
-    permissions = ('route53:GetQueryLoggingConfig', 'route53:GetHostedZone',
-                   'logs:DescribeSubscriptionFilters')
+    permissions = (
+        'route53:GetQueryLoggingConfig',
+        'route53:GetHostedZone',
+        'logs:DescribeSubscriptionFilters',
+    )
     schema = type_schema('query-logging-enabled', state={'type': 'boolean'})
 
     def process(self, resources, event=None):
@@ -485,10 +497,12 @@ class IsQueryLoggingEnabled(Filter):
         results = []
 
         enabled_zones = {
-            c['HostedZoneId']: c for c in
-            get_logging_config_paginator(
-                client).paginate().build_full_result().get(
-                    'QueryLoggingConfigs', ())}
+            c['HostedZoneId']: c
+            for c in get_logging_config_paginator(client)
+            .paginate()
+            .build_full_result()
+            .get('QueryLoggingConfigs', ())
+        }
         for r in resources:
             zid = r['Id'].split('/', 2)[-1]
             # query logging is only supported for Public Hosted Zones.
@@ -509,7 +523,6 @@ class IsQueryLoggingEnabled(Filter):
 
 @resources.register('resolver-logs')
 class ResolverQueryLogConfig(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53resolver'
         arn_type = 'resolver-query-log-config'
@@ -521,16 +534,18 @@ class ResolverQueryLogConfig(QueryResourceManager):
     annotation_key = 'c7n:Associations'
     permissions = (
         'route53resolver:ListResolverQueryLogConfigs',
-        'route53resolver:ListResolverQueryLogConfigAssociations')
+        'route53resolver:ListResolverQueryLogConfigAssociations',
+    )
 
     def augment(self, rqlcs):
         client = local_session(self.session_factory).client('route53resolver')
         for rqlc in rqlcs:
-            rqlc['Tags'] = self.retry(
-                client.list_tags_for_resource,
-                ResourceArn=rqlc['Arn'])['Tags']
+            rqlc['Tags'] = self.retry(client.list_tags_for_resource, ResourceArn=rqlc['Arn'])[
+                'Tags'
+            ]
             rqlc[self.annotation_key] = client.list_resolver_query_log_config_associations().get(
-                'ResolverQueryLogConfigAssociations')
+                'ResolverQueryLogConfigAssociations'
+            )
         return rqlcs
 
 
@@ -555,11 +570,16 @@ class ResolverQueryLogConfigAssociate(BaseAction):
                 vpcid: all
 
     """
+
     permissions = (
         'route53resolver:AssociateResolverQueryLogConfig',
-        'route53resolver:ListResolverQueryLogConfigAssociations')
-    schema = type_schema('associate-vpc', vpcid={'type': 'string',
-        'pattern': '^(?:vpc-[0-9a-f]{8,17}|all)$'}, required=['vpcid'])
+        'route53resolver:ListResolverQueryLogConfigAssociations',
+    )
+    schema = type_schema(
+        'associate-vpc',
+        vpcid={'type': 'string', 'pattern': '^(?:vpc-[0-9a-f]{8,17}|all)$'},
+        required=['vpcid'],
+    )
     RelatedResource = 'c7n.resources.vpc.Vpc'
     RelatedIdsExpression = 'ResourceArn'
 
@@ -587,12 +607,13 @@ class ResolverQueryLogConfigAssociate(BaseAction):
             for vpc_id in vpc_ids:
                 if not self.is_associated(resource, vpc_id):
                     client.associate_resolver_query_log_config(
-                        ResolverQueryLogConfigId=resource['Id'], ResourceId=vpc_id)
+                        ResolverQueryLogConfigId=resource['Id'], ResourceId=vpc_id
+                    )
 
 
 @ResolverQueryLogConfig.filter_registry.register('is-associated')
 class LogConfigAssociationsFilter(Filter):
-    """ Checks LogConfig Associations for VPCs.
+    """Checks LogConfig Associations for VPCs.
 
     :example:
 
@@ -606,9 +627,12 @@ class LogConfigAssociationsFilter(Filter):
                      vpcid: "vpc-12345678"
 
     """
+
     permissions = ('route53resolver:ListResolverQueryLogConfigAssociations',)
-    schema = type_schema('is-associated',
-        vpcid={'type': 'string', 'pattern': '^(?:vpc-[0-9a-f]{8,17}|all)$'},)
+    schema = type_schema(
+        'is-associated',
+        vpcid={'type': 'string', 'pattern': '^(?:vpc-[0-9a-f]{8,17}|all)$'},
+    )
     RelatedResource = 'c7n.resources.vpc.Vpc'
     RelatedIdsExpression = 'ResourceArn'
 
@@ -636,19 +660,18 @@ ARC_REGION = 'us-west-2'
 
 
 class DescribeCheck(query.DescribeSource):
-
     def augment(self, readiness_checks):
         for r in readiness_checks:
             Tags = self.manager.retry(
                 self.manager.get_client().list_tags_for_resources,
-                ResourceArn=r['ReadinessCheckArn'])['Tags']
+                ResourceArn=r['ReadinessCheckArn'],
+            )['Tags']
             r['Tags'] = [{'Key': k, "Value": v} for k, v in Tags.items()]
         return readiness_checks
 
 
 @resources.register('readiness-check')
 class ReadinessCheck(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53-recovery-readiness'
         arn_type = 'readiness-check'
@@ -660,8 +683,9 @@ class ReadinessCheck(QueryResourceManager):
     source_mapping = {'describe': DescribeCheck, 'config': query.ConfigSource}
 
     def get_client(self):
-        return local_session(self.session_factory) \
-            .client('route53-recovery-readiness', region_name=ARC_REGION)
+        return local_session(self.session_factory).client(
+            'route53-recovery-readiness', region_name=ARC_REGION
+        )
 
 
 @ReadinessCheck.action_registry.register('tag')
@@ -682,6 +706,7 @@ class ReadinessAddTag(Tag):
                 key: DesiredTag
                 value: DesiredValue
     """
+
     permissions = ('route53-recovery-readiness:TagResource',)
 
     def get_client(self):
@@ -690,9 +715,7 @@ class ReadinessAddTag(Tag):
     def process_resource_set(self, client, readiness_checks, tags):
         Tags = {r['Key']: r['Value'] for r in tags}
         for r in readiness_checks:
-            client.tag_resource(
-                ResourceArn=r['ReadinessCheckArn'],
-                Tags=Tags)
+            client.tag_resource(ResourceArn=r['ReadinessCheckArn'], Tags=Tags)
 
 
 @ReadinessCheck.action_registry.register('remove-tag')
@@ -712,6 +735,7 @@ class ReadinessCheckRemoveTag(RemoveTag):
               - type: remove-tag
                 tags: ['ExpiredTag']
     """
+
     permissions = ('route53-recovery-readiness:UntagResource',)
 
     def get_client(self):
@@ -719,21 +743,17 @@ class ReadinessCheckRemoveTag(RemoveTag):
 
     def process_resource_set(self, client, readiness_checks, keys):
         for r in readiness_checks:
-            client.untag_resource(
-                ResourceArn=r['ReadinessCheckArn'],
-                TagKeys=keys)
+            client.untag_resource(ResourceArn=r['ReadinessCheckArn'], TagKeys=keys)
 
 
 @ReadinessCheck.action_registry.register('mark-for-op')
 class MarkForOpReadinessCheck(tags.TagDelayedAction):
-
     def get_client(self):
         return self.manager.get_client()
 
 
 @ReadinessCheck.filter_registry.register('marked-for-op')
 class MarkedForOpReadinessCheck(tags.TagActionFilter):
-
     def get_client(self):
         return self.manager.get_client()
 
@@ -745,7 +765,8 @@ class ReadinessCheckCrossAccount(CrossAccountAccessFilter):
         'cross-account',
         # white list accounts
         whitelist_from=ValuesFrom.schema,
-        whitelist={'type': 'array', 'items': {'type': 'string'}})
+        whitelist={'type': 'array', 'items': {'type': 'string'}},
+    )
     permissions = ('route53-recovery-readiness:ListCrossAccountAuthorizations',)
 
     def process(self, resources, event=None):
@@ -761,7 +782,7 @@ class ReadinessCheckCrossAccount(CrossAccountAccessFilter):
             if account_id not in allowed_accounts:
                 account_ids.append(account_id)
                 found = True
-        if (found):
+        if found:
             for r in resources:
                 r['c7n:CrossAccountViolations'] = account_ids
                 results.append(r)
@@ -771,7 +792,6 @@ class ReadinessCheckCrossAccount(CrossAccountAccessFilter):
 
 @resources.register('recovery-cluster')
 class RecoveryCluster(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'route53-recovery-control-config'
         arn_type = 'cluster'
@@ -780,14 +800,15 @@ class RecoveryCluster(QueryResourceManager):
         global_resource = True
 
     def get_client(self):
-        return local_session(self.session_factory) \
-            .client('route53-recovery-control-config', region_name=ARC_REGION)
+        return local_session(self.session_factory).client(
+            'route53-recovery-control-config', region_name=ARC_REGION
+        )
 
     def augment(self, clusters):
         for r in clusters:
             Tags = self.retry(
-                self.get_client().list_tags_for_resource,
-                ResourceArn=r['ClusterArn'])['Tags']
+                self.get_client().list_tags_for_resource, ResourceArn=r['ClusterArn']
+            )['Tags']
             r['Tags'] = [{'Key': k, "Value": v} for k, v in Tags.items()]
         return clusters
 
@@ -810,6 +831,7 @@ class RecoveryClusterAddTag(Tag):
                 key: DesiredTag
                 value: DesiredValue
     """
+
     permissions = ('route53-recovery-control-config:TagResource',)
 
     def get_client(self):
@@ -818,9 +840,7 @@ class RecoveryClusterAddTag(Tag):
     def process_resource_set(self, client, clusters, tags):
         Tags = {r['Key']: r['Value'] for r in tags}
         for r in clusters:
-            client.tag_resource(
-                ResourceArn=r['ClusterArn'],
-                Tags=Tags)
+            client.tag_resource(ResourceArn=r['ClusterArn'], Tags=Tags)
 
 
 @RecoveryCluster.action_registry.register('remove-tag')
@@ -842,6 +862,7 @@ class RecoveryClusterRemoveTag(RemoveTag):
               - type: remove-tag
                 tags: ['ExpiredTag']
     """
+
     permissions = ('route53-recovery-control-config:UntagResource',)
 
     def get_client(self):
@@ -849,31 +870,26 @@ class RecoveryClusterRemoveTag(RemoveTag):
 
     def process_resource_set(self, client, clusters, keys):
         for r in clusters:
-            client.untag_resource(
-                ResourceArn=r['ClusterArn'],
-                TagKeys=keys)
+            client.untag_resource(ResourceArn=r['ClusterArn'], TagKeys=keys)
 
 
 @query.sources.register('describe-control-panel')
 class DescribeControlPanel(query.ChildDescribeSource):
-
     def __init__(self, manager):
         self.manager = manager
-        self.query = query.ChildResourceQuery(
-            self.manager.session_factory, self.manager)
+        self.query = query.ChildResourceQuery(self.manager.session_factory, self.manager)
 
     def augment(self, controlpanels):
         for r in controlpanels:
             Tags = self.manager.retry(
-                self.manager.get_client().list_tags_for_resource,
-                ResourceArn=r['ControlPanelArn'])['Tags']
+                self.manager.get_client().list_tags_for_resource, ResourceArn=r['ControlPanelArn']
+            )['Tags']
             r['Tags'] = [{'Key': k, "Value": v} for k, v in Tags.items()]
         return controlpanels
 
 
 @resources.register('recovery-control-panel')
 class ControlPanel(query.ChildResourceManager):
-
     class resource_type(query.TypeInfo):
         service = 'route53-recovery-control-config'
         arn_type = 'controlpanel'
@@ -883,14 +899,12 @@ class ControlPanel(query.ChildResourceManager):
         global_resource = True
 
     child_source = 'describe'
-    source_mapping = {
-        'describe': DescribeControlPanel,
-        'config': query.ConfigSource
-    }
+    source_mapping = {'describe': DescribeControlPanel, 'config': query.ConfigSource}
 
     def get_client(self):
-        return local_session(self.session_factory) \
-            .client('route53-recovery-control-config', region_name=ARC_REGION)
+        return local_session(self.session_factory).client(
+            'route53-recovery-control-config', region_name=ARC_REGION
+        )
 
 
 @ControlPanel.action_registry.register('tag')
@@ -911,6 +925,7 @@ class ControlPanelAddTag(Tag):
                 key: DesiredTag
                 value: DesiredValue
     """
+
     permissions = ('route53-recovery-control-config:TagResource',)
 
     def get_client(self):
@@ -919,9 +934,7 @@ class ControlPanelAddTag(Tag):
     def process_resource_set(self, client, controlpanels, tags):
         Tags = {r['Key']: r['Value'] for r in tags}
         for r in controlpanels:
-            client.tag_resource(
-                ResourceArn=r['ControlPanelArn'],
-                Tags=Tags)
+            client.tag_resource(ResourceArn=r['ControlPanelArn'], Tags=Tags)
 
 
 @ControlPanel.action_registry.register('remove-tag')
@@ -941,6 +954,7 @@ class ControlPanelRemoveTag(RemoveTag):
               - type: remove-tag
                 tags: ['ExpiredTag']
     """
+
     permissions = ('route53-recovery-control-config:UntagResource',)
 
     def get_client(self):
@@ -948,9 +962,7 @@ class ControlPanelRemoveTag(RemoveTag):
 
     def process_resource_set(self, client, control_panels, keys):
         for r in control_panels:
-            client.untag_resource(
-                ResourceArn=r['ControlPanelArn'],
-                TagKeys=keys)
+            client.untag_resource(ResourceArn=r['ControlPanelArn'], TagKeys=keys)
 
 
 @ControlPanel.filter_registry.register('safety-rule')
@@ -981,12 +993,13 @@ class SafeRule(ListItemFilter):
                  op: gte
                  value: 30
     """
+
     permissions = ('route53-recovery-control-config:ListSafetyRules',)
     schema = type_schema(
         'safety-rule',
         attrs={'$ref': '#/definitions/filters_common/list_item_attrs'},
         count={'type': 'number'},
-        count_op={'$ref': '#/definitions/filters_common/comparison_operators'}
+        count_op={'$ref': '#/definitions/filters_common/comparison_operators'},
     )
 
     _client = None
@@ -1001,8 +1014,11 @@ class SafeRule(ListItemFilter):
         paginator = self.get_client().get_paginator('list_safety_rules')
         paginator.PAGE_ITERATOR_CLASS = RetryPageIterator
         rules = []
-        results = paginator.paginate(
-            ControlPanelArn=resource['ControlPanelArn']).build_full_result().get('SafetyRules', [])
+        results = (
+            paginator.paginate(ControlPanelArn=resource['ControlPanelArn'])
+            .build_full_result()
+            .get('SafetyRules', [])
+        )
         for block in results:
             for rule_type, type_rule in block.items():
                 type_rule['Type'] = rule_type

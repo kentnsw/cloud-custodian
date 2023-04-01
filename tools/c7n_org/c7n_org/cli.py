@@ -13,9 +13,7 @@ import subprocess  # nosec
 import sys
 
 import multiprocessing
-from concurrent.futures import (
-    ProcessPoolExecutor,
-    as_completed)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import yaml
 
 from botocore.compat import OrderedDict
@@ -32,7 +30,13 @@ from c7n.provider import get_resource_class, clouds as cloud_providers
 from c7n.reports.csvout import Formatter, fs_record_set, record_set, strip_output_path
 from c7n.resources import load_available
 from c7n.utils import (
-    CONN_CACHE, dumps, filter_empty, format_string_values, get_policy_provider, join_output_path)
+    CONN_CACHE,
+    dumps,
+    filter_empty,
+    format_string_values,
+    get_policy_provider,
+    join_output_path,
+)
 
 from c7n_org.utils import environ, account_tags
 
@@ -41,13 +45,11 @@ log = logging.getLogger('c7n_org')
 # Workaround OSX issue, note this exists for py2 but there
 # isn't anything we can do in that case.
 # https://bugs.python.org/issue33725
-if sys.platform == 'darwin' and (
-        sys.version_info.major > 3 and sys.version_info.minor > 4):
+if sys.platform == 'darwin' and (sys.version_info.major > 3 and sys.version_info.minor > 4):
     multiprocessing.set_start_method('spawn')
 
 
-WORKER_COUNT = int(
-    os.environ.get('C7N_ORG_PARALLEL', multiprocessing.cpu_count() * 4))
+WORKER_COUNT = int(os.environ.get('C7N_ORG_PARALLEL', multiprocessing.cpu_count() * 4))
 
 
 CONFIG_SCHEMA = {
@@ -59,7 +61,7 @@ CONFIG_SCHEMA = {
             'additionalProperties': True,
             'anyOf': [
                 {'required': ['role', 'account_id']},
-                {'required': ['profile', 'account_id']}
+                {'required': ['profile', 'account_id']},
             ],
             'properties': {
                 'name': {'type': 'string'},
@@ -69,16 +71,21 @@ CONFIG_SCHEMA = {
                 'account_id': {
                     'type': 'string',
                     'pattern': '^[0-9]{12}$',
-                    'minLength': 12, 'maxLength': 12},
+                    'minLength': 12,
+                    'maxLength': 12,
+                },
                 'profile': {'type': 'string', 'minLength': 3},
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'regions': {'type': 'array', 'items': {'type': 'string'}},
-                'role': {'oneOf': [
-                    {'type': 'array', 'items': {'type': 'string'}},
-                    {'type': 'string', 'minLength': 3}]},
+                'role': {
+                    'oneOf': [
+                        {'type': 'array', 'items': {'type': 'string'}},
+                        {'type': 'string', 'minLength': 3},
+                    ]
+                },
                 'external_id': {'type': 'string'},
                 'vars': {'type': 'object'},
-            }
+            },
         },
         'subscription': {
             'type': 'object',
@@ -90,7 +97,7 @@ CONFIG_SCHEMA = {
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'name': {'type': 'string'},
                 'vars': {'type': 'object'},
-            }
+            },
         },
         'project': {
             'type': 'object',
@@ -101,7 +108,7 @@ CONFIG_SCHEMA = {
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'name': {'type': 'string'},
                 'vars': {'type': 'object'},
-            }
+            },
         },
     },
     'type': 'object',
@@ -109,23 +116,14 @@ CONFIG_SCHEMA = {
     'oneOf': [
         {'required': ['accounts']},
         {'required': ['projects']},
-        {'required': ['subscriptions']}
+        {'required': ['subscriptions']},
     ],
     'properties': {
         'vars': {'type': 'object'},
-        'accounts': {
-            'type': 'array',
-            'items': {'$ref': '#/definitions/account'}
-        },
-        'subscriptions': {
-            'type': 'array',
-            'items': {'$ref': '#/definitions/subscription'}
-        },
-        'projects': {
-            'type': 'array',
-            'items': {'$ref': '#/definitions/project'}
-        }
-    }
+        'accounts': {'type': 'array', 'items': {'$ref': '#/definitions/account'}},
+        'subscriptions': {'type': 'array', 'items': {'$ref': '#/definitions/subscription'}},
+        'projects': {'type': 'array', 'items': {'$ref': '#/definitions/project'}},
+    },
 }
 
 
@@ -155,12 +153,20 @@ class LogFilter:
         return 0
 
 
-def init(config, use, debug, verbose, accounts, tags, policies,
-        resource=None, policy_tags=(), not_accounts=None):
+def init(
+    config,
+    use,
+    debug,
+    verbose,
+    accounts,
+    tags,
+    policies,
+    resource=None,
+    policy_tags=(),
+    not_accounts=None,
+):
     level = verbose and logging.DEBUG or logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s: %(name)s:%(levelname)s %(message)s")
+    logging.basicConfig(level=level, format="%(asctime)s: %(name)s:%(levelname)s %(message)s")
 
     logging.getLogger().setLevel(level)
     logging.getLogger('botocore').setLevel(logging.ERROR)
@@ -209,8 +215,11 @@ def resolve_regions(regions, account):
             err = e.response['Error']
             if err['Code'] not in ('AccessDenied', 'AuthFailure'):
                 raise
-            log.warning('error (%s) listing available regions for account:%s - %s',
-                err['Code'], account['name'], err['Message']
+            log.warning(
+                'error (%s) listing available regions for account:%s - %s',
+                err['Code'],
+                account['name'],
+                err['Message'],
             )
             return []
     if not regions:
@@ -243,20 +252,25 @@ def get_session(account, session_name, region):
         for r in roles:
             try:
                 s = assumed_session(
-                    r, session_name, region=region,
+                    r,
+                    session_name,
+                    region=region,
                     external_id=account.get('external_id'),
-                    session=s)
+                    session=s,
+                )
             except ClientError as e:
                 log.error(
                     "unable to obtain credentials for account:%s role:%s error:%s",
-                    account['name'], r, e)
+                    account['name'],
+                    r,
+                    e,
+                )
                 raise
         return s
     elif account.get('profile'):
         return SessionFactory(region, account['profile'])()
     else:
-        raise ValueError(
-            "No profile or role assume specified for account %s" % account)
+        raise ValueError("No profile or role assume specified for account %s" % account)
 
 
 def filter_accounts(accounts_config, tags, accounts, not_accounts=None):
@@ -308,8 +322,13 @@ def report_account(account, region, policies_config, output_path, cache_path, de
     config = Config.empty(
         region=region,
         output_dir=output_path,
-        account_id=account['account_id'], metrics_enabled=False,
-        cache=cache_path, log_group=None, profile=None, external_id=None)
+        account_id=account['account_id'],
+        metrics_enabled=False,
+        cache=cache_path,
+        log_group=None,
+        profile=None,
+        external_id=None,
+    )
 
     if account.get('role'):
         config['assume_role'] = account['role']
@@ -324,7 +343,11 @@ def report_account(account, region, policies_config, output_path, cache_path, de
         p.ctx.initialize()
         log.debug(
             "Report policy:%s account:%s region:%s path:%s",
-            p.name, account['name'], region, output_path)
+            p.name,
+            account['name'],
+            region,
+            output_path,
+        )
 
         if p.ctx.output.type == "s3":
             delta = timedelta(days=1)
@@ -334,7 +357,7 @@ def report_account(account, region, policies_config, output_path, cache_path, de
                 p.session_factory,
                 p.ctx.output.config['netloc'],
                 strip_output_path(p.ctx.output.config['path'], p.name),
-                begin_date
+                begin_date,
             )
         else:
             policy_records = fs_record_set(p.ctx.log_dir, p.name)
@@ -366,18 +389,42 @@ def report_account(account, region, policies_config, output_path, cache_path, de
 @click.option('--debug', default=False, is_flag=True)
 @click.option('-v', '--verbose', default=False, help="Verbose", is_flag=True)
 @click.option('-p', '--policy', multiple=True)
-@click.option('-l', '--policytags', 'policy_tags',
-              multiple=True, default=None, help="Policy tag filter")
+@click.option(
+    '-l', '--policytags', 'policy_tags', multiple=True, default=None, help="Policy tag filter"
+)
 @click.option('--format', default='csv', type=click.Choice(['csv', 'json']))
 @click.option('--resource', default=None)
 @click.option('--cache-path', required=False, type=click.Path(), default="~/.cache/c7n-org")
-def report(config, output, use, output_dir, accounts,
-           field, no_default_fields, tags, region, debug, verbose,
-           policy, policy_tags, format, resource, cache_path):
+def report(
+    config,
+    output,
+    use,
+    output_dir,
+    accounts,
+    field,
+    no_default_fields,
+    tags,
+    region,
+    debug,
+    verbose,
+    policy,
+    policy_tags,
+    format,
+    resource,
+    cache_path,
+):
     """report on a cross account policy execution."""
     accounts_config, custodian_config, executor = init(
-        config, use, debug, verbose, accounts, tags, policy,
-        resource=resource, policy_tags=policy_tags)
+        config,
+        use,
+        debug,
+        verbose,
+        accounts,
+        tags,
+        policy,
+        resource=resource,
+        policy_tags=policy_tags,
+    )
 
     resource_types = set()
     for p in custodian_config.get('policies'):
@@ -392,13 +439,9 @@ def report(config, output, use, output_dir, accounts,
         futures = {}
         for a in accounts_config.get('accounts', ()):
             for r in resolve_regions(region or a.get('regions', ()), a):
-                futures[w.submit(
-                    report_account,
-                    a, r,
-                    custodian_config,
-                    output_dir,
-                    cache_path,
-                    debug)] = (a, r)
+                futures[
+                    w.submit(report_account, a, r, custodian_config, output_dir, cache_path, debug)
+                ] = (a, r)
 
         for f in as_completed(futures):
             a, r = futures[f]
@@ -406,21 +449,24 @@ def report(config, output, use, output_dir, accounts,
                 if debug:
                     raise
                 log.warning(
-                    "Error running policy in %s @ %s exception: %s",
-                    a['name'], r, f.exception())
+                    "Error running policy in %s @ %s exception: %s", a['name'], r, f.exception()
+                )
             records.extend(f.result())
 
     log.debug(
         "Found %d records across %d accounts and %d policies",
-        len(records), len(accounts_config['accounts']),
-        len(custodian_config['policies']))
+        len(records),
+        len(accounts_config['accounts']),
+        len(custodian_config['policies']),
+    )
 
     if format == 'json':
         dumps(records, output, indent=2)
         return
 
     prefix_fields = OrderedDict(
-        (('Account', 'account'), ('Region', 'region'), ('Policy', 'policy')))
+        (('Account', 'account'), ('Region', 'region'), ('Policy', 'policy'))
+    )
     config = Config.empty()
 
     factory = get_resource_class(list(resource_types)[0])
@@ -430,7 +476,8 @@ def report(config, output, use, output_dir, accounts,
         include_default_fields=not no_default_fields,
         include_region=False,
         include_policy=False,
-        fields=prefix_fields)
+        fields=prefix_fields,
+    )
 
     rows = formatter.to_csv(records, unique=False)
     writer = csv.writer(output, formatter.headers(), quoting=csv.QUOTE_ALL)
@@ -466,8 +513,12 @@ def run_account_script(account, region, output_dir, debug, script_args):
         return 1
 
     env = _get_env_creds(account, session, region, dict(os.environ))
-    log.info("running script on account:%s region:%s script: `%s`",
-             account['name'], region, " ".join(script_args))
+    log.info(
+        "running script on account:%s region:%s script: `%s`",
+        account['name'],
+        region,
+        " ".join(script_args),
+    )
 
     if debug:
         subprocess.check_call(args=script_args, env=env)  # nosec
@@ -477,14 +528,17 @@ def run_account_script(account, region, output_dir, debug, script_args):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    vars = {"account": account["name"], "account_id": account["account_id"],
-        "region": region, "output_dir": output_dir}
+    vars = {
+        "account": account["name"],
+        "account_id": account["account_id"],
+        "region": region,
+        "output_dir": output_dir,
+    }
     script_args = format_string_values(script_args, **vars)
 
     with open(os.path.join(output_dir, 'stdout'), 'wb') as stdout:
         with open(os.path.join(output_dir, 'stderr'), 'wb') as stderr:
-            return subprocess.call(  # nosec
-                args=script_args, env=env, stdout=stdout, stderr=stderr)
+            return subprocess.call(args=script_args, env=env, stdout=stdout, stderr=stderr)  # nosec
 
 
 @cli.command(name='run-script', context_settings=dict(ignore_unknown_options=True))
@@ -500,7 +554,8 @@ def run_script(config, output_dir, accounts, tags, region, echo, serial, script_
     """run an aws/azure/gcp script across accounts"""
     # TODO count up on success / error / error list by account
     accounts_config, custodian_config, executor = init(
-        config, None, serial, True, accounts, tags, (), ())
+        config, None, serial, True, accounts, tags, (), ()
+    )
     if echo:
         print("command to run: `%s`" % (" ".join(script_args)))
         return
@@ -518,27 +573,34 @@ def run_script(config, output_dir, accounts, tags, region, echo, serial, script_
         futures = {}
         for a in accounts_config.get('accounts', ()):
             for r in resolve_regions(region or a.get('regions', ()), a):
-                futures[
-                    w.submit(run_account_script, a, r, output_dir,
-                             serial, script_args)] = (a, r)
+                futures[w.submit(run_account_script, a, r, output_dir, serial, script_args)] = (
+                    a,
+                    r,
+                )
         for f in as_completed(futures):
             a, r = futures[f]
             if f.exception():
                 if serial:
                     raise
                 log.warning(
-                    "Error running script in %s @ %s exception: %s",
-                    a['name'], r, f.exception())
+                    "Error running script in %s @ %s exception: %s", a['name'], r, f.exception()
+                )
                 success = False
             exit_code = f.result()
             if exit_code == 0:
                 log.info(
                     "ran script on account:%s region:%s script: `%s`",
-                    a['name'], r, " ".join(script_args))
+                    a['name'],
+                    r,
+                    " ".join(script_args),
+                )
             else:
                 log.info(
                     "error running script on account:%s region:%s script: `%s`",
-                    a['name'], r, " ".join(script_args))
+                    a['name'],
+                    r,
+                    " ".join(script_args),
+                )
                 success = False
 
     if not success:
@@ -550,25 +612,28 @@ def accounts_iterator(config):
     for a in config.get('accounts', ()):
         if 'role' in a:
             if isinstance(a['role'], str) and not a['role'].startswith('arn'):
-                a['role'] = "arn:aws:iam::{}:role/{}".format(
-                    a['account_id'], a['role'])
+                a['role'] = "arn:aws:iam::{}:role/{}".format(a['account_id'], a['role'])
         a['vars'] = _update(a.get('vars', {}), org_vars)
         yield {**a, **{'provider': 'aws'}}
     for a in config.get('subscriptions', ()):
-        d = {'account_id': a['subscription_id'],
-             'name': a.get('name', a['subscription_id']),
-             'regions': [a.get('region', 'global')],
-             'provider': 'azure',
-             'tags': a.get('tags', ()),
-             'vars': _update(a.get('vars', {}), org_vars)}
+        d = {
+            'account_id': a['subscription_id'],
+            'name': a.get('name', a['subscription_id']),
+            'regions': [a.get('region', 'global')],
+            'provider': 'azure',
+            'tags': a.get('tags', ()),
+            'vars': _update(a.get('vars', {}), org_vars),
+        }
         yield d
     for a in config.get('projects', ()):
-        d = {'account_id': a['project_id'],
-             'name': a.get('name', a['project_id']),
-             'regions': ['global'],
-             'provider': 'gcp',
-             'tags': a.get('tags', ()),
-             'vars': _update(a.get('vars', {}), org_vars)}
+        d = {
+            'account_id': a['project_id'],
+            'name': a.get('name', a['project_id']),
+            'regions': ['global'],
+            'provider': 'gcp',
+            'tags': a.get('tags', ()),
+            'vars': _update(a.get('vars', {}), org_vars),
+        }
         yield d
 
 
@@ -578,10 +643,10 @@ def _update(old, new):
     return old
 
 
-def run_account(account, region, policies_config, output_path,
-                cache_period, cache_path, metrics, dryrun, debug):
-    """Execute a set of policies on an account.
-    """
+def run_account(
+    account, region, policies_config, output_path, cache_period, cache_path, metrics, dryrun, debug
+):
+    """Execute a set of policies on an account."""
     logging.getLogger('custodian.output').setLevel(logging.ERROR + 1)
     CONN_CACHE.session = None
     CONN_CACHE.time = None
@@ -592,10 +657,17 @@ def run_account(account, region, policies_config, output_path,
     cache_path = os.path.join(cache_path, "%s-%s.cache" % (account['account_id'], region))
 
     config = Config.empty(
-        region=region, cache=cache_path,
-        cache_period=cache_period, dryrun=dryrun, output_dir=output_path,
-        account_id=account['account_id'], metrics_enabled=metrics,
-        log_group=None, profile=None, external_id=None)
+        region=region,
+        cache=cache_path,
+        cache_period=cache_period,
+        dryrun=dryrun,
+        output_dir=output_path,
+        account_id=account['account_id'],
+        metrics_enabled=metrics,
+        log_group=None,
+        profile=None,
+        external_id=None,
+    )
 
     env_vars = account_tags(account)
 
@@ -605,7 +677,8 @@ def run_account(account, region, policies_config, output_path,
             config['external_id'] = account.get('external_id')
         else:
             env_vars.update(
-                _get_env_creds(account, get_session(account, 'custodian', region), region))
+                _get_env_creds(account, get_session(account, 'custodian', region), region)
+            )
 
     elif account.get('profile'):
         config['profile'] = account['profile']
@@ -622,40 +695,61 @@ def run_account(account, region, policies_config, output_path,
             # Variable expansion and non schema validation (not optional)
             p.expand_variables(p.get_variables(account.get('vars', {})))
             p.validate()
-            log.debug(
-                "Running policy:%s account:%s region:%s",
-                p.name, account['name'], region)
+            log.debug("Running policy:%s account:%s region:%s", p.name, account['name'], region)
             try:
                 resources = p.run()
                 policy_counts[p.name] = resources and len(resources) or 0
                 if not resources:
                     continue
                 if not config.dryrun and p.execution_mode != 'pull':
-                    log.info("Ran account:%s region:%s policy:%s provisioned time:%0.2f",
-                             account['name'], region, p.name, time.time() - st)
+                    log.info(
+                        "Ran account:%s region:%s policy:%s provisioned time:%0.2f",
+                        account['name'],
+                        region,
+                        p.name,
+                        time.time() - st,
+                    )
                     continue
                 log.info(
                     "Ran account:%s region:%s policy:%s matched:%d time:%0.2f",
-                    account['name'], region, p.name, len(resources),
-                    time.time() - st)
+                    account['name'],
+                    region,
+                    p.name,
+                    len(resources),
+                    time.time() - st,
+                )
             except ClientError as e:
                 success = False
                 if e.response['Error']['Code'] == 'AccessDenied':
-                    log.warning('Access denied api:%s policy:%s account:%s region:%s',
-                                e.operation_name, p.name, account['name'], region)
+                    log.warning(
+                        'Access denied api:%s policy:%s account:%s region:%s',
+                        e.operation_name,
+                        p.name,
+                        account['name'],
+                        region,
+                    )
                     return policy_counts, success
                 log.error(
                     "Exception running policy:%s account:%s region:%s error:%s",
-                    p.name, account['name'], region, e)
+                    p.name,
+                    account['name'],
+                    region,
+                    e,
+                )
                 continue
             except Exception as e:
                 success = False
                 log.error(
                     "Exception running policy:%s account:%s region:%s error:%s",
-                    p.name, account['name'], region, e)
+                    p.name,
+                    account['name'],
+                    region,
+                    e,
+                )
                 if not debug:
                     continue
                 import traceback, pdb, sys
+
                 traceback.print_exc()
                 pdb.post_mortem(sys.exc_info()[-1])
                 raise
@@ -664,8 +758,7 @@ def run_account(account, region, policies_config, output_path,
 
 
 def initialize_provider_output(policies_config, output_dir, regions):
-    """allow the provider an opportunity to initialize the output config.
-    """
+    """allow the provider an opportunity to initialize the output config."""
     # use just enough configuration to attempt to limit initialization
     # to the output dir. we pass in dummy values for several settings
     # that if missing would cause at least the aws or azure provider
@@ -674,7 +767,7 @@ def initialize_provider_output(policies_config, output_dir, regions):
     policy_config = Config.empty(
         account_id='112233445566',
         output_dir=output_dir,
-        region=regions and regions[0] or "us-east-1"
+        region=regions and regions[0] or "us-east-1",
     )
     provider_name = get_policy_provider(policies_config['policies'][0])
     provider = cloud_providers[provider_name]()
@@ -691,27 +784,59 @@ def initialize_provider_output(policies_config, output_dir, regions):
 @click.option('-t', '--tags', multiple=True, default=None, help="Account tag filter")
 @click.option('-r', '--region', default=None, multiple=True)
 @click.option('-p', '--policy', multiple=True)
-@click.option('-l', '--policytags', 'policy_tags',
-              multiple=True, default=None, help="Policy tag filter")
+@click.option(
+    '-l', '--policytags', 'policy_tags', multiple=True, default=None, help="Policy tag filter"
+)
 @click.option('--cache-period', default=15, type=int)
-@click.option('--cache-path', required=False,
-              type=click.Path(
-                  writable=True, readable=True, exists=True,
-                  resolve_path=True, allow_dash=False,
-                  file_okay=False, dir_okay=True),
-              default=None)
+@click.option(
+    '--cache-path',
+    required=False,
+    type=click.Path(
+        writable=True,
+        readable=True,
+        exists=True,
+        resolve_path=True,
+        allow_dash=False,
+        file_okay=False,
+        dir_okay=True,
+    ),
+    default=None,
+)
 @click.option("--metrics", default=False, is_flag=True)
 @click.option("--metrics-uri", default=None, help="Configure provider metrics target")
 @click.option("--dryrun", default=False, is_flag=True)
 @click.option('--debug', default=False, is_flag=True)
 @click.option('-v', '--verbose', default=False, help="Verbose", is_flag=True)
-def run(config, use, output_dir, accounts, not_accounts, tags, region,
-        policy, policy_tags, cache_period, cache_path, metrics,
-        dryrun, debug, verbose, metrics_uri):
+def run(
+    config,
+    use,
+    output_dir,
+    accounts,
+    not_accounts,
+    tags,
+    region,
+    policy,
+    policy_tags,
+    cache_period,
+    cache_path,
+    metrics,
+    dryrun,
+    debug,
+    verbose,
+    metrics_uri,
+):
     """run a custodian policy across accounts"""
     accounts_config, custodian_config, executor = init(
-        config, use, debug, verbose, accounts, tags, policy, policy_tags=policy_tags,
-        not_accounts=not_accounts)
+        config,
+        use,
+        debug,
+        verbose,
+        accounts,
+        tags,
+        policy,
+        policy_tags=policy_tags,
+        not_accounts=not_accounts,
+    )
     policy_counts = Counter()
     success = True
 
@@ -729,16 +854,20 @@ def run(config, use, output_dir, accounts, not_accounts, tags, region,
         futures = {}
         for a in accounts_config['accounts']:
             for r in resolve_regions(region or a.get('regions', ()), a):
-                futures[w.submit(
-                    run_account,
-                    a, r,
-                    custodian_config,
-                    output_dir,
-                    cache_period,
-                    cache_path,
-                    metrics,
-                    dryrun,
-                    debug)] = (a, r)
+                futures[
+                    w.submit(
+                        run_account,
+                        a,
+                        r,
+                        custodian_config,
+                        output_dir,
+                        cache_period,
+                        cache_path,
+                        metrics,
+                        dryrun,
+                        debug,
+                    )
+                ] = (a, r)
 
         for f in as_completed(futures):
             a, r = futures[f]
@@ -746,8 +875,8 @@ def run(config, use, output_dir, accounts, not_accounts, tags, region,
                 if debug:
                     raise
                 log.warning(
-                    "Error running policy in %s @ %s exception: %s",
-                    a['name'], r, f.exception())
+                    "Error running policy in %s @ %s exception: %s", a['name'], r, f.exception()
+                )
                 continue
 
             account_region_pcounts, account_region_success = f.result()

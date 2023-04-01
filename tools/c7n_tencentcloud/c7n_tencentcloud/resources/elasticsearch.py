@@ -28,8 +28,10 @@ class Elasticsearch(QueryResourceManager):
               value:
                 - ES.S1.MEDIUM4
     """
+
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "InstanceId"
         endpoint = "es.tencentcloudapi.com"
         service = "es"

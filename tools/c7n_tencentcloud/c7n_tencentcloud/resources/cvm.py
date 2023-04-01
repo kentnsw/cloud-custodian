@@ -14,7 +14,6 @@ from c7n_tencentcloud.utils import PageMethod
 
 
 class CVMDescribe(DescribeSource):
-
     def augment(self, resources):
         return resources
 
@@ -45,6 +44,7 @@ class CVM(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "InstanceId"
         endpoint = "cvm.tencentcloudapi.com"
         service = "cvm"
@@ -67,11 +67,9 @@ class CVM(QueryResourceManager):
         # qcs::${ServiceType}:${Region}:${Account}:${ResourcePrefix}/${ResourceId}
         qcs_list = []
         for r in resources:
-            qcs = DescribeSource.get_qcs(r["InstanceType"].lower(),
-                                         self.config.region,
-                                         None,
-                                         "instance",
-                                         r["InstanceId"])
+            qcs = DescribeSource.get_qcs(
+                r["InstanceType"].lower(), self.config.region, None, "instance", r["InstanceId"]
+            )
             qcs_list.append(qcs)
         return qcs_list
 
@@ -95,10 +93,9 @@ class CvmAction(TencentCloudBaseAction):
             failed_resources = jmespath.search("Response.Error", resp)
             if failed_resources is not None:
                 raise PolicyExecutionError(f"{self.data.get('type')} error")
-            self.log.debug("%s resources: %s, cvm: %s",
-                           self.data.get('type'),
-                           params['InstanceIds'],
-                           params)
+            self.log.debug(
+                "%s resources: %s, cvm: %s", self.data.get('type'), params['InstanceIds'], params
+            )
         except (RetryError, TencentCloudSDKException) as err:
             raise PolicyExecutionError(err) from err
 
@@ -128,6 +125,7 @@ class CvmStopAction(CvmAction):
           actions:
             - type: stop
     """
+
     schema = type_schema("stop")
     t_api_method_name = "StopInstances"
 
@@ -141,7 +139,7 @@ class CvmStopAction(CvmAction):
         return {
             "InstanceIds": [r[self.resource_type.id] for r in resources],
             "StopType": "SOFT",
-            "StoppedMode": "STOP_CHARGING"
+            "StoppedMode": "STOP_CHARGING",
         }
 
 
@@ -159,6 +157,7 @@ class CvmStartAction(CvmAction):
           actions:
             - type: start
     """
+
     schema = type_schema("start")
     t_api_method_name = "StartInstances"
 
@@ -181,5 +180,6 @@ class CvmTerminateAction(CvmAction):
           actions:
             - type: terminate
     """
+
     schema = type_schema("terminate")
     t_api_method_name = "TerminateInstances"

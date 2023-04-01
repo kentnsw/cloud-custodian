@@ -17,7 +17,6 @@ from c7n.filters.offhours import OffHour, OnHour
 
 @resources.register('instance')
 class Instance(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
@@ -38,21 +37,24 @@ class Instance(QueryResourceManager):
             # The api docs for compute instance get are wrong,
             # they spell instance as resourceId
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'zone': resource_info['zone'],
-                        'instance': resource_info[
-                            'resourceName'].rsplit('/', 1)[-1]})
+                'get',
+                {
+                    'project': resource_info['project_id'],
+                    'zone': resource_info['zone'],
+                    'instance': resource_info['resourceName'].rsplit('/', 1)[-1],
+                },
+            )
 
         @staticmethod
         def get_label_params(resource, all_labels):
             path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/instances/(.*)')
-            project, zone, instance = path_param_re.match(
-                resource['selfLink']).groups()
-            return {'project': project, 'zone': zone, 'instance': instance,
-                    'body': {
-                        'labels': all_labels,
-                        'labelFingerprint': resource['labelFingerprint']
-                    }}
+            project, zone, instance = path_param_re.match(resource['selfLink']).groups()
+            return {
+                'project': project,
+                'zone': zone,
+                'instance': instance,
+                'body': {'labels': all_labels, 'labelFingerprint': resource['labelFingerprint']},
+            }
 
 
 Instance.filter_registry.register('offhour', OffHour)
@@ -95,13 +97,15 @@ class EffectiveFirewall(ValueFilter):
         params = self.get_resource_params(resource)
         effective_firewalls = []
         for interface in resource["networkInterfaces"]:
-            effective_firewalls.append(client.execute_command(
-                'getEffectiveFirewalls', {"networkInterface": interface["name"], **params}))
+            effective_firewalls.append(
+                client.execute_command(
+                    'getEffectiveFirewalls', {"networkInterface": interface["name"], **params}
+                )
+            )
         return super(EffectiveFirewall, self).process(effective_firewalls, None)
 
     def get_client(self, session, model):
-        return session.client(
-            model.service, model.version, model.component)
+        return session.client(model.service, model.version, model.component)
 
     def process(self, resources, event=None):
         model = self.manager.get_model()
@@ -111,7 +115,6 @@ class EffectiveFirewall(ValueFilter):
 
 
 class InstanceAction(MethodAction):
-
     def get_resource_params(self, model, resource):
         path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/instances/(.*)')
         project, zone, instance = path_param_re.match(resource['selfLink']).groups()
@@ -164,11 +167,11 @@ class DetachDisks(MethodAction):
             actions:
               - type: detach-disks
     """
+
     schema = type_schema('detach-disks')
     attr_filter = ('status', ('TERMINATED',))
     method_spec = {'op': 'detachDisk'}
-    path_param_re = re.compile(
-        '.*?/projects/(.*?)/zones/(.*?)/instances/(.*)')
+    path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/instances/(.*)')
 
     def validate(self):
         pass
@@ -180,8 +183,7 @@ class DetachDisks(MethodAction):
     def process_resource(self, client, resource):
         op_name = 'detachDisk'
 
-        project, zone, instance = self.path_param_re.match(
-            resource['selfLink']).groups()
+        project, zone, instance = self.path_param_re.match(resource['selfLink']).groups()
 
         base_params = {'project': project, 'zone': zone, 'instance': instance}
         for disk in resource.get('disks', []):
@@ -219,6 +221,7 @@ class CreateMachineImage(MethodAction):
                 name_format: "{instance[name]:.50}-{now:%Y-%m-%d}"
 
     """
+
     schema = type_schema('create-machine-image', name_format={'type': 'string'})
     method_spec = {'op': 'insert'}
     permissions = ('compute.machineImages.create',)
@@ -237,23 +240,30 @@ class CreateMachineImage(MethodAction):
 
 @resources.register('image')
 class Image(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
         component = 'images'
         name = id = 'name'
         default_report_fields = [
-            "name", "description", "sourceType", "status", "creationTimestamp",
-            "storageLocation", "diskSizeGb", "family"]
+            "name",
+            "description",
+            "sourceType",
+            "status",
+            "creationTimestamp",
+            "storageLocation",
+            "diskSizeGb",
+            "family",
+        ]
         asset_type = "compute.googleapis.com/Image"
         urn_component = "image"
 
         @staticmethod
         def get(client, resource_info):
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'resourceId': resource_info['image_id']})
+                'get',
+                {'project': resource_info['project_id'], 'resourceId': resource_info['image_id']},
+            )
 
 
 @Image.action_registry.register('delete')
@@ -271,7 +281,6 @@ class DeleteImage(MethodAction):
 
 @resources.register('disk')
 class Disk(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
@@ -288,20 +297,24 @@ class Disk(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'zone': resource_info['zone'],
-                        'disk': resource_info['disk_id']})
+                'get',
+                {
+                    'project': resource_info['project_id'],
+                    'zone': resource_info['zone'],
+                    'disk': resource_info['disk_id'],
+                },
+            )
 
         @staticmethod
         def get_label_params(resource, all_labels):
             path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/disks/(.*)')
-            project, zone, instance = path_param_re.match(
-                resource['selfLink']).groups()
-            return {'project': project, 'zone': zone, 'resource': instance,
-                    'body': {
-                        'labels': all_labels,
-                        'labelFingerprint': resource['labelFingerprint']
-                    }}
+            project, zone, instance = path_param_re.match(resource['selfLink']).groups()
+            return {
+                'project': project,
+                'zone': zone,
+                'resource': instance,
+                'body': {'labels': all_labels, 'labelFingerprint': resource['labelFingerprint']},
+            }
 
 
 @Disk.action_registry.register('snapshot')
@@ -333,10 +346,10 @@ class DiskSnapshot(MethodAction):
               - type: snapshot
                 name_format: "{disk[name]:.50}-{now:%Y-%m-%d}"
     """
+
     schema = type_schema('snapshot', name_format={'type': 'string'})
     method_spec = {'op': 'createSnapshot'}
-    path_param_re = re.compile(
-        '.*?/projects/(.*?)/zones/(.*?)/disks/(.*)')
+    path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/disks/(.*)')
     attr_filter = ('status', ('RUNNING', 'READY'))
 
     def get_resource_params(self, model, resource):
@@ -351,7 +364,7 @@ class DiskSnapshot(MethodAction):
             'body': {
                 'name': name,
                 'labels': resource.get('labels', {}),
-            }
+            },
         }
 
 
@@ -360,8 +373,7 @@ class DiskDelete(MethodAction):
 
     schema = type_schema('delete')
     method_spec = {'op': 'delete'}
-    path_param_re = re.compile(
-        '.*?/projects/(.*?)/zones/(.*?)/disks/(.*)')
+    path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/disks/(.*)')
     attr_filter = ('status', ('RUNNING', 'READY'))
 
     def get_resource_params(self, m, r):
@@ -375,7 +387,6 @@ class DiskDelete(MethodAction):
 
 @resources.register('snapshot')
 class Snapshot(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
@@ -389,8 +400,9 @@ class Snapshot(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'snapshot': resource_info['snapshot_id']})
+                'get',
+                {'project': resource_info['project_id'], 'snapshot': resource_info['snapshot_id']},
+            )
 
 
 @Snapshot.action_registry.register('delete')
@@ -411,6 +423,7 @@ class DeleteSnapshot(MethodAction):
 @resources.register('instance-template')
 class InstanceTemplate(QueryResourceManager):
     """GCP resource: https://cloud.google.com/compute/docs/reference/rest/v1/instanceTemplates"""
+
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
@@ -419,16 +432,24 @@ class InstanceTemplate(QueryResourceManager):
         enum_spec = ('list', 'items[]', None)
         name = id = 'name'
         default_report_fields = [
-            name, "description", "creationTimestamp",
-            "properties.machineType", "properties.description"]
+            name,
+            "description",
+            "creationTimestamp",
+            "properties.machineType",
+            "properties.description",
+        ]
         asset_type = "compute.googleapis.com/InstanceTemplate"
         urn_component = "instance-template"
 
         @staticmethod
         def get(client, resource_info):
             return client.execute_command(
-                'get', {'project': resource_info['project_id'],
-                        'instanceTemplate': resource_info['instance_template_name']})
+                'get',
+                {
+                    'project': resource_info['project_id'],
+                    'instanceTemplate': resource_info['instance_template_name'],
+                },
+            )
 
 
 @InstanceTemplate.action_registry.register('delete')
@@ -451,27 +472,28 @@ class InstanceTemplateDelete(MethodAction):
             actions:
               - type: delete
     """
+
     schema = type_schema('delete')
     method_spec = {'op': 'delete'}
 
     def get_resource_params(self, m, r):
-        project, instance_template = re.match('.*/projects/(.*?)/.*/instanceTemplates/(.*)',
-                                              r['selfLink']).groups()
-        return {'project': project,
-                'instanceTemplate': instance_template}
+        project, instance_template = re.match(
+            '.*/projects/(.*?)/.*/instanceTemplates/(.*)', r['selfLink']
+        ).groups()
+        return {'project': project, 'instanceTemplate': instance_template}
 
 
 @resources.register('autoscaler')
 class Autoscaler(QueryResourceManager):
     """GCP resource: https://cloud.google.com/compute/docs/reference/rest/v1/autoscalers"""
+
     class resource_type(TypeInfo):
         service = 'compute'
         version = 'v1'
         component = 'autoscalers'
         name = id = 'name'
         enum_spec = ('aggregatedList', 'items.*.autoscalers[]', None)
-        default_report_fields = [
-            "name", "description", "status", "target", "recommendedSize"]
+        default_report_fields = ["name", "description", "status", "target", "recommendedSize"]
         asset_type = "compute.googleapis.com/Autoscaler"
         metric_key = "resource.labels.autoscaler_name"
         urn_component = "autoscaler"
@@ -480,13 +502,12 @@ class Autoscaler(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             project, zone, autoscaler = re.match(
-                'projects/(.*?)/zones/(.*?)/autoscalers/(.*)',
-                resource_info['resourceName']).groups()
+                'projects/(.*?)/zones/(.*?)/autoscalers/(.*)', resource_info['resourceName']
+            ).groups()
 
             return client.execute_command(
-                'get', {'project': project,
-                        'zone': zone,
-                        'autoscaler': autoscaler})
+                'get', {'project': project, 'zone': zone, 'autoscaler': autoscaler}
+            )
 
 
 @Autoscaler.action_registry.register('set')
@@ -531,43 +552,29 @@ class AutoscalerSet(MethodAction):
                 minNumReplicas: 1
                 maxNumReplicas: 4
     """
-    schema = type_schema('set',
-                         **{
-                             'coolDownPeriodSec': {
-                                 'type': 'integer',
-                                 'minimum': 15
-                             },
-                             'cpuUtilization': {
-                                 'type': 'object',
-                                 'required': ['utilizationTarget'],
-                                 'properties': {
-                                     'utilizationTarget': {
-                                         'type': 'number',
-                                         'exclusiveMinimum': 0,
-                                         'maximum': 1
-                                     }
-                                 },
-                             },
-                             'loadBalancingUtilization': {
-                                 'type': 'object',
-                                 'required': ['utilizationTarget'],
-                                 'properties': {
-                                     'utilizationTarget': {
-                                         'type': 'number',
-                                         'exclusiveMinimum': 0,
-                                         'maximum': 1
-                                     }
-                                 }
-                             },
-                             'maxNumReplicas': {
-                                 'type': 'integer',
-                                 'exclusiveMinimum': 0
-                             },
-                             'minNumReplicas': {
-                                 'type': 'integer',
-                                 'exclusiveMinimum': 0
-                             }
-                         })
+
+    schema = type_schema(
+        'set',
+        **{
+            'coolDownPeriodSec': {'type': 'integer', 'minimum': 15},
+            'cpuUtilization': {
+                'type': 'object',
+                'required': ['utilizationTarget'],
+                'properties': {
+                    'utilizationTarget': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 1}
+                },
+            },
+            'loadBalancingUtilization': {
+                'type': 'object',
+                'required': ['utilizationTarget'],
+                'properties': {
+                    'utilizationTarget': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 1}
+                },
+            },
+            'maxNumReplicas': {'type': 'integer', 'exclusiveMinimum': 0},
+            'minNumReplicas': {'type': 'integer', 'exclusiveMinimum': 0},
+        }
+    )
     method_spec = {'op': 'patch'}
     path_param_re = re.compile('.*?/projects/(.*?)/zones/(.*?)/autoscalers/(.*)')
     method_perm = 'update'
@@ -591,11 +598,11 @@ class AutoscalerSet(MethodAction):
         if 'minNumReplicas' in self.data:
             body['minNumReplicas'] = self.data['minNumReplicas']
 
-        result = {'project': project,
-                  'zone': zone,
-                  'autoscaler': autoscaler,
-                  'body': {
-                      'autoscalingPolicy': body
-                  }}
+        result = {
+            'project': project,
+            'zone': zone,
+            'autoscaler': autoscaler,
+            'body': {'autoscalingPolicy': body},
+        }
 
         return result

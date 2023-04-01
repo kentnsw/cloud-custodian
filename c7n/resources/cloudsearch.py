@@ -25,8 +25,7 @@ class Delete(Action):
     permissions = ('cloudsearch:DeleteDomain',)
 
     def process(self, resources):
-        client = local_session(
-            self.manager.session_factory).client('cloudsearch')
+        client = local_session(self.manager.session_factory).client('cloudsearch')
         for r in resources:
             if r['Created'] is not True or r['Deleted'] is True:
                 continue
@@ -59,9 +58,9 @@ class DomainOptionsFilter(ValueFilter):
         results = []
         client = local_session(self.manager.session_factory).client('cloudsearch')
         for r in resources:
-            options = client.describe_domain_endpoint_options(
-                DomainName=r['DomainName']
-            ).get('DomainEndpointOptions')
+            options = client.describe_domain_endpoint_options(DomainName=r['DomainName']).get(
+                'DomainEndpointOptions'
+            )
             if self.match(options):
                 results.append(r)
         return results
@@ -94,14 +93,12 @@ class EnableHttps(Action):
     permissions = ('cloudsearch:UpdateDomainEndpointOptions',)
 
     def process(self, resources):
-        client = local_session(
-            self.manager.session_factory).client('cloudsearch')
+        client = local_session(self.manager.session_factory).client('cloudsearch')
         for r in resources:
             client.update_domain_endpoint_options(
                 DomainName=r['DomainName'],
                 DomainEndpointOptions={
                     'EnforceHTTPS': True,
-                    'TLSSecurityPolicy': self.data.get(
-                        'tls-policy', 'Policy-Min-TLS-1-2-2019-07')
-                }
+                    'TLSSecurityPolicy': self.data.get('tls-policy', 'Policy-Min-TLS-1-2-2019-07'),
+                },
             )

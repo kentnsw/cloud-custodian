@@ -9,7 +9,6 @@ from c7n.actions import Action
 
 @resources.register('connect-instance')
 class Connect(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'connect'
         enum_spec = ('list_instances', 'InstanceSummaryList', None)
@@ -39,8 +38,12 @@ class ConnectInstanceAttributeFilter(ValueFilter):
 
     """
 
-    schema = type_schema('instance-attribute', rinherit=ValueFilter.schema,
-        required=['attribute_type'], **{'attribute_type': {'type': 'string'}})
+    schema = type_schema(
+        'instance-attribute',
+        rinherit=ValueFilter.schema,
+        required=['attribute_type'],
+        **{'attribute_type': {'type': 'string'}}
+    )
     permissions = ('connect:DescribeInstanceAttribute',)
     annotation_key = 'c7n:InstanceAttribute'
 
@@ -51,8 +54,9 @@ class ConnectInstanceAttributeFilter(ValueFilter):
 
         for r in resources:
             if self.annotation_key not in r:
-                instance_attribute = client.describe_instance_attribute(InstanceId=r['Id'],
-                                AttributeType=str.upper(self.data.get('attribute_type')))
+                instance_attribute = client.describe_instance_attribute(
+                    InstanceId=r['Id'], AttributeType=str.upper(self.data.get('attribute_type'))
+                )
                 instance_attribute.pop('ResponseMetadata', None)
                 r[self.annotation_key] = instance_attribute
 
@@ -93,18 +97,33 @@ class ConnectInstanceAttributeFilter(ValueFilter):
                     attribute_type: CONTACT_LENS
                     value: false
         """
-        attributes = ["INBOUND_CALLS", "OUTBOUND_CALLS",
-                      "CONTACTFLOW_LOGS", "CONTACT_LENS",
-                      "AUTO_RESOLVE_BEST_VOICES", "USE_CUSTOM_TTS_VOICES",
-                      "EARLY_MEDIA", "MULTI_PARTY_CONFERENCE",
-                      "HIGH_VOLUME_OUTBOUND", "ENHANCED_CONTACT_MONITORING"]
-        schema = type_schema("set-attributes", attribute_type={'anyOf': [{'enum': attributes},
-                  {'type': 'string'}]}, value={}, required=["value", "attribute_type"])
+
+        attributes = [
+            "INBOUND_CALLS",
+            "OUTBOUND_CALLS",
+            "CONTACTFLOW_LOGS",
+            "CONTACT_LENS",
+            "AUTO_RESOLVE_BEST_VOICES",
+            "USE_CUSTOM_TTS_VOICES",
+            "EARLY_MEDIA",
+            "MULTI_PARTY_CONFERENCE",
+            "HIGH_VOLUME_OUTBOUND",
+            "ENHANCED_CONTACT_MONITORING",
+        ]
+        schema = type_schema(
+            "set-attributes",
+            attribute_type={'anyOf': [{'enum': attributes}, {'type': 'string'}]},
+            value={},
+            required=["value", "attribute_type"],
+        )
         permissions = ("connect:UpdateInstanceAttribute",)
 
         def process(self, resources):
             client = local_session(self.manager.session_factory).client('connect')
 
             for r in resources:
-                client.update_instance_attribute(InstanceId=r["Id"],
-                    AttributeType=self.data.get("attribute_type"), Value=self.data.get("value"))
+                client.update_instance_attribute(
+                    InstanceId=r["Id"],
+                    AttributeType=self.data.get("attribute_type"),
+                    Value=self.data.get("value"),
+                )

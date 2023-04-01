@@ -11,12 +11,11 @@ from .common import BaseTest, Bag
 
 
 class TestEMR(BaseTest):
-
     def test_get_emr_by_ids(self):
         session_factory = self.replay_flight_data("test_emr_query_ids")
         p = self.load_policy(
-            {'name': 'emr', 'resource': 'aws.emr'},
-            session_factory=session_factory)
+            {'name': 'emr', 'resource': 'aws.emr'}, session_factory=session_factory
+        )
         resources = p.resource_manager.get_resources(["j-1EJMJNTXC63JW"])
         self.assertEqual(resources[0]["Id"], "j-1EJMJNTXC63JW")
 
@@ -24,9 +23,7 @@ class TestEMR(BaseTest):
         session_factory = self.replay_flight_data("test_emr_query_ids")
 
         ctx = Bag(session_factory=session_factory, log_dir="", options=Config.empty())
-        query = {
-            "query": [{"tag:foo": "val1"}, {"tag:foo": "val2"}, {"tag:bar": "val3"}]
-        }
+        query = {"query": [{"tag:foo": "val1"}, {"tag:foo": "val2"}, {"tag:bar": "val3"}]}
         mgr = emr.EMRCluster(ctx, query)
         self.assertEqual(
             mgr.consolidate_query_filter(),
@@ -76,9 +73,7 @@ class TestEMR(BaseTest):
         resources = policy.run()
         self.assertEqual(len(resources), 1)
 
-        cluster = session_factory().client("emr").describe_cluster(
-            ClusterId="j-1U3KBYP5TY79M"
-        )
+        cluster = session_factory().client("emr").describe_cluster(ClusterId="j-1U3KBYP5TY79M")
         cluster_tags = cluster["Cluster"]["Tags"]
         tags = {t["Key"]: t["Value"] for t in cluster_tags}
         self.assertEqual(tags["first_tag"], "first")
@@ -156,11 +151,11 @@ class TestEMR(BaseTest):
                     {
                         "type": "security-group",
                         "key": "tag:NetworkLocation",
-                        "value": "CustFacing,EntFacing"
+                        "value": "CustFacing,EntFacing",
                     }
                 ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -176,33 +171,34 @@ class TestEMR(BaseTest):
                     {
                         "type": "security-configuration",
                         "key": "EncryptionConfiguration.EnableAtRestEncryption",
-                        "value": True
+                        "value": True,
                     }
                 ],
             },
             config={"region": "us-west-2"},
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertEqual(
             resources[0]["c7n:SecurityConfiguration"],
-            {'EncryptionConfiguration': {
-                'AtRestEncryptionConfiguration': {
-                    'S3EncryptionConfiguration': {
-                        'EncryptionMode': 'SSE-S3'}},
-                'EnableAtRestEncryption': True,
-                'EnableInTransitEncryption': False}})
+            {
+                'EncryptionConfiguration': {
+                    'AtRestEncryptionConfiguration': {
+                        'S3EncryptionConfiguration': {'EncryptionMode': 'SSE-S3'}
+                    },
+                    'EnableAtRestEncryption': True,
+                    'EnableInTransitEncryption': False,
+                }
+            },
+        )
 
 
 class TestEMRQueryFilter(unittest.TestCase):
-
     def test_parse(self):
         self.assertEqual(QueryFilter.parse([]), [])
         x = QueryFilter.parse([{"ClusterStates": "terminated"}])
-        self.assertEqual(
-            x[0].query(), {"Name": "ClusterStates", "Values": ["terminated"]}
-        )
+        self.assertEqual(x[0].query(), {"Name": "ClusterStates", "Values": ["terminated"]})
 
         # Test consolidation of multiple values for query
         self.assertEqual(QueryFilter.parse([]), [])
@@ -213,27 +209,19 @@ class TestEMRQueryFilter(unittest.TestCase):
                 {"ClusterStates": "waiting"},
             ]
         )
-        self.assertEqual(
-            x[0].query(), {"Name": "ClusterStates", "Values": ["terminated"]}
-        )
+        self.assertEqual(x[0].query(), {"Name": "ClusterStates", "Values": ["terminated"]})
         self.assertEqual(x[1].query(), {"Name": "ClusterStates", "Values": ["running"]})
         self.assertEqual(x[2].query(), {"Name": "ClusterStates", "Values": ["waiting"]})
 
         self.assertEqual(QueryFilter.parse([]), [])
         x = QueryFilter.parse([{"CreatedBefore": 1470968567.05}])
-        self.assertEqual(
-            x[0].query(), {"Name": "CreatedBefore", "Values": 1470968567.05}
-        )
+        self.assertEqual(x[0].query(), {"Name": "CreatedBefore", "Values": 1470968567.05})
 
         self.assertEqual(QueryFilter.parse([]), [])
         x = QueryFilter.parse([{"CreatedAfter": 1470974021.557}])
-        self.assertEqual(
-            x[0].query(), {"Name": "CreatedAfter", "Values": 1470974021.557}
-        )
+        self.assertEqual(x[0].query(), {"Name": "CreatedAfter", "Values": 1470974021.557})
 
-        self.assertTrue(
-            isinstance(QueryFilter.parse([{"tag:ASV": "REALTIMEMSG"}])[0], QueryFilter)
-        )
+        self.assertTrue(isinstance(QueryFilter.parse([{"tag:ASV": "REALTIMEMSG"}])[0], QueryFilter))
 
         self.assertRaises(PolicyValidationError, QueryFilter.parse, [{"tag:ASV": None}])
 
@@ -247,7 +235,6 @@ class TestEMRQueryFilter(unittest.TestCase):
 
 
 class TestTerminate(BaseTest):
-
     def test_emr_terminate(self):
         session_factory = self.replay_flight_data("test_emr_terminate")
         policy = self.load_policy(
@@ -263,7 +250,6 @@ class TestTerminate(BaseTest):
 
 
 class TestActions(unittest.TestCase):
-
     def test_action_construction(self):
 
         self.assertIsInstance(actions.factory("terminate", None), emr.Terminate)
@@ -277,10 +263,15 @@ class TestEMRSecurityConfiguration(BaseTest):
                 'name': 'emr',
                 'resource': 'emr-security-configuration',
             },
-            session_factory=session_factory)
+            session_factory=session_factory,
+        )
         resources = p.run()
-        self.assertEqual(resources[0]["SecurityConfiguration"]['EncryptionConfiguration']
-             ['EnableInTransitEncryption'], False)
+        self.assertEqual(
+            resources[0]["SecurityConfiguration"]['EncryptionConfiguration'][
+                'EnableInTransitEncryption'
+            ],
+            False,
+        )
 
     def test_emr_security_configuration_delete(self):
         session_factory = self.replay_flight_data("test_emr_security_configuration_delete")
@@ -291,16 +282,14 @@ class TestEMRSecurityConfiguration(BaseTest):
                 "filters": [{"Name": "test"}],
                 "actions": [{"type": "delete"}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
         client = session_factory(region="us-east-1").client("emr")
         resp = client.list_security_configurations()
-        self.assertFalse(
-            resp['SecurityConfigurations']
-        )
+        self.assertFalse(resp['SecurityConfigurations'])
 
 
 class TestEMRServerless(BaseTest):
@@ -311,7 +300,7 @@ class TestEMRServerless(BaseTest):
                 "name": "emr-serverless-tag",
                 "resource": "aws.emr-serverless-app",
                 "filters": [{"tag:foo": "absent"}],
-                "actions": [{"type": "tag", "tags": {"foo": "bar"}}]
+                "actions": [{"type": "tag", "tags": {"foo": "bar"}}],
             },
             session_factory=session_factory,
         )
@@ -329,9 +318,9 @@ class TestEMRServerless(BaseTest):
                 'name': "test-emr-serverless-tag",
                 'resource': "aws.emr-serverless-app",
                 'filters': [{'tag:foo': 'present'}],
-                'actions': [{'type': 'remove-tag', 'tags': ['foo']}]
+                'actions': [{'type': 'remove-tag', 'tags': ['foo']}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -345,9 +334,9 @@ class TestEMRServerless(BaseTest):
             {
                 'name': 'test-emr-serverless-delete',
                 'resource': 'aws.emr-serverless-app',
-                'actions': [{'type': 'delete'}]
+                'actions': [{'type': 'delete'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)

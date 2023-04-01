@@ -20,8 +20,7 @@ from c7n.filters import FilterRegistry, MetricsFilter
 from c7n.manager import ResourceManager
 from c7n.registry import PluginRegistry
 from c7n.tags import register_ec2_tags, register_universal_tags, universal_augment
-from c7n.utils import (
-    local_session, generate_arn, get_retry, chunks, camelResource)
+from c7n.utils import local_session, generate_arn, get_retry, chunks, camelResource
 
 
 try:
@@ -36,7 +35,6 @@ except ImportError:
 
 
 class ResourceQuery:
-
     def __init__(self, session_factory):
         self.session_factory = session_factory
 
@@ -72,17 +70,20 @@ class ResourceQuery:
             client = resource_manager.get_client()
         else:
             client = local_session(self.session_factory).client(
-                m.service, resource_manager.config.region)
+                m.service, resource_manager.config.region
+            )
         enum_op, path, extra_args = m.enum_spec
         if extra_args:
             params.update(extra_args)
-        return self._invoke_client_enum(
-            client, enum_op, params, path,
-            getattr(resource_manager, 'retry', None)) or []
+        return (
+            self._invoke_client_enum(
+                client, enum_op, params, path, getattr(resource_manager, 'retry', None)
+            )
+            or []
+        )
 
     def get(self, resource_manager, identities):
-        """Get resources by identities
-        """
+        """Get resources by identities"""
         m = self.resolve(resource_manager.resource_type)
         params = {}
         client_filter = False
@@ -163,7 +164,8 @@ class ChildResourceQuery(ResourceQuery):
         for parent_id in parent_ids:
             merged_params = self.get_parent_parameters(params, parent_id, parent_key)
             subset = self._invoke_client_enum(
-                client, enum_op, merged_params, path, retry=self.manager.retry)
+                client, enum_op, merged_params, path, retry=self.manager.retry
+            )
             if annotate_parent:
                 for r in subset:
                     r[self.parent_key] = parent_id
@@ -178,17 +180,14 @@ class ChildResourceQuery(ResourceQuery):
 
 
 class QueryMeta(type):
-
     def __new__(cls, name, parents, attrs):
         if 'resource_type' not in attrs:
             return super(QueryMeta, cls).__new__(cls, name, parents, attrs)
 
         if 'filter_registry' not in attrs:
-            attrs['filter_registry'] = FilterRegistry(
-                '%s.filters' % name.lower())
+            attrs['filter_registry'] = FilterRegistry('%s.filters' % name.lower())
         if 'action_registry' not in attrs:
-            attrs['action_registry'] = ActionRegistry(
-                '%s.actions' % name.lower())
+            attrs['action_registry'] = ActionRegistry('%s.actions' % name.lower())
 
         if attrs['resource_type']:
             m = ResourceQuery.resolve(attrs['resource_type'])
@@ -199,13 +198,12 @@ class QueryMeta(type):
             if m.service == 'ec2':
                 # Generic ec2 resource tag support
                 if getattr(m, 'taggable', True):
-                    register_ec2_tags(
-                        attrs['filter_registry'], attrs['action_registry'])
+                    register_ec2_tags(attrs['filter_registry'], attrs['action_registry'])
             if getattr(m, 'universal_taggable', False):
                 compatibility = isinstance(m.universal_taggable, bool) and True or False
                 register_universal_tags(
-                    attrs['filter_registry'], attrs['action_registry'],
-                    compatibility=compatibility)
+                    attrs['filter_registry'], attrs['action_registry'], compatibility=compatibility
+                )
 
         return super(QueryMeta, cls).__new__(cls, name, parents, attrs)
 
@@ -268,18 +266,15 @@ class DescribeSource:
             client = self.manager.get_client()
         else:
             client = local_session(self.manager.session_factory).client(
-                model.service, region_name=self.manager.config.region)
-        _augment = functools.partial(
-            _augment, self.manager, model, detail_spec, client)
-        with self.manager.executor_factory(
-                max_workers=self.manager.max_workers) as w:
-            results = list(w.map(
-                _augment, chunks(resources, self.manager.chunk_size)))
+                model.service, region_name=self.manager.config.region
+            )
+        _augment = functools.partial(_augment, self.manager, model, detail_spec, client)
+        with self.manager.executor_factory(max_workers=self.manager.max_workers) as w:
+            results = list(w.map(_augment, chunks(resources, self.manager.chunk_size)))
             return list(itertools.chain(*results))
 
 
 class DescribeWithResourceTags(DescribeSource):
-
     def augment(self, resources):
         return universal_augment(self.manager, super().augment(resources))
 
@@ -290,8 +285,7 @@ class ChildDescribeSource(DescribeSource):
     resource_query_factory = ChildResourceQuery
 
     def get_query(self):
-        return self.resource_query_factory(
-            self.manager.session_factory, self.manager)
+        return self.resource_query_factory(self.manager.session_factory, self.manager)
 
 
 @sources.register('config')
@@ -304,8 +298,7 @@ class ConfigSource:
         self.titleCase = self.manager.resource_type.id[0].isupper()
 
     def get_permissions(self):
-        return ["config:GetResourceConfigHistory",
-                "config:ListDiscoveredResources"]
+        return ["config:GetResourceConfigHistory", "config:ListDiscoveredResources"]
 
     def get_resources(self, ids, cache=True):
         client = local_session(self.manager.session_factory).client('config')
@@ -316,7 +309,8 @@ class ConfigSource:
                 client.get_resource_config_history,
                 resourceId=i,
                 resourceType=m.config_type,
-                limit=1).get('configurationItems')
+                limit=1,
+            ).get('configurationItems')
             if not revisions:
                 continue
             results.append(self.load_resource(revisions[0]))
@@ -351,8 +345,10 @@ class ConfigSource:
         else:
             _c = None
 
-        s = ("select resourceId, configuration, supplementaryConfiguration "
-             "where resourceType = '{}'").format(self.manager.resource_type.config_type)
+        s = (
+            "select resourceId, configuration, supplementaryConfiguration "
+            "where resourceType = '{}'"
+        ).format(self.manager.resource_type.config_type)
 
         if _c:
             s += "AND {}".format(_c)
@@ -361,8 +357,7 @@ class ConfigSource:
 
     def load_resource(self, item):
         item_config = self._load_item_config(item)
-        resource = camelResource(
-            item_config, implicitDate=True, implicitTitle=self.titleCase)
+        resource = camelResource(item_config, implicitDate=True, implicitTitle=self.titleCase)
         self._load_resource_tags(resource, item)
         return resource
 
@@ -378,16 +373,17 @@ class ConfigSource:
         if 'Tags' in resource:
             return
         elif item.get('tags'):
-            resource['Tags'] = [
-                {u'Key': k, u'Value': v} for k, v in item['tags'].items()]
+            resource['Tags'] = [{u'Key': k, u'Value': v} for k, v in item['tags'].items()]
         elif item['supplementaryConfiguration'].get('Tags'):
             stags = item['supplementaryConfiguration']['Tags']
             if isinstance(stags, str):
                 stags = json.loads(stags)
             if isinstance(stags, list):
                 resource['Tags'] = [
-                    {u'Key': t.get('key', t.get('tagKey')),
-                     u'Value': t.get('value', t.get('tagValue'))}
+                    {
+                        u'Key': t.get('key', t.get('tagKey')),
+                        u'Value': t.get('value', t.get('tagValue')),
+                    }
                     for t in stags
                 ]
             elif isinstance(stags, dict):
@@ -398,18 +394,17 @@ class ConfigSource:
         # resource for a given resource type.
         paginator = client.get_paginator('list_discovered_resources')
         paginator.PAGE_ITERATOR_CLS = RetryPageIterator
-        pages = paginator.paginate(
-            resourceType=self.manager.get_model().config_type)
+        pages = paginator.paginate(resourceType=self.manager.get_model().config_type)
         results = []
 
         with self.manager.executor_factory(max_workers=2) as w:
             ridents = pages.build_full_result()
-            resource_ids = [
-                r['resourceId'] for r in ridents.get('resourceIdentifiers', ())]
+            resource_ids = [r['resourceId'] for r in ridents.get('resourceIdentifiers', ())]
             self.manager.log.debug(
                 "querying %d %s resources",
                 len(resource_ids),
-                self.manager.__class__.__name__.lower())
+                self.manager.__class__.__name__.lower(),
+            )
 
             for resource_set in chunks(resource_ids, 50):
                 futures = []
@@ -417,8 +412,8 @@ class ConfigSource:
                 for f in as_completed(futures):
                     if f.exception():
                         self.manager.log.error(
-                            "Exception getting resources from config \n %s" % (
-                                f.exception()))
+                            "Exception getting resources from config \n %s" % (f.exception())
+                        )
                     results.extend(f.result())
         return results
 
@@ -427,15 +422,14 @@ class ConfigSource:
         query = self.get_query_params(query)
         pager = Paginator(
             client.select_resource_config,
-            {'input_token': 'NextToken', 'output_token': 'NextToken',
-             'result_key': 'Results'},
-            client.meta.service_model.operation_model('SelectResourceConfig'))
+            {'input_token': 'NextToken', 'output_token': 'NextToken', 'result_key': 'Results'},
+            client.meta.service_model.operation_model('SelectResourceConfig'),
+        )
         pager.PAGE_ITERATOR_CLS = RetryPageIterator
 
         results = []
         for page in pager.paginate(Expression=query['expr']):
-            results.extend([
-                self.load_resource(json.loads(r)) for r in page['Results']])
+            results.extend([self.load_resource(json.loads(r)) for r in page['Results']])
 
         # Config arbitrarily breaks which resource types its supports for query/select
         # on any given day, if we don't have a user defined query, then fallback
@@ -459,14 +453,18 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
     _generate_arn = None
 
     retry = staticmethod(
-        get_retry((
-            'TooManyRequestsException',
-            'ThrottlingException',
-            'RequestLimitExceeded',
-            'Throttled',
-            'ThrottledException',
-            'Throttling',
-            'Client.RequestLimitExceeded')))
+        get_retry(
+            (
+                'TooManyRequestsException',
+                'ThrottlingException',
+                'RequestLimitExceeded',
+                'Throttled',
+                'ThrottledException',
+                'Throttling',
+                'Client.RequestLimitExceeded',
+            )
+        )
+    )
 
     source_mapping = sources
 
@@ -519,7 +517,7 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
             'region': self.config.region,
             'resource': str(self.__class__.__name__),
             'source': self.source_type,
-            'q': query
+            'q': query,
         }
 
     def resources(self, query=None, augment=True) -> List[dict]:
@@ -530,9 +528,13 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
         with self._cache:
             resources = self._cache.get(cache_key)
             if resources is not None:
-                self.log.debug("Using cached %s: %d" % (
-                    "%s.%s" % (self.__class__.__module__, self.__class__.__name__),
-                    len(resources)))
+                self.log.debug(
+                    "Using cached %s: %d"
+                    % (
+                        "%s.%s" % (self.__class__.__module__, self.__class__.__name__),
+                        len(resources),
+                    )
+                )
 
             if resources is None:
                 if query is None:
@@ -601,7 +603,7 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
 
     @property
     def account_id(self):
-        """ Return the current account ID.
+        """Return the current account ID.
 
         This should now be passed in using the --account-id flag, but for a
         period of time we will support the old behavior of inferring this from
@@ -611,8 +613,7 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
 
     @property
     def region(self):
-        """ Return the current region.
-        """
+        """Return the current region."""
         return self.config.region
 
     def get_arns(self, resources):
@@ -637,8 +638,7 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
 
     @property
     def generate_arn(self):
-        """ Generates generic arn if ID is not already arn format.
-        """
+        """Generates generic arn if ID is not already arn format."""
         if self._generate_arn is None:
             self._generate_arn = functools.partial(
                 generate_arn,
@@ -646,7 +646,8 @@ class QueryResourceManager(ResourceManager, metaclass=QueryMeta):
                 region=not self.resource_type.global_resource and self.config.region or "",
                 account_id=self.account_id,
                 resource_type=self.resource_type.arn_type,
-                separator=self.resource_type.arn_separator)
+                separator=self.resource_type.arn_separator,
+            )
         return self._generate_arn
 
 
@@ -664,7 +665,9 @@ class MaxResourceLimit:
         self.percent = None
         self._parse_policy()
 
-    def _parse_policy(self,):
+    def _parse_policy(
+        self,
+    ):
         if isinstance(self.p.max_resources, dict):
             self.op = self.p.max_resources.get("op", MaxResourceLimit.C7N_MAXRES_OP).lower()
             self.percent = self.p.max_resources.get("percent")
@@ -681,27 +684,50 @@ class MaxResourceLimit:
 
     def check_resource_limits(self):
         if self.percentage_amount and self.amount:
-            if (self.selection_count > self.amount and
-               self.selection_count > self.percentage_amount and self.op == "and"):
+            if (
+                self.selection_count > self.amount
+                and self.selection_count > self.percentage_amount
+                and self.op == "and"
+            ):
                 raise ResourceLimitExceeded(
-                    ("policy:%s exceeded resource-limit:{limit} and percentage-limit:%s%% "
-                     "found:{selection_count} total:{population_count}")
-                    % (self.p.name, self.percent), "max-resource and max-percent",
-                    self.amount, self.selection_count, self.population_count)
+                    (
+                        "policy:%s exceeded resource-limit:{limit} and percentage-limit:%s%% "
+                        "found:{selection_count} total:{population_count}"
+                    )
+                    % (self.p.name, self.percent),
+                    "max-resource and max-percent",
+                    self.amount,
+                    self.selection_count,
+                    self.population_count,
+                )
 
         if self.amount:
             if self.selection_count > self.amount and self.op != "and":
                 raise ResourceLimitExceeded(
-                    ("policy:%s exceeded resource-limit:{limit} "
-                     "found:{selection_count} total: {population_count}") % self.p.name,
-                    "max-resource", self.amount, self.selection_count, self.population_count)
+                    (
+                        "policy:%s exceeded resource-limit:{limit} "
+                        "found:{selection_count} total: {population_count}"
+                    )
+                    % self.p.name,
+                    "max-resource",
+                    self.amount,
+                    self.selection_count,
+                    self.population_count,
+                )
 
         if self.percentage_amount:
             if self.selection_count > self.percentage_amount and self.op != "and":
                 raise ResourceLimitExceeded(
-                    ("policy:%s exceeded resource-limit:{limit}%% "
-                     "found:{selection_count} total:{population_count}") % self.p.name,
-                    "max-percent", self.percent, self.selection_count, self.population_count)
+                    (
+                        "policy:%s exceeded resource-limit:{limit}%% "
+                        "found:{selection_count} total:{population_count}"
+                    )
+                    % self.p.name,
+                    "max-percent",
+                    self.percent,
+                    self.selection_count,
+                    self.population_count,
+                )
 
 
 class ChildResourceManager(QueryResourceManager):
@@ -768,7 +794,6 @@ class RetryPageIterator(PageIterator):
 
 
 class TypeMeta(type):
-
     def __repr__(cls):
         if cls.config_type:
             identifier = cls.config_type

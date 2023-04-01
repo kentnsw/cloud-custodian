@@ -11,7 +11,6 @@ from .common import BaseTest
 
 
 class Route53HostedZoneTest(BaseTest):
-
     def test_hostedzone_shield(self):
         session_factory = self.replay_flight_data("test_zone_shield_enable")
         p = self.load_policy(
@@ -126,7 +125,8 @@ def test_route53_hostedzone_delete(test, route53_hostedzone_delete):
         "name": "r53domain-delete-hostedzone",
         "resource": "hostedzone",
         "filters": [{"tag:TestTag": "present"}],
-        "actions": ["delete"]}
+        "actions": ["delete"],
+    }
 
     output = test.capture_logging('custodian.actions', level=logging.WARNING)
 
@@ -143,13 +143,15 @@ def test_route53_hostedzone_delete(test, route53_hostedzone_delete):
     if test.recording:
         time.sleep(3)
 
-    assert client.list_hosted_zones_by_name(
-        DNSName=route53_hostedzone_delete['aws_route53_zone.test_hosted_zone.name']
-    ).get('HostedZones') == []
+    assert (
+        client.list_hosted_zones_by_name(
+            DNSName=route53_hostedzone_delete['aws_route53_zone.test_hosted_zone.name']
+        ).get('HostedZones')
+        == []
+    )
 
 
 class Route53HealthCheckTest(BaseTest):
-
     def test_route53_healthcheck_tag(self):
         session_factory = self.replay_flight_data("test_route53_healthcheck_tag")
 
@@ -224,7 +226,6 @@ class Route53HealthCheckTest(BaseTest):
 
 
 class Route53DomainTest(BaseTest):
-
     def test_route53_domain_auto_renew(self):
         session_factory = self.replay_flight_data("test_route53_domain")
         p = self.load_policy(
@@ -265,9 +266,7 @@ class Route53DomainTest(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         client = session_factory(region="us-east-1").client("route53domains")
-        tags = client.list_tags_for_domain(DomainName=resources[0]["DomainName"])[
-            "TagList"
-        ]
+        tags = client.list_tags_for_domain(DomainName=resources[0]["DomainName"])["TagList"]
         self.assertEqual([tags[0]["Key"], tags[0]["Value"]], ["TestTag", "TestValue"])
 
     def test_route53_domain_remove_tag(self):
@@ -284,125 +283,137 @@ class Route53DomainTest(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         client = session_factory(region="us-east-1").client("route53domains")
-        tags = client.list_tags_for_domain(DomainName=resources[0]["DomainName"])[
-            "TagList"
-        ]
+        tags = client.list_tags_for_domain(DomainName=resources[0]["DomainName"])["TagList"]
         self.assertEqual(len(tags), 0)
 
 
 class Route53EnableDNSQueryLoggingTest(BaseTest):
-
     def test_hostedzone_set_query_log(self):
-        session_factory = self.replay_flight_data(
-            'test_route53_enable_query_logging')
-        p = self.load_policy({
-            'name': 'enablednsquerylogging',
-            'resource': 'hostedzone',
-            'filters': [
-                {'Config.PrivateZone': False},
-                {'type': 'query-logging-enabled', 'state': False}],
-            'actions': [{
-                'type': 'set-query-logging',
-                'log-group': '/aws/route53/cloudcustodian.io',
-                'state': True,
-                'set-permissions': True}]},
-            session_factory=session_factory, config={'account_id': '644160558196'})
+        session_factory = self.replay_flight_data('test_route53_enable_query_logging')
+        p = self.load_policy(
+            {
+                'name': 'enablednsquerylogging',
+                'resource': 'hostedzone',
+                'filters': [
+                    {'Config.PrivateZone': False},
+                    {'type': 'query-logging-enabled', 'state': False},
+                ],
+                'actions': [
+                    {
+                        'type': 'set-query-logging',
+                        'log-group': '/aws/route53/cloudcustodian.io',
+                        'state': True,
+                        'set-permissions': True,
+                    }
+                ],
+            },
+            session_factory=session_factory,
+            config={'account_id': '644160558196'},
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
         client = session_factory().client('route53')
         enabled_zones = {
-            c['HostedZoneId']: c for c in
-            client.list_query_logging_configs().get('QueryLoggingConfigs')}
+            c['HostedZoneId']: c
+            for c in client.list_query_logging_configs().get('QueryLoggingConfigs')
+        }
 
         for r in resources:
             self.assertTrue(r['Id'].rsplit('/', 1)[-1] in enabled_zones)
 
     def test_hostedzone_filter_query_log(self):
-        session_factory = self.replay_flight_data(
-            'test_route53_filter_query_logging')
-        p = self.load_policy({
-            'name': 'query-logging-enabled',
-            'resource': 'hostedzone',
-            'filters': [{'type': 'query-logging-enabled', 'state': True}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_route53_filter_query_logging')
+        p = self.load_policy(
+            {
+                'name': 'query-logging-enabled',
+                'resource': 'hostedzone',
+                'filters': [{'type': 'query-logging-enabled', 'state': True}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]['Id'], "/hostedzone/Z0423603VKO3K9HA5YQD")
-        self.assertEqual(resources[0]['c7n:log-config']['loggroup_subscription'][0]['logGroupName'],
-                         '/aws/route53/custodian.io')
+        self.assertEqual(
+            resources[0]['c7n:log-config']['loggroup_subscription'][0]['logGroupName'],
+            '/aws/route53/custodian.io',
+        )
 
 
 class TestResolverQueryLogConfig(BaseTest):
-
     def test_resolver_query_log_config(self):
-        session_factory = self.replay_flight_data(
-            'test_resolver_query_log_config')
-        p = self.load_policy({
-            'name': 'r53-resolver-query-log-config',
-            'resource': 'resolver-logs',
-            'filters': [
-                {'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc'}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_resolver_query_log_config')
+        p = self.load_policy(
+            {
+                'name': 'r53-resolver-query-log-config',
+                'resource': 'resolver-logs',
+                'filters': [{'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc'}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
     def test_resolver_query_log_config_vpc_filter(self):
-        session_factory = self.replay_flight_data(
-            'test_resolver_query_log_config_vpc_filter')
-        p = self.load_policy({
-            'name': 'r53-resolver-query-log-config-vpc-filter',
-            'resource': 'resolver-logs',
-            'filters': [
-                {'type': 'is-associated', 'vpcid': 'vpc-011516c4325953'}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_resolver_query_log_config_vpc_filter')
+        p = self.load_policy(
+            {
+                'name': 'r53-resolver-query-log-config-vpc-filter',
+                'resource': 'resolver-logs',
+                'filters': [{'type': 'is-associated', 'vpcid': 'vpc-011516c4325953'}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
     def test_resolver_query_log_config_associate_1(self):
-        session_factory = self.replay_flight_data(
-            'test_resolver_query_log_config_associate')
-        p = self.load_policy({
-            'name': 'r53-resolver-query-log-config-associate-1',
-            'resource': 'resolver-logs',
-            'filters': [
-                {'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc'}],
-            'actions': [{
-                'type': 'associate-vpc', 'vpcid': 'all'}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_resolver_query_log_config_associate')
+        p = self.load_policy(
+            {
+                'name': 'r53-resolver-query-log-config-associate-1',
+                'resource': 'resolver-logs',
+                'filters': [{'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc'}],
+                'actions': [{'type': 'associate-vpc', 'vpcid': 'all'}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]['Id'], "rqlc-fb017689395648d1")
 
     def test_resolver_query_log_config_associate_2(self):
-        session_factory = self.replay_flight_data(
-            'test_resolver_query_log_config_associate_2')
-        p = self.load_policy({
-            'name': 'r53-resolver-query-log-config-associate-2',
-            'resource': 'resolver-logs',
-            'filters': [
-                {'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc-2'}],
-            'actions': [{
-                'type': 'associate-vpc', 'vpcid': 'vpc-01234567891234'}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_resolver_query_log_config_associate_2')
+        p = self.load_policy(
+            {
+                'name': 'r53-resolver-query-log-config-associate-2',
+                'resource': 'resolver-logs',
+                'filters': [{'type': 'value', 'key': 'Name', 'op': 'eq', 'value': 'Test-rqlc-2'}],
+                'actions': [{'type': 'associate-vpc', 'vpcid': 'vpc-01234567891234'}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
 
         client = session_factory().client("route53resolver")
         rqlca = client.list_resolver_query_log_config_associations()
-        self.assertEqual(rqlca[
-            'ResolverQueryLogConfigAssociations'][0]['ResourceId'], "vpc-01234567891234")
+        self.assertEqual(
+            rqlca['ResolverQueryLogConfigAssociations'][0]['ResourceId'], "vpc-01234567891234"
+        )
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]['Id'], "rqlc-01234567891234")
 
     def test_resolver_query_log_config_not_associated(self):
-        session_factory = self.replay_flight_data(
-            'test_resolver_query_log_config_associate_2')
-        p = self.load_policy({
-            'name': 'r53-resolver-query-log-config-not-associated',
-            'resource': 'resolver-logs',
-            'filters': [{
-                'not': [{'type': 'is-associated', 'vpcid': 'vpc-0123456789123'}]}]},
-            session_factory=session_factory)
+        session_factory = self.replay_flight_data('test_resolver_query_log_config_associate_2')
+        p = self.load_policy(
+            {
+                'name': 'r53-resolver-query-log-config-not-associated',
+                'resource': 'resolver-logs',
+                'filters': [{'not': [{'type': 'is-associated', 'vpcid': 'vpc-0123456789123'}]}],
+            },
+            session_factory=session_factory,
+        )
         resources = p.run()
 
         self.assertEqual(len(resources), 1)
@@ -410,9 +421,10 @@ class TestResolverQueryLogConfig(BaseTest):
 
 
 class Route53RecoveryReadinessCheckTest(BaseTest):
-
     def test_readiness_check_add_tag(self):
-        session_factory = self.replay_flight_data("test_readiness_check_add_tag",)
+        session_factory = self.replay_flight_data(
+            "test_readiness_check_add_tag",
+        )
         p = self.load_policy(
             {
                 "name": "readiness-check-add-tag",
@@ -429,7 +441,9 @@ class Route53RecoveryReadinessCheckTest(BaseTest):
         self.assertEqual(tags, {"TestTag": "TestValue"})
 
     def test_readiness_check_remove_tag(self):
-        session_factory = self.replay_flight_data("test_readiness_check_remove_tag",)
+        session_factory = self.replay_flight_data(
+            "test_readiness_check_remove_tag",
+        )
         p = self.load_policy(
             {
                 "name": "readiness-check-remove-tag",
@@ -490,10 +504,7 @@ class Route53RecoveryReadinessCheckTest(BaseTest):
                 "name": "readiness-cross-account",
                 "resource": "readiness-check",
                 "filters": [
-                    {
-                        'type': 'cross-account',
-                        "whitelist": ["111111111111"]
-                    },
+                    {'type': 'cross-account', "whitelist": ["111111111111"]},
                 ],
             },
             session_factory=session_factory,
@@ -504,9 +515,10 @@ class Route53RecoveryReadinessCheckTest(BaseTest):
 
 
 class Route53RecoveryClusterTest(BaseTest):
-
     def test_recovery_cluster_add_tag(self):
-        session_factory = self.replay_flight_data("test_recovery_cluster_add_tag",)
+        session_factory = self.replay_flight_data(
+            "test_recovery_cluster_add_tag",
+        )
         p = self.load_policy(
             {
                 "name": "recovery-cluster-add-tag",
@@ -523,7 +535,9 @@ class Route53RecoveryClusterTest(BaseTest):
         self.assertEqual(tags, {"TestTag": "TestValue"})
 
     def test_recovery_cluster_remove_tag(self):
-        session_factory = self.replay_flight_data("test_recovery_cluster_remove_tag",)
+        session_factory = self.replay_flight_data(
+            "test_recovery_cluster_remove_tag",
+        )
         p = self.load_policy(
             {
                 "name": "recovery-cluster-remove-tag",
@@ -541,7 +555,6 @@ class Route53RecoveryClusterTest(BaseTest):
 
 
 class TestControlPanel(BaseTest):
-
     def test_control_panel_resource(self):
         session_factory = self.replay_flight_data("test_control_panel")
         p = self.load_policy(
@@ -555,7 +568,9 @@ class TestControlPanel(BaseTest):
         self.assertEqual(len(resources), 1)
 
     def test_control_panel_add_tag(self):
-        session_factory = self.replay_flight_data("test_control_panel_add_tag",)
+        session_factory = self.replay_flight_data(
+            "test_control_panel_add_tag",
+        )
         p = self.load_policy(
             {
                 "name": "control-panel-add-tag",
@@ -572,7 +587,9 @@ class TestControlPanel(BaseTest):
         self.assertEqual(tags, {"TestTag": "TestValue"})
 
     def test_control_panel_remove_tag(self):
-        session_factory = self.replay_flight_data("test_control_panel_remove_tag",)
+        session_factory = self.replay_flight_data(
+            "test_control_panel_remove_tag",
+        )
         p = self.load_policy(
             {
                 "name": "control-panel-remove-tag",
@@ -589,19 +606,23 @@ class TestControlPanel(BaseTest):
         self.assertEqual(len(tags), 0)
 
     def test_control_panel_safety_rule_filter(self):
-        session_factory = self.replay_flight_data("test_control_panel_safety_rule_filter",)
+        session_factory = self.replay_flight_data(
+            "test_control_panel_safety_rule_filter",
+        )
         p = self.load_policy(
             {
                 "name": "control-panel-safety-rule",
                 "resource": "recovery-control-panel",
-                "filters": [{'type': 'safety-rule', 'count': 1, 'count_op': 'gte'}]
+                "filters": [{'type': 'safety-rule', 'count': 1, 'count_op': 'gte'}],
             },
             session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]['ControlPanelArn'], \
-            'arn:aws:route53-recovery-control::644160558196:controlpanel/fd5a6bfc73364a0dbd48d3915867a306')
+        self.assertEqual(
+            resources[0]['ControlPanelArn'],
+            'arn:aws:route53-recovery-control::644160558196:controlpanel/fd5a6bfc73364a0dbd48d3915867a306',
+        )
         return
         p = self.load_policy(
             {
@@ -613,5 +634,7 @@ class TestControlPanel(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]['ControlPanelArn'], \
-             'arn:aws:route53-recovery-control::644160558196:controlpanel/7a721a1a44014ad1973539b3d83161ff')
+        self.assertEqual(
+            resources[0]['ControlPanelArn'],
+            'arn:aws:route53-recovery-control::644160558196:controlpanel/7a721a1a44014ad1973539b3d83161ff',
+        )

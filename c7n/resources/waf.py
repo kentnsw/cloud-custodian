@@ -34,7 +34,6 @@ class DescribeWafV2(DescribeSource):
 
 @resources.register('waf')
 class WAF(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "waf"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -51,7 +50,6 @@ class WAF(QueryResourceManager):
 
 @resources.register('waf-regional')
 class RegionalWAF(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "waf-regional"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -66,15 +64,11 @@ class RegionalWAF(QueryResourceManager):
         permissions_augment = ('waf-regional:GetWebACL',)
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribeRegionalWaf,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeRegionalWaf, 'config': ConfigSource}
 
 
 @resources.register('wafv2')
 class WAFV2(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "wafv2"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -89,10 +83,7 @@ class WAFV2(QueryResourceManager):
         permissions_augment = ('wafv2:GetWebACL',)
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribeWafV2,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeWafV2, 'config': ConfigSource}
 
 
 @WAFV2.filter_registry.register('logging')
@@ -124,14 +115,16 @@ class WAFV2LoggingFilter(ValueFilter):
     """
 
     schema = type_schema('logging', rinherit=ValueFilter.schema)
-    permissions = ('wafv2:GetLoggingConfiguration', )
+    permissions = ('wafv2:GetLoggingConfiguration',)
     annotation_key = 'c7n:WafV2LoggingConfiguration'
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client(
-            'wafv2', region_name=self.manager.region)
-        logging_confs = client.list_logging_configurations(
-            Scope='REGIONAL')['LoggingConfigurations']
+            'wafv2', region_name=self.manager.region
+        )
+        logging_confs = client.list_logging_configurations(Scope='REGIONAL')[
+            'LoggingConfigurations'
+        ]
         resource_map = {r['ARN']: r for r in resources}
         for lc in logging_confs:
             if lc['ResourceArn'] in resource_map:
@@ -139,6 +132,4 @@ class WAFV2LoggingFilter(ValueFilter):
 
         resources = list(resource_map.values())
 
-        return [
-            r for r in resources if self.match(
-                r.get(self.annotation_key, {}))]
+        return [r for r in resources if self.match(r.get(self.annotation_key, {}))]

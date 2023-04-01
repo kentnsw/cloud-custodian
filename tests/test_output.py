@@ -22,21 +22,17 @@ import vcr
 
 
 class MetricsTest(BaseTest):
-
     def test_boolean_config_compatibility(self):
-        self.assertTrue(
-            isinstance(metrics_outputs.select(True, {}), MetricsOutput))
+        self.assertTrue(isinstance(metrics_outputs.select(True, {}), MetricsOutput))
 
 
 class DirOutputTest(BaseTest):
-
     def get_dir_output(self, location):
         work_dir = self.change_cwd()
         return work_dir, DirectoryOutput(
             ExecutionContext(
-                None,
-                Bag(name="xyz", provider_name="ostack"),
-                Config.empty(output_dir=location)),
+                None, Bag(name="xyz", provider_name="ostack"), Config.empty(output_dir=location)
+            ),
             {'url': location},
         )
 
@@ -47,7 +43,6 @@ class DirOutputTest(BaseTest):
 
 
 class S3OutputTest(TestUtils):
-
     def get_s3_output(self, output_url=None, cleanup=True, klass=S3Output):
         if output_url is None:
             output_url = "s3://cloud-custodian/policies"
@@ -56,8 +51,10 @@ class S3OutputTest(TestUtils):
                 ExecutionContext(
                     lambda assume=False, region="us-east-1": mock.MagicMock(),
                     Bag(name="xyz", provider_name="ostack"),
-                    Config.empty(output_dir=output_url, account_id='112233445566')),
-                {'url': output_url, 'test': True})
+                    Config.empty(output_dir=output_url, account_id='112233445566'),
+                ),
+                {'url': output_url, 'test': True},
+            )
 
         if cleanup:
             self.addCleanup(shutil.rmtree, output.root_dir)
@@ -66,18 +63,17 @@ class S3OutputTest(TestUtils):
 
     def test_blob_output(self):
         blob_output = self.get_s3_output(klass=BlobOutput)
-        self.assertRaises(NotImplementedError,
-                          blob_output.upload_file, 'xyz', '/prefix/xyz')
+        self.assertRaises(NotImplementedError, blob_output.upload_file, 'xyz', '/prefix/xyz')
 
     def test_output_path(self):
         with mock_datetime_now(date_parse('2020/06/10 13:00'), datetime):
             output = self.get_s3_output(output_url='s3://prefix/')
             self.assertEqual(
-                output.get_output_path('s3://prefix/'),
-                's3://prefix/xyz/2020/06/10/13')
+                output.get_output_path('s3://prefix/'), 's3://prefix/xyz/2020/06/10/13'
+            )
             self.assertEqual(
                 output.get_output_path('s3://prefix/{region}/{account_id}/{policy_name}/{now:%Y}/'),
-                's3://prefix/us-east-1/112233445566/xyz/2020'
+                's3://prefix/us-east-1/112233445566/xyz/2020',
             )
 
     def test_s3_output(self):
@@ -89,14 +85,13 @@ class S3OutputTest(TestUtils):
         self.assertIn("bucket:cloud-custodian", name)
 
     def test_s3_context_manager(self):
-        log_output = self.capture_logging(
-            'custodian.output.blob', level=logging.DEBUG)
+        log_output = self.capture_logging('custodian.output.blob', level=logging.DEBUG)
         output = self.get_s3_output(cleanup=False)
         with output:
             pass
-        self.assertEqual(log_output.getvalue(), (
-            's3: uploading policy logs\n'
-            's3: policy logs uploaded\n'))
+        self.assertEqual(
+            log_output.getvalue(), ('s3: uploading policy logs\n' 's3: policy logs uploaded\n')
+        )
 
     def test_join_leave_log(self):
         temp_dir = self.get_temp_dir()
@@ -104,7 +99,7 @@ class S3OutputTest(TestUtils):
         logging.getLogger('custodian').setLevel(logging.INFO)
         output.join_log()
 
-        l = logging.getLogger("custodian.s3") # NOQA
+        l = logging.getLogger("custodian.s3")  # NOQA
 
         # recent versions of nose mess with the logging manager
         v = l.manager.disable
@@ -206,14 +201,13 @@ class S3OutputTest(TestUtils):
             'us-east-1',
             id='us-cross-region',
         ),
-    ]
+    ],
 )
 def test_get_bucket_region_http(bucket, endpoint, expected_region, request):
     """Test finding the output bucket region via HTTP requests"""
 
     with vcr.use_cassette(
-        f'tests/data/vcr_cassettes/test_output/{request.node.name}.yaml',
-        record_mode='none'
+        f'tests/data/vcr_cassettes/test_output/{request.node.name}.yaml', record_mode='none'
     ):
         region = inspect_bucket_region(bucket, endpoint)
         assert region == expected_region

@@ -36,7 +36,6 @@ def factory(config):
 
 
 class Cache:
-
     def __init__(self, config):
         self.config = config
 
@@ -94,9 +93,7 @@ def encode(key):
 
 
 def resolve_path(path):
-    return os.path.abspath(
-        os.path.expanduser(
-            os.path.expandvars(path)))
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
 
 
 class SqlKvCache(Cache):
@@ -132,7 +129,8 @@ class SqlKvCache(Cache):
             log.debug('expiring stale cache entries')
             cursor.execute(
                 'delete from c7n_cache where create_date < ?',
-                [datetime.utcnow() - timedelta(minutes=self.cache_period)])
+                [datetime.utcnow() - timedelta(minutes=self.cache_period)],
+            )
 
     def load(self):
         if not self.conn:
@@ -143,7 +141,7 @@ class SqlKvCache(Cache):
         with self.conn as cursor:
             r = cursor.execute(
                 'select value, create_date from c7n_cache where key = ?',
-                [sqlite3.Binary(encode(key))]
+                [sqlite3.Binary(encode(key))],
             )
             row = r.fetchone()
             if row is None:
@@ -159,7 +157,8 @@ class SqlKvCache(Cache):
             timestamp = timestamp or datetime.utcnow()
             cursor.execute(
                 'replace into c7n_cache (key, value, create_date) values (?, ?, ?)',
-                (sqlite3.Binary(encode(key)), sqlite3.Binary(encode(data)), timestamp))
+                (sqlite3.Binary(encode(key)), sqlite3.Binary(encode(data)), timestamp),
+            )
 
     def size(self):
         return os.path.exists(self.cache_path) and os.path.getsize(self.cache_path) or 0

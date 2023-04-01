@@ -11,7 +11,6 @@ from .aws import shape_validate
 
 
 class DescribeKafka(DescribeSource):
-
     def augment(self, resources):
         for r in resources:
             # preserve backwards compat with extant list_clsuters api
@@ -32,7 +31,6 @@ class DescribeKafka(DescribeSource):
 
 @resources.register('kafka')
 class Kafka(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'kafka'
         enum_spec = ('list_clusters_v2', 'ClusterInfoList', None)
@@ -44,10 +42,7 @@ class Kafka(QueryResourceManager):
         universal_taggable = object()
         cfn_type = config_type = 'AWS::MSK::Cluster'
 
-    source_mapping = {
-        'describe': DescribeKafka,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeKafka, 'config': ConfigSource}
 
 
 @Kafka.filter_registry.register('security-group')
@@ -81,7 +76,10 @@ class KafkaCompoundSubnetFilter(SubnetFilter):
                 s.append(r)
 
         result = []
-        for filtered, fil in ((p, ProvisionedSubnetFilter), (s, ServerlessSubnetFilter), ):
+        for filtered, fil in (
+            (p, ProvisionedSubnetFilter),
+            (s, ServerlessSubnetFilter),
+        ):
             f = fil(self.data, self.manager)
             # necessary to validate otherwise the filter wont work
             f.validate()
@@ -109,6 +107,7 @@ class KafkaKmsFilter(KmsRelatedFilter):
                 key: c7n:AliasName
                 value: alias/aws/kafka
     """
+
     RelatedIdsExpression = 'Provisioned.EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId'
 
 
@@ -116,9 +115,8 @@ class KafkaKmsFilter(KmsRelatedFilter):
 class SetMonitoring(Action):
 
     schema = type_schema(
-        'set-monitoring',
-        config={'type': 'object', 'minProperties': 1},
-        required=('config',))
+        'set-monitoring', config={'type': 'object', 'minProperties': 1}, required=('config',)
+    )
 
     shape = 'UpdateMonitoringRequest'
     permissions = ('kafka:UpdateClusterConfiguration',)

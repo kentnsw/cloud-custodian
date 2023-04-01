@@ -25,9 +25,7 @@ def test_format_pass_empty():
 
 def test_format_string_values_empty():
     formatter = VarFormat().format
-    assert format_string_values({'a': '{x}'}, x=None, formatter=formatter) == {
-        'a': None
-    }
+    assert format_string_values({'a': '{x}'}, x=None, formatter=formatter) == {'a': None}
     assert format_string_values({'a': '{x}'}, x={}, formatter=formatter) == {'a': {}}
     assert format_string_values({'a': '{x}'}, x=[], formatter=formatter) == {'a': []}
     assert format_string_values({'a': '{x}'}, x=0, formatter=formatter) == {'a': 0}
@@ -70,9 +68,7 @@ def test_load_policy_var_retain_type(test):
         }
     )
 
-    p.expand_variables(
-        dict(my_list=[1, 2, 3], my_int=22, my_date=parse_date('2022-02-01 12:00'))
-    )
+    p.expand_variables(dict(my_list=[1, 2, 3], my_int=22, my_date=parse_date('2022-02-01 12:00')))
     test.assertJmes('filters[0].value', p.data, [1, 2, 3])
     test.assertJmes('filters[1].value', p.data, 22)
     test.assertJmes('filters[2].key', p.data, "2022-02-01")

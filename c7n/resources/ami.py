@@ -13,8 +13,7 @@ import jmespath
 
 from c7n.actions import BaseAction
 from c7n.exceptions import ClientError, PolicyValidationError
-from c7n.filters import (
-    AgeFilter, ValueFilter, Filter, CrossAccountAccessFilter)
+from c7n.filters import AgeFilter, ValueFilter, Filter, CrossAccountAccessFilter
 from c7n.manager import resources
 from c7n.query import QueryResourceManager, DescribeSource, TypeInfo
 from c7n.resolver import ValuesFrom
@@ -26,7 +25,6 @@ log = logging.getLogger('custodian.ami')
 
 
 class DescribeImageSource(DescribeSource):
-
     def get_resources(self, ids, cache=True):
         while ids:
             try:
@@ -43,12 +41,10 @@ class DescribeImageSource(DescribeSource):
 
 @resources.register('ami')
 class AMI(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'ec2'
         arn_type = 'image'
-        enum_spec = (
-            'describe_images', 'Images', None)
+        enum_spec = ('describe_images', 'Images', None)
         id = 'ImageId'
         filter_name = 'ImageIds'
         filter_type = 'list'
@@ -56,9 +52,7 @@ class AMI(QueryResourceManager):
         date = 'CreationDate'
         id_prefix = "ami-"
 
-    source_mapping = {
-        'describe': DescribeImageSource
-    }
+    source_mapping = {'describe': DescribeImageSource}
 
     def resources(self, query=None):
         if query is None and 'query' in self.data:
@@ -71,7 +65,6 @@ class AMI(QueryResourceManager):
 
 
 class ErrorHandler:
-
     @staticmethod
     def extract_bad_ami(e):
         """Handle various client side errors when describing images"""
@@ -80,11 +73,12 @@ class ErrorHandler:
         e_ami_ids = None
         if error == 'InvalidAMIID.NotFound':
             e_ami_ids = [
-                e_ami_id.strip() for e_ami_id
-                in msg[msg.find("'[") + 2:msg.rfind("]'")].split(',')]
+                e_ami_id.strip()
+                for e_ami_id in msg[msg.find("'[") + 2 : msg.rfind("]'")].split(',')
+            ]
             log.warning("Image not found %s" % e_ami_ids)
         elif error == 'InvalidAMIID.Malformed':
-            e_ami_ids = [msg[msg.find('"') + 1:msg.rfind('"')]]
+            e_ami_ids = [msg[msg.find('"') + 1 : msg.rfind('"')]]
             log.warning("Image id malformed %s" % e_ami_ids)
         return e_ami_ids
 
@@ -167,7 +161,8 @@ class SetDeprecation(BaseAction):
         'set-deprecation',
         date={'type': 'string'},
         days={'type': 'integer'},
-        age={'type': 'integer'})
+        age={'type': 'integer'},
+    )
     permissions = ('ec2:EnableImageDeprecation', 'ec2:DisableImageDeprecation')
     dep_date = None
     dep_age = None
@@ -178,17 +173,20 @@ class SetDeprecation(BaseAction):
                 self.dep_date = parse_date(self.data.get('date'))
                 if not self.dep_date:
                     raise PolicyValidationError(
-                        "policy:%s filter:%s has invalid date format" % (
-                            self.manager.ctx.policy.name, self.type))
+                        "policy:%s filter:%s has invalid date format"
+                        % (self.manager.ctx.policy.name, self.type)
+                    )
             elif 'days' in self.data:
-                self.dep_date = (datetime.datetime.now(tz=tzutc()) +
-                    timedelta(days=int(self.data.get('days'))))
+                self.dep_date = datetime.datetime.now(tz=tzutc()) + timedelta(
+                    days=int(self.data.get('days'))
+                )
             elif 'age' in self.data:
-                self.dep_age = (int(self.data.get('age')))
+                self.dep_age = int(self.data.get('age'))
         except (ValueError, OverflowError):
             raise PolicyValidationError(
-                "policy:%s filter:%s has invalid time interval" % (
-                    self.manager.ctx.policy.name, self.type))
+                "policy:%s filter:%s has invalid time interval"
+                % (self.manager.ctx.policy.name, self.type)
+            )
 
     def process(self, images):
         client = local_session(self.manager.session_factory).client('ec2')
@@ -209,10 +207,15 @@ class SetDeprecation(BaseAction):
                 if date < datetime.datetime.now(tz=tzutc()):
                     odate = str(date)
                     date = datetime.datetime.now(tz=tzutc()) + timedelta(minutes=1)
-                    log.warning("Deprecation time %s is in the past for Image %s.  Setting to %s.",
-                        odate, i['ImageId'], date)
-                self.manager.retry(client.enable_image_deprecation,
-                    ImageId=i['ImageId'], DeprecateAt=date)
+                    log.warning(
+                        "Deprecation time %s is in the past for Image %s.  Setting to %s.",
+                        odate,
+                        i['ImageId'],
+                        date,
+                    )
+                self.manager.retry(
+                    client.enable_image_deprecation, ImageId=i['ImageId'], DeprecateAt=date
+                )
 
 
 @AMI.action_registry.register('remove-launch-permissions')
@@ -240,16 +243,19 @@ class RemoveLaunchPermissions(BaseAction):
                   - type: remove-launch-permissions
 
     """
-    deprecations = (
-        deprecated.action("use set-permissions instead with 'remove' attribute"),
-    )
+
+    deprecations = (deprecated.action("use set-permissions instead with 'remove' attribute"),)
     schema = type_schema(
         'remove-launch-permissions',
-        accounts={'oneOf': [
-            {'enum': ['matched']},
-            {'type': 'string', 'minLength': 12, 'maxLength': 12}]})
+        accounts={
+            'oneOf': [{'enum': ['matched']}, {'type': 'string', 'minLength': 12, 'maxLength': 12}]
+        },
+    )
 
-    permissions = ('ec2:ResetImageAttribute', 'ec2:ModifyImageAttribute',)
+    permissions = (
+        'ec2:ResetImageAttribute',
+        'ec2:ModifyImageAttribute',
+    )
 
     def validate(self):
         if 'accounts' in self.data and self.data['accounts'] == 'matched':
@@ -260,8 +266,9 @@ class RemoveLaunchPermissions(BaseAction):
                     break
             if not found:
                 raise PolicyValidationError(
-                    "policy:%s filter:%s with matched requires cross-account filter" % (
-                        self.manager.ctx.policy.name, self.type))
+                    "policy:%s filter:%s with matched requires cross-account filter"
+                    % (self.manager.ctx.policy.name, self.type)
+                )
 
     def process(self, images):
         client = local_session(self.manager.session_factory).client('ec2')
@@ -272,7 +279,8 @@ class RemoveLaunchPermissions(BaseAction):
         accounts = self.data.get('accounts')
         if not accounts:
             return client.reset_image_attribute(
-                ImageId=image['ImageId'], Attribute="launchPermission")
+                ImageId=image['ImageId'], Attribute="launchPermission"
+            )
         if accounts == 'matched':
             accounts = image.get(AmiCrossAccountFilter.annotation_key)
         if not accounts:
@@ -285,9 +293,8 @@ class RemoveLaunchPermissions(BaseAction):
         if not remove:
             return
         client.modify_image_attribute(
-            ImageId=image['ImageId'],
-            LaunchPermission={'Remove': remove},
-            OperationType='remove')
+            ImageId=image['ImageId'], LaunchPermission={'Remove': remove}, OperationType='remove'
+        )
 
 
 @AMI.action_registry.register('set-permissions')
@@ -345,14 +352,14 @@ class SetPermissions(BaseAction):
 
     schema = type_schema(
         'set-permissions',
-        remove={'oneOf': [
-            {'enum': ['matched']},
-            {'type': 'array', 'items': {'type': 'string'}}
-        ]},
-        add={'type': 'array', 'items': {'type': 'string'}}
+        remove={'oneOf': [{'enum': ['matched']}, {'type': 'array', 'items': {'type': 'string'}}]},
+        add={'type': 'array', 'items': {'type': 'string'}},
     )
 
-    permissions = ('ec2:ResetImageAttribute', 'ec2:ModifyImageAttribute',)
+    permissions = (
+        'ec2:ResetImageAttribute',
+        'ec2:ModifyImageAttribute',
+    )
 
     def validate(self):
         if self.data.get('remove') == 'matched':
@@ -363,8 +370,9 @@ class SetPermissions(BaseAction):
                     break
             if not found:
                 raise PolicyValidationError(
-                    "policy:%s filter:%s with matched requires cross-account filter" % (
-                        self.manager.ctx.policy.name, self.type))
+                    "policy:%s filter:%s with matched requires cross-account filter"
+                    % (self.manager.ctx.policy.name, self.type)
+                )
 
     def process(self, images):
         client = local_session(self.manager.session_factory).client('ec2')
@@ -377,7 +385,8 @@ class SetPermissions(BaseAction):
         # Default is to remove all permissions
         if not to_add and not to_remove:
             return client.reset_image_attribute(
-                ImageId=image['ImageId'], Attribute="launchPermission")
+                ImageId=image['ImageId'], Attribute="launchPermission"
+            )
         remove = []
         add = []
         account_regex = re.compile('\\d{12}')
@@ -416,16 +425,20 @@ class SetPermissions(BaseAction):
                     add.extend([{'OrganizationalUnitArn': a} for a in principals])
 
         if remove:
-            self.manager.retry(client.modify_image_attribute,
+            self.manager.retry(
+                client.modify_image_attribute,
                 ImageId=image['ImageId'],
                 LaunchPermission={'Remove': remove},
-                OperationType='remove')
+                OperationType='remove',
+            )
 
         if add:
-            self.manager.retry(client.modify_image_attribute,
+            self.manager.retry(
+                client.modify_image_attribute,
                 ImageId=image['ImageId'],
                 LaunchPermission={'Add': add},
-                OperationType='add')
+                OperationType='add',
+            )
 
 
 @AMI.action_registry.register('copy')
@@ -464,15 +477,13 @@ class Copy(BaseAction):
             'description': {'type': 'string'},
             'region': {'type': 'string'},
             'encrypt': {'type': 'boolean'},
-            'key-id': {'type': 'string'}
-        }
+            'key-id': {'type': 'string'},
+        },
     }
 
     def process(self, images):
         session = local_session(self.manager.session_factory)
-        client = session.client(
-            'ec2',
-            region_name=self.data.get('region', None))
+        client = session.client('ec2', region_name=self.data.get('region', None))
 
         for image in images:
             client.copy_image(
@@ -481,7 +492,8 @@ class Copy(BaseAction):
                 SourceRegion=session.region_name,
                 SourceImageId=image['ImageId'],
                 Encrypted=self.data.get('encrypt', False),
-                KmsKeyId=self.data.get('key-id', ''))
+                KmsKeyId=self.data.get('key-id', ''),
+            )
 
 
 @AMI.filter_registry.register('image-age')
@@ -504,7 +516,8 @@ class ImageAgeFilter(AgeFilter):
     schema = type_schema(
         'image-age',
         op={'$ref': '#/definitions/filters_common/comparison_operators'},
-        days={'type': 'number', 'minimum': 0})
+        days={'type': 'number', 'minimum': 0},
+    )
 
 
 @AMI.filter_registry.register('unused')
@@ -529,9 +542,14 @@ class ImageUnusedFilter(Filter):
     schema = type_schema('unused', value={'type': 'boolean'})
 
     def get_permissions(self):
-        return list(itertools.chain(*[
-            self.manager.get_resource_manager(m).get_permissions()
-            for m in ('asg', 'launch-config', 'ec2')]))
+        return list(
+            itertools.chain(
+                *[
+                    self.manager.get_resource_manager(m).get_permissions()
+                    for m in ('asg', 'launch-config', 'ec2')
+                ]
+            )
+        )
 
     def _pull_asg_images(self):
         asgs = self.manager.get_resource_manager('asg').resources()
@@ -540,13 +558,16 @@ class ImageUnusedFilter(Filter):
         lcfg_mgr = self.manager.get_resource_manager('launch-config')
 
         if lcfgs:
-            image_ids.update([
-                lcfg['ImageId'] for lcfg in lcfg_mgr.resources()
-                if lcfg['LaunchConfigurationName'] in lcfgs])
+            image_ids.update(
+                [
+                    lcfg['ImageId']
+                    for lcfg in lcfg_mgr.resources()
+                    if lcfg['LaunchConfigurationName'] in lcfgs
+                ]
+            )
 
         tmpl_mgr = self.manager.get_resource_manager('launch-template-version')
-        for tversion in tmpl_mgr.get_resources(
-                list(tmpl_mgr.get_asg_templates(asgs).keys())):
+        for tversion in tmpl_mgr.get_resources(list(tmpl_mgr.get_asg_templates(asgs).keys())):
             image_ids.add(tversion['LaunchTemplateData'].get('ImageId'))
         return image_ids
 
@@ -568,7 +589,8 @@ class AmiCrossAccountFilter(CrossAccountAccessFilter):
         'cross-account',
         # white list accounts
         whitelist_from=ValuesFrom.schema,
-        whitelist={'type': 'array', 'items': {'type': 'string'}})
+        whitelist={'type': 'array', 'items': {'type': 'string'}},
+    )
 
     permissions = ('ec2:DescribeImageAttribute',)
     annotation_key = 'c7n:CrossAccountViolations'
@@ -577,13 +599,14 @@ class AmiCrossAccountFilter(CrossAccountAccessFilter):
         results = []
         for r in resource_set:
             attrs = self.manager.retry(
-                client.describe_image_attribute,
-                ImageId=r['ImageId'],
-                Attribute='launchPermission')['LaunchPermissions']
+                client.describe_image_attribute, ImageId=r['ImageId'], Attribute='launchPermission'
+            )['LaunchPermissions']
             r['c7n:LaunchPermissions'] = attrs
             image_accounts = {
-                a.get('Group') or a.get('UserId') or
-                a.get('OrganizationArn') or a.get('OrganizationalUnitArn')
+                a.get('Group')
+                or a.get('UserId')
+                or a.get('OrganizationArn')
+                or a.get('OrganizationalUnitArn')
                 for a in attrs
             }
             delta_accounts = image_accounts.difference(accounts)
@@ -599,14 +622,12 @@ class AmiCrossAccountFilter(CrossAccountAccessFilter):
         with self.executor_factory(max_workers=2) as w:
             futures = []
             for resource_set in chunks(resources, 20):
-                futures.append(
-                    w.submit(
-                        self.process_resource_set, client, accounts, resource_set))
+                futures.append(w.submit(self.process_resource_set, client, accounts, resource_set))
             for f in as_completed(futures):
                 if f.exception():
                     self.log.error(
-                        "Exception checking cross account access \n %s" % (
-                            f.exception()))
+                        "Exception checking cross account access \n %s" % (f.exception())
+                    )
                     continue
                 results.extend(f.result())
         return results
@@ -646,14 +667,15 @@ class ImageAttribute(ValueFilter):
         'tpmSupport',
         'uefiData',
         'lastLaunchedTime',
-        'imdsSupport'
+        'imdsSupport',
     )
 
     schema = type_schema(
         'image-attribute',
         rinherit=ValueFilter.schema,
         attribute={'enum': valid_attrs},
-        required=('attribute',))
+        required=('attribute',),
+    )
     schema_alias = False
 
     def get_permissions(self):
@@ -662,18 +684,19 @@ class ImageAttribute(ValueFilter):
     def process(self, resources, event=None):
         attribute = self.data['attribute']
         self.get_image_attribute(resources, attribute)
-        return [resource for resource in resources
-                if self.match(resource['c7n:attribute-%s' % attribute])]
+        return [
+            resource
+            for resource in resources
+            if self.match(resource['c7n:attribute-%s' % attribute])
+        ]
 
     def get_image_attribute(self, resources, attribute):
-        client = local_session(
-            self.manager.session_factory).client('ec2')
+        client = local_session(self.manager.session_factory).client('ec2')
 
         for resource in resources:
             image_id = resource['ImageId']
             fetched_attribute = self.manager.retry(
-                client.describe_image_attribute,
-                ImageId=image_id,
-                Attribute=attribute)
+                client.describe_image_attribute, ImageId=image_id, Attribute=attribute
+            )
             keys = set(fetched_attribute) - {'ResponseMetadata', 'ImageId'}
             resource['c7n:attribute-%s' % attribute] = fetched_attribute[keys.pop()]

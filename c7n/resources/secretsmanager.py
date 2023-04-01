@@ -43,8 +43,9 @@ class CrossAccountAccessFilter(iamaccess.CrossAccountAccessFilter):
     def get_resource_policy(self, r):
         if self.policy_annotation in r:
             return r[self.policy_annotation]
-        r[self.policy_annotation] = p = self.client.get_resource_policy(
-            SecretId=r['Name']).get('ResourcePolicy', None)
+        r[self.policy_annotation] = p = self.client.get_resource_policy(SecretId=r['Name']).get(
+            'ResourcePolicy', None
+        )
         return p
 
 
@@ -55,12 +56,11 @@ class KmsFilter(KmsRelatedFilter):
 
 @SecretsManager.filter_registry.register('has-statement')
 class HasStatementFilter(HasStatementFilter):
-
     def get_std_format_args(self, secret):
         return {
             'secret_arn': secret['ARN'],
             'account_id': self.manager.config.account_id,
-            'region': self.manager.config.region
+            'region': self.manager.config.region,
         }
 
     def process(self, resources, event=None):
@@ -168,16 +168,21 @@ class DeleteSecretsManager(BaseAction):
     permissions = ('secretsmanager:DeleteSecret',)
 
     def process(self, resources):
-        client = local_session(
-            self.manager.session_factory).client('secretsmanager')
+        client = local_session(self.manager.session_factory).client('secretsmanager')
 
         for r in resources:
             if 'ReplicationStatus' in r:
                 rep_regions = jmespath.search('ReplicationStatus[*].Region', r)
-                self.manager.retry(client.remove_regions_from_replication,
-                  SecretId=r['ARN'], RemoveReplicaRegions=rep_regions)
-            self.manager.retry(client.delete_secret,
-              SecretId=r['ARN'], RecoveryWindowInDays=self.data.get('recovery_window', 30))
+                self.manager.retry(
+                    client.remove_regions_from_replication,
+                    SecretId=r['ARN'],
+                    RemoveReplicaRegions=rep_regions,
+                )
+            self.manager.retry(
+                client.delete_secret,
+                SecretId=r['ARN'],
+                RecoveryWindowInDays=self.data.get('recovery_window', 30),
+            )
 
 
 @SecretsManager.action_registry.register('remove-statements')
@@ -199,7 +204,10 @@ class SecretsManagerRemovePolicyStatement(RemovePolicyBase):
                 statement_ids: matched
     """
 
-    permissions = ("secretsmanager:DeleteResourcePolicy", "secretsmanager:PutResourcePolicy",)
+    permissions = (
+        "secretsmanager:DeleteResourcePolicy",
+        "secretsmanager:PutResourcePolicy",
+    )
 
     def validate(self):
         for f in self.manager.iter_filters():
@@ -207,7 +215,8 @@ class SecretsManagerRemovePolicyStatement(RemovePolicyBase):
                 return self
         raise PolicyValidationError(
             '`remove-statements` may only be used in '
-            'conjunction with `cross-account` filter on %s' % (self.manager.data,))
+            'conjunction with `cross-account` filter on %s' % (self.manager.data,)
+        )
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('secretsmanager')
@@ -223,15 +232,13 @@ class SecretsManagerRemovePolicyStatement(RemovePolicyBase):
             return
 
         statements, found = self.process_policy(
-            p, resource, CrossAccountAccessFilter.annotation_key)
+            p, resource, CrossAccountAccessFilter.annotation_key
+        )
 
         if not found:
             return
         if statements:
-            client.put_resource_policy(
-                SecretId=resource['ARN'],
-                ResourcePolicy=json.dumps(p)
-            )
+            client.put_resource_policy(SecretId=resource['ARN'], ResourcePolicy=json.dumps(p))
         else:
             client.delete_resource_policy(SecretId=resource['ARN'])
 
@@ -254,13 +261,10 @@ class SetEncryptionAction(Action):
     """
 
     schema = type_schema('set-encryption', key={'type': 'string'}, required=['key'])
-    permissions = ('secretsmanager:UpdateSecret', )
+    permissions = ('secretsmanager:UpdateSecret',)
 
     def process(self, resources):
         key = self.data['key']
         client = local_session(self.manager.session_factory).client('secretsmanager')
         for r in resources:
-            client.update_secret(
-                SecretId=r['Name'],
-                KmsKeyId=key
-            )
+            client.update_secret(SecretId=r['Name'], KmsKeyId=key)

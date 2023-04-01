@@ -10,9 +10,7 @@ from gcp_common import BaseTest
 class TestRateLimit(BaseTest):
     def test_service_ratelimit_on(self):
         factory = partial(
-            self.replay_flight_data(
-                "project-get-resource", project_id="cloud-custodian"
-            ),
+            self.replay_flight_data("project-get-resource", project_id="cloud-custodian"),
             use_rate_limiter=True,
             quota_max_calls=1,
             quota_period=10,
@@ -34,9 +32,7 @@ class TestRateLimit(BaseTest):
             assert mock_delay.called
 
     def test_service_ratelimit_off(self):
-        factory = self.replay_flight_data(
-            "project-get-resource", project_id="cloud-custodian"
-        )
+        factory = self.replay_flight_data("project-get-resource", project_id="cloud-custodian")
 
         with patch(
             "pyrate_limiter.limit_context_decorator.LimitContextDecorator.delayed_acquire",

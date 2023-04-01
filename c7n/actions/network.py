@@ -51,41 +51,39 @@ class ModifyVpcSecurityGroupsAction(Action):
                       values:
                         - production
     """
+
     schema_alias = True
     schema = {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'type': {'enum': ['modify-security-groups']},
-            'add': {'oneOf': [
-                {'type': 'string'},
-                {'type': 'array', 'items': {
-                    'type': 'string'}}]},
-            'remove': {'oneOf': [
-                {'type': 'array', 'items': {
-                    'type': 'string'}},
-                {'enum': [
-                    'matched', 'network-location', 'all',
-                    {'type': 'string'}]}]},
-            'isolation-group': {'oneOf': [
-                {'type': 'string'},
-                {'type': 'array', 'items': {
-                    'type': 'string'}}]},
+            'add': {'oneOf': [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}]},
+            'remove': {
+                'oneOf': [
+                    {'type': 'array', 'items': {'type': 'string'}},
+                    {'enum': ['matched', 'network-location', 'all', {'type': 'string'}]},
+                ]
+            },
+            'isolation-group': {
+                'oneOf': [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}]
+            },
             'add-by-tag': {
                 'type': 'object',
                 'additionalProperties': False,
                 'properties': {
                     'key': {'type': 'string'},
-                    'values': {'type': 'array', 'items': {'type': 'string'}}
+                    'values': {'type': 'array', 'items': {'type': 'string'}},
                 },
-                'required': ['key', 'values']
-            }
+                'required': ['key', 'values'],
+            },
         },
         'anyOf': [
             {'required': ['isolation-group', 'remove', 'type']},
             {'required': ['add', 'remove', 'type']},
             {'required': ['add', 'type']},
-            {'required': ['add-by-tag', 'type']}]
+            {'required': ['add-by-tag', 'type']},
+        ],
     }
 
     SYMBOLIC_SGS = {'all', 'matched', 'network-location'}
@@ -96,23 +94,39 @@ class ModifyVpcSecurityGroupsAction(Action):
     def validate(self):
         sg_filter = self.manager.filter_registry.get('security-group')
         if not sg_filter or not sg_filter.RelatedIdsExpression:
-            raise PolicyValidationError(self._format_error((
-                "policy:{policy} resource:{resource_type} does "
-                "not support {action_type} action")))
+            raise PolicyValidationError(
+                self._format_error(
+                    (
+                        "policy:{policy} resource:{resource_type} does "
+                        "not support {action_type} action"
+                    )
+                )
+            )
         if self.get_action_group_names():
             vpc_filter = self.manager.filter_registry.get('vpc')
             if not vpc_filter or not vpc_filter.RelatedIdsExpression:
-                raise PolicyValidationError(self._format_error((
-                    "policy:{policy} resource:{resource_type} does not support "
-                    "security-group names only ids in action:{action_type}")))
+                raise PolicyValidationError(
+                    self._format_error(
+                        (
+                            "policy:{policy} resource:{resource_type} does not support "
+                            "security-group names only ids in action:{action_type}"
+                        )
+                    )
+                )
             self.vpc_expr = jmespath.compile(vpc_filter.RelatedIdsExpression)
         if self.sg_expr is None:
             self.sg_expr = jmespath.compile(
-                self.manager.filter_registry.get('security-group').RelatedIdsExpression)
+                self.manager.filter_registry.get('security-group').RelatedIdsExpression
+            )
         if 'all' in self._get_array('remove') and not self._get_array('isolation-group'):
-            raise PolicyValidationError(self._format_error((
-                "policy:{policy} use of action:{action_type} with "
-                "remove: all requires specifying isolation-group")))
+            raise PolicyValidationError(
+                self._format_error(
+                    (
+                        "policy:{policy} use of action:{action_type} with "
+                        "remove: all requires specifying isolation-group"
+                    )
+                )
+            )
         return self
 
     def get_group_names(self, groups):
@@ -128,17 +142,24 @@ class ModifyVpcSecurityGroupsAction(Action):
     def get_action_group_names(self):
         """Return all the security group names configured in this action."""
         return self.get_group_names(
-            list(itertools.chain(
-                *[self._get_array('add'),
-                  self._get_array('remove'),
-                  self._get_array('isolation-group')])))
+            list(
+                itertools.chain(
+                    *[
+                        self._get_array('add'),
+                        self._get_array('remove'),
+                        self._get_array('isolation-group'),
+                    ]
+                )
+            )
+        )
 
     def _format_error(self, msg, **kw):
         return msg.format(
             policy=self.manager.ctx.policy.name,
             resource_type=self.manager.type,
             action_type=self.type,
-            **kw)
+            **kw
+        )
 
     def _get_array(self, k):
         v = self.data.get(k, [])
@@ -150,13 +171,10 @@ class ModifyVpcSecurityGroupsAction(Action):
         """Resolve security names to security groups resources."""
         if not names:
             return []
-        client = utils.local_session(
-            self.manager.session_factory).client('ec2')
+        client = utils.local_session(self.manager.session_factory).client('ec2')
         sgs = self.manager.retry(
-            client.describe_security_groups,
-            Filters=[{
-                'Name': 'group-name', 'Values': names}]).get(
-                    'SecurityGroups', [])
+            client.describe_security_groups, Filters=[{'Name': 'group-name', 'Values': names}]
+        ).get('SecurityGroups', [])
 
         unresolved = set(names)
         for s in sgs:
@@ -164,21 +182,22 @@ class ModifyVpcSecurityGroupsAction(Action):
                 unresolved.remove(s['GroupName'])
 
         if unresolved:
-            raise PolicyExecutionError(self._format_error(
-                "policy:{policy} security groups not found "
-                "requested: {names}, found: {groups}",
-                names=list(unresolved), groups=[g['GroupId'] for g in sgs]))
+            raise PolicyExecutionError(
+                self._format_error(
+                    "policy:{policy} security groups not found "
+                    "requested: {names}, found: {groups}",
+                    names=list(unresolved),
+                    groups=[g['GroupId'] for g in sgs],
+                )
+            )
         return sgs
 
     def get_groups_by_tag(self, key, values):
         """Get security groups that match tag values."""
-        client = utils.local_session(
-            self.manager.session_factory).client('ec2')
+        client = utils.local_session(self.manager.session_factory).client('ec2')
         sgs = self.manager.retry(
-            client.describe_security_groups,
-            Filters=[{
-                'Name': 'tag:' + key, 'Values': values}]).get(
-                    'SecurityGroups', [])
+            client.describe_security_groups, Filters=[{'Name': 'tag:' + key, 'Values': values}]
+        ).get('SecurityGroups', [])
         return sgs
 
     def resolve_group_names(self, r, target_group_ids, groups):
@@ -193,10 +212,13 @@ class ModifyVpcSecurityGroupsAction(Action):
         target_group_ids = list(target_group_ids)
         vpc_id = self.vpc_expr.search(r)
         if not vpc_id:
-            raise PolicyExecutionError(self._format_error(
-                "policy:{policy} non vpc attached resource used "
-                "with modify-security-group: {resource_id}",
-                resource_id=r[self.manager.resource_type.id]))
+            raise PolicyExecutionError(
+                self._format_error(
+                    "policy:{policy} non vpc attached resource used "
+                    "with modify-security-group: {resource_id}",
+                    resource_id=r[self.manager.resource_type.id],
+                )
+            )
 
         found = False
         for n in names:
@@ -204,11 +226,17 @@ class ModifyVpcSecurityGroupsAction(Action):
                 if g['GroupName'] == n and g['VpcId'] == vpc_id:
                     found = g['GroupId']
             if not found:
-                raise PolicyExecutionError(self._format_error((
-                    "policy:{policy} could not resolve sg:{name} for "
-                    "resource:{resource_id} in vpc:{vpc}"),
-                    name=n,
-                    resource_id=r[self.manager.resource_type.id], vpc=vpc_id))
+                raise PolicyExecutionError(
+                    self._format_error(
+                        (
+                            "policy:{policy} could not resolve sg:{name} for "
+                            "resource:{resource_id} in vpc:{vpc}"
+                        ),
+                        name=n,
+                        resource_id=r[self.manager.resource_type.id],
+                        vpc=vpc_id,
+                    )
+                )
             target_group_ids.remove(n)
             target_group_ids.append(found)
         return target_group_ids
@@ -254,15 +282,13 @@ class ModifyVpcSecurityGroupsAction(Action):
 
         for idx, r in enumerate(resources):
             rgroups = self.sg_expr.search(r) or []
-            add_groups = self.resolve_group_names(
-                r, self._get_array('add'), resolved_groups)
+            add_groups = self.resolve_group_names(r, self._get_array('add'), resolved_groups)
             remove_groups = self.resolve_remove_symbols(
-                r,
-                self.resolve_group_names(
-                    r, self._get_array('remove'), resolved_groups),
-                rgroups)
+                r, self.resolve_group_names(r, self._get_array('remove'), resolved_groups), rgroups
+            )
             isolation_groups = self.resolve_group_names(
-                r, self._get_array('isolation-group'), resolved_groups)
+                r, self._get_array('isolation-group'), resolved_groups
+            )
 
             for sg in tag_filtered_groups:
                 if sg['VpcId'] == r['VpcId']:
@@ -279,10 +305,13 @@ class ModifyVpcSecurityGroupsAction(Action):
                 rgroups = list(isolation_groups)
 
             if len(rgroups) > 5:
-                raise PolicyExecutionError(self._format_error(
-                    "policy:{policy} - the number of security groups exceeds 5. "
-                    "groups: {rgroups}",
-                    rgroups=rgroups))
+                raise PolicyExecutionError(
+                    self._format_error(
+                        "policy:{policy} - the number of security groups exceeds 5. "
+                        "groups: {rgroups}",
+                        rgroups=rgroups,
+                    )
+                )
 
             return_groups.append(rgroups)
 

@@ -24,11 +24,15 @@ class ConsecutiveAwsBackupsFilter(Filter):
                     period: days
                     status: 'COMPLETED'
     """
-    schema = type_schema('consecutive-aws-backups', count={'type': 'number', 'minimum': 1},
+
+    schema = type_schema(
+        'consecutive-aws-backups',
+        count={'type': 'number', 'minimum': 1},
         period={'enum': ['hours', 'days', 'weeks']},
         status={'enum': ['COMPLETED', 'PARTIAL', 'DELETING', 'EXPIRED']},
-        required=['count', 'period', 'status'])
-    permissions = ('backup:ListRecoveryPointsByResource', )
+        required=['count', 'period', 'status'],
+    )
+    permissions = ('backup:ListRecoveryPointsByResource',)
     annotation = 'c7n:AwsBackups'
 
     def process_resource_set(self, resources):
@@ -38,8 +42,9 @@ class ConsecutiveAwsBackupsFilter(Filter):
         paginator = client.get_paginator('list_recovery_points_by_resource')
         paginator.PAGE_ITERATOR_CLS = RetryPageIterator
         for r, arn in zip(resources, arns):
-            r[self.annotation] = paginator.paginate(
-                ResourceArn=arn).build_full_result().get('RecoveryPoints', [])
+            r[self.annotation] = (
+                paginator.paginate(ResourceArn=arn).build_full_result().get('RecoveryPoints', [])
+            )
 
     def get_date(self, time):
         period = self.data.get('period')
@@ -58,8 +63,7 @@ class ConsecutiveAwsBackupsFilter(Filter):
         for time in range(1, retention + 1):
             expected_dates.add(self.get_date(time))
 
-        for resource_set in chunks(
-                [r for r in resources if self.annotation not in r], 50):
+        for resource_set in chunks([r for r in resources if self.annotation not in r], 50):
             self.process_resource_set(resource_set)
 
         for r in resources:

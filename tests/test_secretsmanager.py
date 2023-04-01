@@ -6,24 +6,31 @@ from c7n.exceptions import PolicyValidationError
 
 
 class TestSecretsManager(BaseTest):
-
     def test_secrets_manager_cross_account(self):
         factory = self.replay_flight_data('test_secrets_manager_cross_account')
-        p = self.load_policy({
-            'name': 'secrets-manager',
-            'resource': 'secrets-manager',
-            'filters': ['cross-account']},
-            session_factory=factory)
+        p = self.load_policy(
+            {
+                'name': 'secrets-manager',
+                'resource': 'secrets-manager',
+                'filters': ['cross-account'],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         secret = resources.pop()
         self.assertEqual(secret['Name'], 'c7n-test-key')
         self.assertEqual(
             secret['CrossAccountViolations'],
-            [{'Action': 'secretsmanager:*',
-              'Effect': 'Allow',
-              'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
-              'Resource': '*'}])
+            [
+                {
+                    'Action': 'secretsmanager:*',
+                    'Effect': 'Allow',
+                    'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                    'Resource': '*',
+                }
+            ],
+        )
 
     def test_secrets_manager_kms_filter(self):
         session_factory = self.replay_flight_data('test_secrets_manager_kms_filter')
@@ -33,14 +40,10 @@ class TestSecretsManager(BaseTest):
                 'name': 'test-secrets-manager-kms-filter',
                 'resource': 'secrets-manager',
                 'filters': [
-                    {
-                        'type': 'kms-key',
-                        'key': 'c7n:AliasName',
-                        'value': 'alias/skunk/trails'
-                    }
-                ]
+                    {'type': 'kms-key', 'key': 'c7n:AliasName', 'value': 'alias/skunk/trails'}
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -49,20 +52,21 @@ class TestSecretsManager(BaseTest):
 
     def test_secrets_manager_has_statement_filter(self):
         factory = self.replay_flight_data('test_secrets_manager_has_statement_filter')
-        p = self.load_policy({
-            'name': 'secrets-manager-has-statement',
-            'resource': 'secrets-manager',
-            'filters': [{
+        p = self.load_policy(
+            {
+                'name': 'secrets-manager-has-statement',
+                'resource': 'secrets-manager',
+                'filters': [
+                    {
                         "type": "has-statement",
                         "statements": [
-                            {
-                                "Effect": "Deny",
-                                "Action": "secretsmanager:GetSecretValue"
-                            }
-                        ]
-                        }]
-        },
-            session_factory=factory)
+                            {"Effect": "Deny", "Action": "secretsmanager:GetSecretValue"}
+                        ],
+                    }
+                ],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
 
         self.assertEqual(len(resources), 1)
@@ -118,21 +122,10 @@ class TestSecretsManager(BaseTest):
             {
                 'name': 'secrets-manager-unencrypted-delete',
                 'resource': 'secrets-manager',
-                'filters': [
-                    {
-                        'type': 'value',
-                        'key': 'Name',
-                        'value': 'test'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'delete',
-                        'recovery_window': 7
-                    }
-                ]
+                'filters': [{'type': 'value', 'key': 'Name', 'value': 'test'}],
+                'actions': [{'type': 'delete', 'recovery_window': 7}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -149,9 +142,9 @@ class TestSecretsManager(BaseTest):
                 'name': 'secrets-manager-set-key',
                 'resource': 'aws.secrets-manager',
                 'filters': [{'Name': 'ewerwrwe'}],
-                'actions': [{'type': 'set-encryption', 'key': 'alias/qewrqwer'}]
+                'actions': [{'type': 'set-encryption', 'key': 'alias/qewrqwer'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -162,30 +155,30 @@ class TestSecretsManager(BaseTest):
         session_factory = self.replay_flight_data("test_secretsmanager_remove_matched")
         resource_id = 'arn:aws:secretsmanager:us-east-1:644160558196:secret:test-ZO5wu6'
         client = session_factory().client("secretsmanager")
-        client.put_resource_policy(SecretId=resource_id, ResourcePolicy=json.dumps(
-            {
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Sid": "SpecificAllow",
-                        "Effect": "Allow",
-                        "Principal": {
-                            "AWS": "arn:aws:iam::644160558196:user/Peter"
+        client.put_resource_policy(
+            SecretId=resource_id,
+            ResourcePolicy=json.dumps(
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "SpecificAllow",
+                            "Effect": "Allow",
+                            "Principal": {"AWS": "arn:aws:iam::644160558196:user/Peter"},
+                            "Action": "secretsmanager:GetSecretValue",
+                            "Resource": "*",
                         },
-                        "Action": "secretsmanager:GetSecretValue",
-                        "Resource": "*"
-                    },
-                    {
-                        "Sid": "CrossAccount",
-                        "Effect": "Allow",
-                        "Principal": {
-                            "AWS": "arn:aws:iam::040813553448:user/pratyush"
+                        {
+                            "Sid": "CrossAccount",
+                            "Effect": "Allow",
+                            "Principal": {"AWS": "arn:aws:iam::040813553448:user/pratyush"},
+                            "Action": "secretsmanager:GetSecretValue",
+                            "Resource": "*",
                         },
-                        "Action": "secretsmanager:GetSecretValue",
-                        "Resource": "*"
-                    }
-                ]
-            }))
+                    ],
+                }
+            ),
+        )
         p = self.load_policy(
             {
                 "name": "secrets-manager-rm-matched",
@@ -206,21 +199,23 @@ class TestSecretsManager(BaseTest):
         session_factory = self.replay_flight_data("test_secretsmanager_remove_rbp")
         resource_id = 'arn:aws:secretsmanager:us-east-1:644160558196:secret:test-ZO5wu6'
         client = session_factory().client("secretsmanager")
-        client.put_resource_policy(SecretId=resource_id, ResourcePolicy=json.dumps(
-            {
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Sid": "CrossAccount",
-                        "Effect": "Allow",
-                        "Principal": {
-                            "AWS": "arn:aws:iam::040813553448:user/pratyush"
-                        },
-                        "Action": "secretsmanager:GetSecretValue",
-                        "Resource": "*"
-                    }
-                ]
-            }))
+        client.put_resource_policy(
+            SecretId=resource_id,
+            ResourcePolicy=json.dumps(
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "CrossAccount",
+                            "Effect": "Allow",
+                            "Principal": {"AWS": "arn:aws:iam::040813553448:user/pratyush"},
+                            "Action": "secretsmanager:GetSecretValue",
+                            "Resource": "*",
+                        }
+                    ],
+                }
+            ),
+        )
         p = self.load_policy(
             {
                 "name": "secrets-manager-rm-rbp",
@@ -243,5 +238,5 @@ class TestSecretsManager(BaseTest):
                 "name": "secrets-manager-remove-matched",
                 "resource": "secrets-manager",
                 "actions": [{"type": "remove-statements", "statement_ids": "matched"}],
-            }
+            },
         )

@@ -17,6 +17,7 @@ class TCR(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "RegistryId"
         endpoint = "tcr.tencentcloudapi.com"
         service = "tcr"
@@ -47,14 +48,20 @@ class LifecycleRule(Filter):
                   - NamespaceName: custodian-test-namespace-2
 
     """
+
     schema = type_schema(
         'lifecycle-rule',
         state={'type': 'boolean'},
-        match={'type': 'array', 'items': {
-            'oneOf': [
-                {'$ref': '#/definitions/filters/value'},
-                {'type': 'object', 'minProperties': 1, 'maxProperties': 1},
-            ]}})
+        match={
+            'type': 'array',
+            'items': {
+                'oneOf': [
+                    {'$ref': '#/definitions/filters/value'},
+                    {'type': 'object', 'minProperties': 1, 'maxProperties': 1},
+                ]
+            },
+        },
+    )
 
     def process(self, resources, event=None):
         client = self.manager.get_client()
@@ -69,10 +76,12 @@ class LifecycleRule(Filter):
 
         for r in resources:
             paging_def = {"method": PageMethod.Offset, "limit": {"key": "Limit", "value": 20}}
-            policys = client.execute_paged_query("DescribeTagRetentionRules",
-                                                 {"RegistryId": r[self.manager.resource_type.id]},
-                                                 "Response.RetentionPolicyList[]",
-                                                 paging_def)
+            policys = client.execute_paged_query(
+                "DescribeTagRetentionRules",
+                {"RegistryId": r[self.manager.resource_type.id]},
+                "Response.RetentionPolicyList[]",
+                paging_def,
+            )
             found = False
             # multiple log rules, using 'or' to match,only one match is needed
             for policy in policys:

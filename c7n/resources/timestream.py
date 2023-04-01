@@ -6,7 +6,7 @@ from c7n.tags import (
     TagDelayedAction,
     TagActionFilter,
     Tag as TagAction,
-    RemoveTag as RemoveTagAction
+    RemoveTag as RemoveTagAction,
 )
 
 
@@ -27,7 +27,7 @@ class TimestreamDatabase(QueryResourceManager):
         id = arn = 'Arn'
         enum_spec = ('list_databases', 'Databases', {})
         permission_prefix = 'timestream'
-        permissions = ('timestream:ListDatabases', )
+        permissions = ('timestream:ListDatabases',)
 
     source_mapping = {
         'describe': DescribeTimestream,
@@ -43,7 +43,7 @@ class TimestreamTable(QueryResourceManager):
         id = arn = 'Arn'
         enum_spec = ('list_tables', 'Tables', {})
         permission_prefix = 'timestream'
-        permissions = ('timestream:ListTables', )
+        permissions = ('timestream:ListTables',)
 
     source_mapping = {
         'describe': DescribeTimestream,
@@ -54,7 +54,7 @@ class TimestreamTable(QueryResourceManager):
 @TimestreamTable.action_registry.register('tag')
 class TimestreamTag(TagAction):
 
-    permissions = ('timestream:TagResource', )
+    permissions = ('timestream:TagResource',)
 
     def process_resource_set(self, client, resource_set, tags):
         for r in resource_set:
@@ -65,7 +65,7 @@ class TimestreamTag(TagAction):
 @TimestreamTable.action_registry.register('remove-tag')
 class TimestreamRemoveTag(RemoveTagAction):
 
-    permissions = ('timestream:UntagResource', )
+    permissions = ('timestream:UntagResource',)
 
     def process_resource_set(self, client, resource_set, tag_keys):
         for r in resource_set:
@@ -86,16 +86,13 @@ class TimestreamTableDelete(Action):
     """
 
     schema = type_schema('delete')
-    permissions = ('timestream:DeleteTable', )
+    permissions = ('timestream:DeleteTable',)
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('timestream-write')
         for r in resources:
             try:
-                client.delete_table(
-                    DatabaseName=r['DatabaseName'],
-                    TableName=r['TableName']
-                )
+                client.delete_table(DatabaseName=r['DatabaseName'], TableName=r['TableName'])
             except client.exceptions.ResourceNotFoundException:
                 continue
 
@@ -109,7 +106,9 @@ class TimestreamDatabaseDelete(Action):
     schema = type_schema('delete', force={'type': 'boolean', 'default': False})
     permissions = (
         'timestream:DeleteDatabase',
-        'timestream:ListTables', 'timestream:DeleteTable', )
+        'timestream:ListTables',
+        'timestream:DeleteTable',
+    )
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('timestream-write')
@@ -124,13 +123,12 @@ class TimestreamDatabaseDelete(Action):
                 if not self.data.get('force', False):
                     self.log.error(
                         f'Unable to delete database:{r["DatabaseName"]}, '
-                        'tables must be deleted first')
+                        'tables must be deleted first'
+                    )
                     continue
                 tables = client.list_tables(DatabaseName=r['DatabaseName'])['Tables']
                 TimestreamTableDelete(
-                    data={'type': 'delete'},
-                    manager=self.manager,
-                    log_dir=self.log_dir
+                    data={'type': 'delete'}, manager=self.manager, log_dir=self.log_dir
                 ).process(tables)
                 client.delete_database(
                     DatabaseName=r['DatabaseName'],

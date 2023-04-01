@@ -8,7 +8,6 @@ from c7n.utils import type_schema, local_session, get_partition
 
 
 class ExperimentTemplateDescribe(DescribeSource):
-
     def augment(self, resources):
         resources = super().augment(resources)
         # tag normalize for value filter
@@ -30,8 +29,7 @@ class ExperimentTemplate(QueryResourceManager):
         config_type = cfn_type = "AWS::FIS::ExperimentTemplate"
         arn_type = 'experiment-template'
 
-    source_mapping = {'describe': ExperimentTemplateDescribe,
-                      'config': ConfigSource}
+    source_mapping = {'describe': ExperimentTemplateDescribe, 'config': ConfigSource}
 
     def get_arns(self, resources):
         partition = get_partition(self.region)

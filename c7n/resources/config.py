@@ -11,7 +11,6 @@ from c7n.tags import universal_augment
 
 @resources.register('config-recorder')
 class ConfigRecorder(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "config"
         enum_spec = ('describe_configuration_recorders', 'ConfigurationRecorders', None)
@@ -31,7 +30,8 @@ class ConfigRecorder(QueryResourceManager):
 
         for r in resources:
             status = client.describe_configuration_recorder_status(
-                ConfigurationRecorderNames=[r['name']])['ConfigurationRecordersStatus']
+                ConfigurationRecorderNames=[r['name']]
+            )['ConfigurationRecordersStatus']
             if status:
                 r.update({'status': status.pop()})
 
@@ -49,7 +49,8 @@ class ConfigCrossAccountFilter(CrossAccountAccessFilter):
         # white list accounts
         allowed_regions={'type': 'array', 'items': {'type': 'string'}},
         whitelist_from=ValuesFrom.schema,
-        whitelist={'type': 'array', 'items': {'type': 'string'}})
+        whitelist={'type': 'array', 'items': {'type': 'string'}},
+    )
 
     permissions = ('config:DescribeAggregationAuthorizations',)
 
@@ -63,8 +64,9 @@ class ConfigCrossAccountFilter(CrossAccountAccessFilter):
         auths = client.describe_aggregation_authorizations().get('AggregationAuthorizations', [])
 
         for a in auths:
-            if (a['AuthorizedAccountId'] not in allowed_accounts or
-                    (allowed_regions and a['AuthorizedAwsRegion'] not in allowed_regions)):
+            if a['AuthorizedAccountId'] not in allowed_accounts or (
+                allowed_regions and a['AuthorizedAwsRegion'] not in allowed_regions
+            ):
                 matched.append(a)
 
         # only 1 config recorder per account
@@ -74,7 +76,6 @@ class ConfigCrossAccountFilter(CrossAccountAccessFilter):
 
 @resources.register('config-rule')
 class ConfigRule(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "config"
         enum_spec = ("describe_config_rules", "ConfigRules", None)
@@ -103,8 +104,8 @@ class RuleStatus(ValueFilter):
 
         for rule_set in chunks(resources, 100):
             for status in client.describe_config_rule_evaluation_status(
-                ConfigRuleNames=[r['ConfigRuleName'] for r in rule_set]).get(
-                    'ConfigRulesEvaluationStatus', []):
+                ConfigRuleNames=[r['ConfigRuleName'] for r in rule_set]
+            ).get('ConfigRulesEvaluationStatus', []):
                 status_map[status['ConfigRuleName']] = status
 
         results = []
@@ -124,8 +125,7 @@ class DeleteRule(BaseAction):
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('config')
         for r in resources:
-            client.delete_config_rule(
-                ConfigRuleName=r['ConfigRuleName'])
+            client.delete_config_rule(ConfigRuleName=r['ConfigRuleName'])
 
 
 @ConfigRule.filter_registry.register('remediation')
@@ -179,7 +179,8 @@ class RuleRemediation(Filter):
                 remediation: *remediation-config
     """
 
-    schema = type_schema('remediation',
+    schema = type_schema(
+        'remediation',
         rule_name={'type': 'string'},
         rule_prefix={'type': 'string'},
         remediation={
@@ -191,11 +192,13 @@ class RuleRemediation(Filter):
                 'parameters': {'type': 'object'},
                 'maximum_automatic_attempts': {
                     'type': 'integer',
-                    'minimum': 1, 'maximum': 25,
+                    'minimum': 1,
+                    'maximum': 25,
                 },
                 'retry_attempt_seconds': {
                     'type': 'integer',
-                    'minimum': 1, 'maximum': 2678000,
+                    'minimum': 1,
+                    'maximum': 2678000,
                 },
                 'execution_controls': {'type': 'object'},
             },
@@ -215,9 +218,7 @@ class RuleRemediation(Filter):
             return []
 
         client = local_session(self.manager.session_factory).client('config')
-        resp = client.describe_remediation_configurations(
-            ConfigRuleNames=[rule_name]
-        )
+        resp = client.describe_remediation_configurations(ConfigRuleNames=[rule_name])
 
         desired_remediation_config = self.data['remediation']
         desired_remediation_config['ConfigRuleName'] = rule_name

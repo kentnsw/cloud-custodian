@@ -9,18 +9,13 @@ from c7n.filters.core import ValueFilter
 
 @resources.register('mysql-flexibleserver')
 class MySQLFlexibleServer(ArmResourceManager):
-
     class resource_type(ArmResourceManager.resource_type):
         doc_groups = ['Databases']
 
         service = 'azure.mgmt.rdbms.mysql_flexibleservers'
         client = 'MySQLManagementClient'
         enum_spec = ('servers', 'list', None)
-        default_report_fields = (
-            'name',
-            'location',
-            'resourceGroup'
-        )
+        default_report_fields = ('name', 'location', 'resourceGroup')
         resource_type = 'Microsoft.DBForMySQL/flexibleservers/configurations'
 
 
@@ -69,10 +64,7 @@ class ServerParametersFilter(ValueFilter):
         'server-parameter',
         required=['type', 'name'],
         rinherit=ValueFilter.schema,
-        name={
-            'type': 'string',
-            'allowed_value': ['TLSv1.2']
-        },
+        name={'type': 'string', 'allowed_value': ['TLSv1.2']},
     )
 
     def __call__(self, resource):
@@ -80,9 +72,7 @@ class ServerParametersFilter(ValueFilter):
         if key not in resource['properties']:
             client = self.manager.get_client()
             query = client.configurations.get(
-                resource['resourceGroup'],
-                resource['name'],
-                self.data["name"]
+                resource['resourceGroup'], resource['name'], self.data["name"]
             )
 
             resource['properties'][key] = query.serialize(True).get('properties')

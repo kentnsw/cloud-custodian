@@ -12,7 +12,6 @@ from c7n.utils import local_session, type_schema, get_retry
 
 @resources.register('shield-protection')
 class ShieldProtection(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'shield'
         enum_spec = ('list_protections', 'Protections', None)
@@ -24,12 +23,10 @@ class ShieldProtection(QueryResourceManager):
 
 @resources.register('shield-attack')
 class ShieldAttack(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'shield'
         enum_spec = ('list_attacks', 'Attacks', None)
-        detail_spec = (
-            'describe_attack', 'AttackId', 'AttackId', 'Attack')
+        detail_spec = ('describe_attack', 'AttackId', 'AttackId', 'Attack')
         name = id = 'AttackId'
         date = 'StartTime'
         filter_name = 'ResourceArns'
@@ -41,7 +38,8 @@ def get_protections_paginator(client):
     return Paginator(
         client.list_protections,
         {'input_token': 'NextToken', 'output_token': 'NextToken', 'result_key': 'Protections'},
-        client.meta.service_model.operation_model('ListProtections'))
+        client.meta.service_model.operation_model('ListProtections'),
+    )
 
 
 def get_type_protections(client, arn_type):
@@ -78,7 +76,8 @@ class IsShieldProtected(Filter, ProtectedResource):
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client(
-            'shield', region_name='us-east-1')
+            'shield', region_name='us-east-1'
+        )
 
         protections = get_type_protections(client, self.arn_type)
         protected_resources = {p['ResourceArn'] for p in protections}
@@ -103,14 +102,16 @@ class SetShieldProtection(BaseAction, ProtectedResource):
     for resources that no longer exist.
     """
 
-    permissions = ('shield:CreateProtection', 'shield:ListProtections',)
-    schema = type_schema(
-        'set-shield',
-        state={'type': 'boolean'}, sync={'type': 'boolean'})
+    permissions = (
+        'shield:CreateProtection',
+        'shield:ListProtections',
+    )
+    schema = type_schema('set-shield', state={'type': 'boolean'}, sync={'type': 'boolean'})
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client(
-            'shield', region_name='us-east-1')
+            'shield', region_name='us-east-1'
+        )
         model = self.manager.get_model()
         protections = get_type_protections(client, self.arn_type)
         protected_resources = {p['ResourceArn']: p for p in protections}
@@ -123,14 +124,10 @@ class SetShieldProtection(BaseAction, ProtectedResource):
             if state and arn in protected_resources:
                 continue
             if state is False and arn in protected_resources:
-                ShieldRetry(
-                    client.delete_protection,
-                    ProtectionId=protected_resources[arn]['Id'])
+                ShieldRetry(client.delete_protection, ProtectionId=protected_resources[arn]['Id'])
                 continue
             try:
-                ShieldRetry(
-                    client.create_protection,
-                    Name=r[model.name], ResourceArn=arn)
+                ShieldRetry(client.create_protection, Name=r[model.name], ResourceArn=arn)
             except ClientError as e:
                 if e.response['Error']['Code'] == 'ResourceAlreadyExistsException':
                     continue
@@ -138,8 +135,7 @@ class SetShieldProtection(BaseAction, ProtectedResource):
 
     def clear_stale(self, client, protections):
         # Get all resources unfiltered
-        resources = self.manager.get_resource_manager(
-            self.manager.type).resources()
+        resources = self.manager.get_resource_manager(self.manager.type).resources()
         resource_arns = set(self.manager.get_arns(resources))
 
         pmap = {}
@@ -154,8 +150,7 @@ class SetShieldProtection(BaseAction, ProtectedResource):
         stale = set(pmap).difference(resource_arns)
         self.log.info("clearing %d stale protections", len(stale))
         for s in stale:
-            ShieldRetry(
-                client.delete_protection, ProtectionId=pmap[s]['Id'])
+            ShieldRetry(client.delete_protection, ProtectionId=pmap[s]['Id'])
 
 
 class ProtectedEIP:
@@ -169,10 +164,8 @@ class ProtectedEIP:
 
     def get_arns(self, resources):
         arns = [
-            arn.replace(':elastic-ip', ':eip-allocation')
-            if ':elastic-ip' in arn else arn
-            for arn in
-            self.manager.get_arns(resources)
+            arn.replace(':elastic-ip', ':eip-allocation') if ':elastic-ip' in arn else arn
+            for arn in self.manager.get_arns(resources)
         ]
         return arns
 

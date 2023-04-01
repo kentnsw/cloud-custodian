@@ -30,6 +30,7 @@ class CBSSnapshot(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "SnapshotId"
         endpoint = "cbs.tencentcloudapi.com"
         service = "cbs"
@@ -45,7 +46,7 @@ class CBSSnapshot(QueryResourceManager):
     def augment(self, resources):
         for resource in resources:
             field_format = self.resource_type.datetime_fields_format["CreateTime"]
-            resource["CreateTime"] = isoformat_datetime_str(resource["CreateTime"],
-                                                            field_format[0],
-                                                            field_format[1])
+            resource["CreateTime"] = isoformat_datetime_str(
+                resource["CreateTime"], field_format[0], field_format[1]
+            )
         return resources

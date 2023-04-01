@@ -15,14 +15,11 @@ from c7n.utils import annotation
 
 
 class WorkspacesTest(BaseTest):
-
     def test_workspaces_query(self):
         session_factory = self.replay_flight_data("test_workspaces_query")
         p = self.load_policy(
-            {
-                "name": "workspaces-query-test",
-                "resource": "workspaces"
-            }, session_factory=session_factory
+            {"name": "workspaces-query-test", "resource": "workspaces"},
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 3)
@@ -34,12 +31,10 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspaces-tag-test",
                 "resource": "workspaces",
-                "filters": [
-                    {"tag:Environment": "sandbox"}
-                ]
+                "filters": [{"tag:Environment": "sandbox"}],
             },
             config={'account_id': '644160558196'},
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 2)
@@ -50,20 +45,24 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspaces-connection-status",
                 "resource": "workspaces",
-                "filters": [{
-                    "type": "connection-status",
-                    "value_type": "age",
-                    "key": "LastKnownUserConnectionTimestamp",
-                    "op": "ge",
-                    "value": 30
-                }]
-            }, session_factory=session_factory
+                "filters": [
+                    {
+                        "type": "connection-status",
+                        "value_type": "age",
+                        "key": "LastKnownUserConnectionTimestamp",
+                        "op": "ge",
+                        "value": 30,
+                    }
+                ],
+            },
+            session_factory=session_factory,
         )
         with mock_datetime_now(parser.parse("2019-04-13T00:00:00+00:00"), datetime):
             resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertIn('LastKnownUserConnectionTimestamp',
-            annotation(resources[0], filters.ANNOTATION_KEY))
+        self.assertIn(
+            'LastKnownUserConnectionTimestamp', annotation(resources[0], filters.ANNOTATION_KEY)
+        )
 
     def test_workspaces_kms_filter(self):
         session_factory = self.replay_flight_data('test_workspaces_kms_filter')
@@ -73,14 +72,10 @@ class WorkspacesTest(BaseTest):
                 'name': 'test-workspaces-kms-filter',
                 'resource': 'workspaces',
                 'filters': [
-                    {
-                        'type': 'kms-key',
-                        'key': 'c7n:AliasName',
-                        'value': 'alias/aws/workspaces'
-                    }
-                ]
+                    {'type': 'kms-key', 'key': 'c7n:AliasName', 'value': 'alias/aws/workspaces'}
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -93,14 +88,10 @@ class WorkspacesTest(BaseTest):
             {
                 'name': 'workspaces-terminate',
                 'resource': 'workspaces',
-                'filters': [{
-                    'tag:DeleteMe': 'present'
-                }],
-                'actions': [{
-                    'type': 'terminate'
-                }]
+                'filters': [{'tag:DeleteMe': 'present'}],
+                'actions': [{'type': 'terminate'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(1, len(resources))
@@ -112,10 +103,8 @@ class WorkspacesTest(BaseTest):
     def test_workspaces_image_query(self):
         session_factory = self.replay_flight_data("test_workspaces_image_query")
         p = self.load_policy(
-            {
-                "name": "workspaces-image-query-test",
-                "resource": "workspaces-image"
-            }, session_factory=session_factory
+            {"name": "workspaces-image-query-test", "resource": "workspaces-image"},
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -127,15 +116,10 @@ class WorkspacesTest(BaseTest):
             {
                 'name': 'workspaces-image-tag',
                 'resource': 'workspaces-image',
-                'filters': [{
-                    'tag:env': 'absent'
-                }],
-                'actions': [{
-                    'type': 'tag',
-                    'tags': new_tag
-                }]
+                'filters': [{'tag:env': 'absent'}],
+                'actions': [{'type': 'tag', 'tags': new_tag}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(1, len(resources))
@@ -150,11 +134,9 @@ class WorkspacesTest(BaseTest):
             {
                 'name': 'workspaces-image-cross-account',
                 'resource': 'workspaces-image',
-                'filters': [{
-                    'type': 'cross-account'
-                }]
+                'filters': [{'type': 'cross-account'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(1, len(resources))
@@ -166,14 +148,10 @@ class WorkspacesTest(BaseTest):
             {
                 'name': 'workspaces-image-del',
                 'resource': 'workspaces-image',
-                'filters': [{
-                    'tag:DeleteMe': 'present'
-                }],
-                'actions': [{
-                    'type': 'delete'
-                }]
+                'filters': [{'tag:DeleteMe': 'present'}],
+                'actions': [{'type': 'delete'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(1, len(resources))
@@ -188,14 +166,10 @@ class WorkspacesTest(BaseTest):
             {
                 'name': 'workspaces-image-del',
                 'resource': 'workspaces-image',
-                'filters': [{
-                    'tag:DeleteMe': 'present'
-                }],
-                'actions': [{
-                    'type': 'delete'
-                }]
+                'filters': [{'tag:DeleteMe': 'present'}],
+                'actions': [{'type': 'delete'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(1, len(resources))
@@ -210,13 +184,15 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-directory-connection-aliases",
                 "resource": "workspaces-directory",
-                "filters": [{
-                    'type': 'connection-aliases',
-                    'key': 'ConnectionAliases',
-                    'value': 'empty',
-                }]
+                "filters": [
+                    {
+                        'type': 'connection-aliases',
+                        'key': 'ConnectionAliases',
+                        'value': 'empty',
+                    }
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -227,14 +203,16 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-directory-connection-aliases",
                 "resource": "workspaces-directory",
-                "filters": [{
-                    'type': 'connection-aliases',
-                    'key': 'ConnectionAliases',
-                    'value': 'empty',
-                    'op': 'ne'
-                }]
+                "filters": [
+                    {
+                        'type': 'connection-aliases',
+                        'key': 'ConnectionAliases',
+                        'value': 'empty',
+                        'op': 'ne',
+                    }
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -245,12 +223,8 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-deregister",
                 "resource": "workspaces-directory",
-                'filters': [{
-                    'tag:Deregister': 'present'
-                }],
-                'actions': [{
-                    'type': 'deregister'
-                }]
+                'filters': [{'tag:Deregister': 'present'}],
+                'actions': [{'type': 'deregister'}],
             },
             session_factory=factory,
         )
@@ -270,12 +244,8 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-deregister",
                 "resource": "workspaces-directory",
-                'filters': [{
-                    'tag:Deregister': 'present'
-                }],
-                'actions': [{
-                    'type': 'deregister'
-                }]
+                'filters': [{'tag:Deregister': 'present'}],
+                'actions': [{'type': 'deregister'}],
             },
             session_factory=factory,
         )
@@ -288,12 +258,8 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-deregister",
                 "resource": "workspaces-directory",
-                'filters': [{
-                    'tag:Deregister': 'present'
-                }],
-                'actions': [{
-                    'type': 'deregister'
-                }]
+                'filters': [{'tag:Deregister': 'present'}],
+                'actions': [{'type': 'deregister'}],
             },
             session_factory=factory,
         )
@@ -311,12 +277,8 @@ class WorkspacesTest(BaseTest):
             {
                 "name": "workspace-deregister",
                 "resource": "workspaces-directory",
-                'filters': [{
-                    'tag:Deregister': 'present'
-                }],
-                'actions': [{
-                    'type': 'deregister'
-                }]
+                'filters': [{'tag:Deregister': 'present'}],
+                'actions': [{'type': 'deregister'}],
             },
             session_factory=factory,
         )
@@ -336,17 +298,10 @@ class WorkspacesTest(BaseTest):
                 "name": "workspace-directory-sg-subnet",
                 "resource": "workspaces-directory",
                 "filters": [
-                    {'type': 'subnet',
-                     'key': 'tag:NetworkLocation',
-                     'value': 'Public'},
-                    {'type': 'security-group',
-                     'key': 'tag:NetworkLocation',
-                     'value': 'Private'}],
-                'actions': [{
-                    'type': 'tag',
-                    'key': 'c7n',
-                    'value': 'test'
-                }]
+                    {'type': 'subnet', 'key': 'tag:NetworkLocation', 'value': 'Public'},
+                    {'type': 'security-group', 'key': 'tag:NetworkLocation', 'value': 'Private'},
+                ],
+                'actions': [{'type': 'tag', 'key': 'c7n', 'value': 'test'}],
             },
             session_factory=factory,
         )
@@ -364,15 +319,14 @@ class WorkspacesTest(BaseTest):
                 "name": "workspace-directory-sg-subnet",
                 "resource": "workspaces-directory",
                 "filters": [
-                    {'type': 'client-properties',
-                     'key': 'ReconnectEnabled',
-                     'value': 'ENABLED'}],
-                'actions': [{
-                    'type': 'modify-client-properties',
-                    'attributes': {
-                        'ClientProperties': {'ReconnectEnabled': 'DISABLED'}
+                    {'type': 'client-properties', 'key': 'ReconnectEnabled', 'value': 'ENABLED'}
+                ],
+                'actions': [
+                    {
+                        'type': 'modify-client-properties',
+                        'attributes': {'ClientProperties': {'ReconnectEnabled': 'DISABLED'}},
                     }
-                }]
+                ],
             },
             session_factory=factory,
         )
@@ -381,5 +335,7 @@ class WorkspacesTest(BaseTest):
         self.assertEqual(resources[0]['DirectoryId'], 'd-90675153fc')
         client = factory().client('workspaces')
         cp = client.describe_client_properties(ResourceIds=['d-90675153fc'])
-        self.assertEqual({'ReconnectEnabled': 'DISABLED'}, cp.get(
-            'ClientPropertiesList')[0].get('ClientProperties'))
+        self.assertEqual(
+            {'ReconnectEnabled': 'DISABLED'},
+            cp.get('ClientPropertiesList')[0].get('ClientProperties'),
+        )

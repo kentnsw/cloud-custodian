@@ -10,18 +10,10 @@ class TestTimestreamDatabase(BaseTest):
             {
                 'name': 'test-timestream-db-tag',
                 'resource': 'aws.timestream-database',
-                'filters': [
-                    {
-                        'tag:foo': 'absent'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'tag',
-                        'tags': {'foo': 'bar'}
-                    }
-                ]
-            }, session_factory=session_factory
+                'filters': [{'tag:foo': 'absent'}],
+                'actions': [{'type': 'tag', 'tags': {'foo': 'bar'}}],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -37,18 +29,10 @@ class TestTimestreamDatabase(BaseTest):
             {
                 'name': 'test-timestream-db-tag',
                 'resource': 'aws.timestream-database',
-                'filters': [
-                    {
-                        'tag:foo': 'present'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'remove-tag',
-                        'tags': ['foo']
-                    }
-                ]
-            }, session_factory=session_factory
+                'filters': [{'tag:foo': 'present'}],
+                'actions': [{'type': 'remove-tag', 'tags': ['foo']}],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -66,8 +50,9 @@ class TestTimestreamDatabase(BaseTest):
                     {
                         'type': 'delete',
                     }
-                ]
-            }, session_factory=session_factory
+                ],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -81,16 +66,10 @@ class TestTimestreamDatabase(BaseTest):
             {
                 'name': 'test-timestream-db-delete-force',
                 'resource': 'aws.timestream-database',
-                'filters': [
-                    {"TableCount": 1}
-                ],
-                'actions': [
-                    {
-                        'type': 'delete',
-                        'force': True
-                    }
-                ]
-            }, session_factory=session_factory
+                'filters': [{"TableCount": 1}],
+                'actions': [{'type': 'delete', 'force': True}],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -106,18 +85,10 @@ class TestTimestreamTable(BaseTest):
             {
                 'name': 'test-timestream-table-tag',
                 'resource': 'aws.timestream-table',
-                'filters': [
-                    {
-                        'tag:foo': 'absent'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'tag',
-                        'tags': {'foo': 'bar'}
-                    }
-                ]
-            }, session_factory=session_factory
+                'filters': [{'tag:foo': 'absent'}],
+                'actions': [{'type': 'tag', 'tags': {'foo': 'bar'}}],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -133,18 +104,10 @@ class TestTimestreamTable(BaseTest):
             {
                 'name': 'test-timestream-table-tag',
                 'resource': 'aws.timestream-table',
-                'filters': [
-                    {
-                        'tag:foo': 'present'
-                    }
-                ],
-                'actions': [
-                    {
-                        'type': 'remove-tag',
-                        'tags': ['foo']
-                    }
-                ]
-            }, session_factory=session_factory
+                'filters': [{'tag:foo': 'present'}],
+                'actions': [{'type': 'remove-tag', 'tags': ['foo']}],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -162,8 +125,9 @@ class TestTimestreamTable(BaseTest):
                     {
                         'type': 'delete',
                     }
-                ]
-            }, session_factory=session_factory
+                ],
+            },
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)

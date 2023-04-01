@@ -33,7 +33,7 @@ test_cases = [
     # Default region matches the TENCENTCLOUD_REGION configured in conftest.py
     ([], "na-ashburn"),
     (["ap-shanghai"], "ap-shanghai"),
-    (["ap-shanghai", "others"], "ap-shanghai")
+    (["ap-shanghai", "others"], "ap-shanghai"),
 ]
 
 
@@ -43,9 +43,6 @@ def option_case(request):
 
 
 def test_provider_initialize(tc_provider, option_case):
-    config = Config.empty(**{
-        "account_id": "1122",
-        "regions": option_case[0]
-    })
+    config = Config.empty(**{"account_id": "1122", "regions": option_case[0]})
     tc_provider.initialize(config)
     assert config.region == option_case[1]

@@ -9,4 +9,3 @@ from .network import ModifyVpcSecurityGroupsAction
 from .notify import BaseNotify, Notify
 from .policy import RemovePolicyBase, ModifyPolicyBase
 from .autoscaling import AutoscalingBase
-

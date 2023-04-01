@@ -14,6 +14,7 @@ class ProjectRole(QueryResourceManager):
     """GCP Project Role
     https://cloud.google.com/iam/docs/reference/rest/v1/organizations.roles#Role
     """
+
     class resource_type(TypeInfo):
         service = 'iam'
         version = 'v1'
@@ -31,15 +32,17 @@ class ProjectRole(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             return client.execute_query(
-                'get', verb_arguments={
+                'get',
+                verb_arguments={
                     'name': 'projects/{}/roles/{}'.format(
-                        resource_info['project_id'],
-                        resource_info['role_name'].rsplit('/', 1)[-1])})
+                        resource_info['project_id'], resource_info['role_name'].rsplit('/', 1)[-1]
+                    )
+                },
+            )
 
 
 @resources.register('service-account')
 class ServiceAccount(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         version = 'v1'
@@ -59,10 +62,13 @@ class ServiceAccount(QueryResourceManager):
         @staticmethod
         def get(client, resource_info):
             return client.execute_query(
-                'get', verb_arguments={
+                'get',
+                verb_arguments={
                     'name': 'projects/{}/serviceAccounts/{}'.format(
-                        resource_info['project_id'],
-                        resource_info['email_id'])})
+                        resource_info['project_id'], resource_info['email_id']
+                    )
+                },
+            )
 
         @staticmethod
         def get_metric_resource_name(resource):
@@ -97,13 +103,14 @@ class DisableServiceAccount(MethodAction):
 
     def get_resource_params(self, m, r):
         return {'name': r['name']}
-    
+
 
 @ServiceAccount.filter_registry.register('iam-policy')
 class ServiceAccountIamPolicyFilter(IamPolicyFilter):
     """
     Overrides the base implementation to process service account resources correctly.
     """
+
     permissions = ('resourcemanager.projects.getIamPolicy',)
 
 
@@ -112,12 +119,12 @@ class ServiceAccountKey(ChildResourceManager):
     """GCP Resource
     https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys
     """
+
     def _get_parent_resource_info(self, child_instance):
         project_id, sa = re.match(
-            'projects/(.*?)/serviceAccounts/(.*?)/keys/.*',
-            child_instance['name']).groups()
-        return {'project_id': project_id,
-                'email_id': sa}
+            'projects/(.*?)/serviceAccounts/(.*?)/keys/.*', child_instance['name']
+        ).groups()
+        return {'project_id': project_id, 'email_id': sa}
 
     def get_resource_query(self):
         """Does nothing as self does not need query values unlike its parent
@@ -132,14 +139,19 @@ class ServiceAccountKey(ChildResourceManager):
         scope = None
         scope_key = 'name'
         name = id = 'name'
-        default_report_fields = ['name', 'privateKeyType', 'keyAlgorithm',
-          'validAfterTime', 'validBeforeTime', 'keyOrigin', 'keyType']
+        default_report_fields = [
+            'name',
+            'privateKeyType',
+            'keyAlgorithm',
+            'validAfterTime',
+            'validBeforeTime',
+            'keyOrigin',
+            'keyType',
+        ]
         parent_spec = {
             'resource': 'service-account',
-            'child_enum_params': [
-                ('name', 'name')
-            ],
-            'use_child_query': True
+            'child_enum_params': [('name', 'name')],
+            'use_child_query': True,
         }
         asset_type = "iam.googleapis.com/ServiceAccountKey"
         scc_type = "google.iam.ServiceAccountKey"
@@ -151,12 +163,11 @@ class ServiceAccountKey(ChildResourceManager):
         @staticmethod
         def get(client, resource_info):
             project, sa, key = re.match(
-                '.*?/projects/(.*?)/serviceAccounts/(.*?)/keys/(.*)',
-                resource_info['resourceName']).groups()
+                '.*?/projects/(.*?)/serviceAccounts/(.*?)/keys/(.*)', resource_info['resourceName']
+            ).groups()
             return client.execute_query(
-                'get', {
-                    'name': 'projects/{}/serviceAccounts/{}/keys/{}'.format(
-                        project, sa, key)})
+                'get', {'name': 'projects/{}/serviceAccounts/{}/keys/{}'.format(project, sa, key)}
+            )
 
         @staticmethod
         def get_metric_resource_name(resource):
@@ -179,6 +190,7 @@ class Role(QueryResourceManager):
     """GCP Organization Role
     https://cloud.google.com/iam/docs/reference/rest/v1/organizations.roles#Role
     """
+
     class resource_type(TypeInfo):
         service = 'iam'
         version = 'v1'
@@ -195,10 +207,7 @@ class Role(QueryResourceManager):
 
         @staticmethod
         def get(client, resource_info):
-            return client.execute_command(
-                'get', {
-                    'name': 'roles/{}'.format(
-                        resource_info['name'])})
+            return client.execute_command('get', {'name': 'roles/{}'.format(resource_info['name'])})
 
 
 @resources.register('api-key')
@@ -206,6 +215,7 @@ class ApiKey(QueryResourceManager):
     """GCP API Key
     https://cloud.google.com/api-keys/docs/reference/rest/v2/projects.locations.keys#Key
     """
+
     class resource_type(TypeInfo):
         service = 'apikeys'
         version = 'v2'

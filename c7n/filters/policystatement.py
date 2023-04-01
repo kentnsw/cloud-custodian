@@ -32,6 +32,7 @@ class HasStatementFilter(Filter):
                             Bool:
                                 "aws:SecureTransport": "false"
     """
+
     schema = type_schema(
         'has-statement',
         statement_ids={'type': 'array', 'items': {'type': 'string'}},
@@ -42,24 +43,20 @@ class HasStatementFilter(Filter):
                 'properties': {
                     'Sid': {'type': 'string'},
                     'Effect': {'type': 'string', 'enum': ['Allow', 'Deny']},
-                    'Principal': {'anyOf': [
-                        {'type': 'string'},
-                        {'type': 'object'}, {'type': 'array'}]},
-                    'NotPrincipal': {
-                        'anyOf': [{'type': 'object'}, {'type': 'array'}]},
-                    'Action': {
-                        'anyOf': [{'type': 'string'}, {'type': 'array'}]},
-                    'NotAction': {
-                        'anyOf': [{'type': 'string'}, {'type': 'array'}]},
-                    'Resource': {
-                        'anyOf': [{'type': 'string'}, {'type': 'array'}]},
-                    'NotResource': {
-                        'anyOf': [{'type': 'string'}, {'type': 'array'}]},
-                    'Condition': {'type': 'object'}
+                    'Principal': {
+                        'anyOf': [{'type': 'string'}, {'type': 'object'}, {'type': 'array'}]
+                    },
+                    'NotPrincipal': {'anyOf': [{'type': 'object'}, {'type': 'array'}]},
+                    'Action': {'anyOf': [{'type': 'string'}, {'type': 'array'}]},
+                    'NotAction': {'anyOf': [{'type': 'string'}, {'type': 'array'}]},
+                    'Resource': {'anyOf': [{'type': 'string'}, {'type': 'array'}]},
+                    'NotResource': {'anyOf': [{'type': 'string'}, {'type': 'array'}]},
+                    'Condition': {'type': 'object'},
                 },
-                'required': ['Effect']
-            }
-        })
+                'required': ['Effect'],
+            },
+        },
+    )
 
     def process(self, resources, event=None):
         return list(filter(None, map(self.process_resource, resources)))
@@ -67,15 +64,17 @@ class HasStatementFilter(Filter):
     def action_resource_case_insensitive(self, actions):
         if isinstance(actions, str):
             if len(actions.split(':')) > 1:
-                actionsFormatted = '{}:{}'.format(actions.split(':')[0].lower(),
-                    actions.split(':')[1])
+                actionsFormatted = '{}:{}'.format(
+                    actions.split(':')[0].lower(), actions.split(':')[1]
+                )
             else:
                 actionsFormatted = actions
         else:
             actionsFormatted = []
             for action in actions:
-                actionsFormatted.append('{}:{}'.format(action.split(':')[0].lower(),
-                action.split(':')[1]))
+                actionsFormatted.append(
+                    '{}:{}'.format(action.split(':')[0].lower(), action.split(':')[1])
+                )
         return actionsFormatted
 
     def process_resource(self, resource):
@@ -93,16 +92,18 @@ class HasStatementFilter(Filter):
 
         required_statements = list(self.data.get('statements', []))
 
-        required_statements = format_string_values(list(self.data.get('statements', [])),
-                                                   **self.get_std_format_args(resource))
+        required_statements = format_string_values(
+            list(self.data.get('statements', [])), **self.get_std_format_args(resource)
+        )
 
         for required_statement in required_statements:
             for statement in statements:
                 found = 0
                 for key, value in required_statement.items():
                     if key in ['Action', 'NotAction']:
-                        if key in statement and self.action_resource_case_insensitive(value) \
-                           == self.action_resource_case_insensitive(statement[key]):
+                        if key in statement and self.action_resource_case_insensitive(
+                            value
+                        ) == self.action_resource_case_insensitive(statement[key]):
                             found += 1
                     else:
                         if key in statement and value == statement[key]:
@@ -111,7 +112,8 @@ class HasStatementFilter(Filter):
                     required_statements.remove(required_statement)
                     break
 
-        if (self.data.get('statement_ids', []) and not required) or \
-           (self.data.get('statements', []) and not required_statements):
+        if (self.data.get('statement_ids', []) and not required) or (
+            self.data.get('statements', []) and not required_statements
+        ):
             return resource
         return None

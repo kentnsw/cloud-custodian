@@ -10,9 +10,7 @@ class VarFormat(Formatter):
     inspired by https://pypyr.io/docs/substitutions/format-string/
     """
 
-    def _vformat(
-        self, format_string, args, kwargs, used_args, recursion_depth, auto_arg_index=0
-    ):
+    def _vformat(self, format_string, args, kwargs, used_args, recursion_depth, auto_arg_index=0):
         # This is mostly verbatim from stdlib format.Formatter._vformat
         # https://github.com/python/cpython/blob/main/Lib/string.py
         #
@@ -21,9 +19,7 @@ class VarFormat(Formatter):
         if recursion_depth < 0:
             raise ValueError('Max string recursion exceeded')
         result = []
-        for literal_text, field_name, format_spec, conversion in self.parse(
-            format_string
-        ):
+        for literal_text, field_name, format_spec, conversion in self.parse(format_string):
 
             # output the literal text
             if literal_text:

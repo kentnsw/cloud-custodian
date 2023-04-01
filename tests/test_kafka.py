@@ -7,39 +7,38 @@ import jmespath
 
 
 class KafkaTest(BaseTest):
-
     def test_tag_normalize(self):
         p = self.load_policy({'name': 'kafka', 'resource': 'aws.kafka'})
         resource = load_data('kafka.json')
         results = p.resource_manager.augment([resource])
         self.assertEqual(
-            results[0]['Tags'],
-            [{'Key': 'ResourceContact', 'Value': 'ouremailaddress@company.com'}])
+            results[0]['Tags'], [{'Key': 'ResourceContact', 'Value': 'ouremailaddress@company.com'}]
+        )
 
     def test_subnet_filter(self):
         factory = self.replay_flight_data('test_kafka_subnet_filter')
-        p = self.load_policy({
-            'name': 'kafka',
-            'resource': 'aws.kafka',
-            'filters': [
-                {'type': 'subnet',
-                 'key': 'tag:NetworkLocation',
-                 'value': 'Public'}]},
+        p = self.load_policy(
+            {
+                'name': 'kafka',
+                'resource': 'aws.kafka',
+                'filters': [{'type': 'subnet', 'key': 'tag:NetworkLocation', 'value': 'Public'}],
+            },
             session_factory=factory,
-            config={'region': 'ap-northeast-2'})
+            config={'region': 'ap-northeast-2'},
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
     def test_subnet_filter_provisioned_serverless(self):
         factory = self.replay_flight_data('test_kafka_subnet_filter_provisioned_serverless')
-        p = self.load_policy({
-            'name': 'kafka',
-            'resource': 'aws.kafka',
-            'filters': [
-                {'type': 'subnet',
-                 'key': 'AvailabilityZone',
-                 'value': 'us-east-1b'}]},
-            session_factory=factory,)
+        p = self.load_policy(
+            {
+                'name': 'kafka',
+                'resource': 'aws.kafka',
+                'filters': [{'type': 'subnet', 'key': 'AvailabilityZone', 'value': 'us-east-1b'}],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 2)
         self.assertEqual(resources[0]['ClusterType'], 'PROVISIONED')
@@ -50,71 +49,81 @@ class KafkaTest(BaseTest):
 
     def test_kafka_tag(self):
         factory = self.replay_flight_data('test_kafka_tag')
-        p = self.load_policy({
-            'name': 'kafka',
-            'resource': 'aws.kafka',
-            'filters': [
-                {'tag:App': 'absent'},
-                {'tag:Env': 'Dev'}],
-            'actions': [
-                {'type': 'tag',
-                 'tags': {'App': 'Custodian'}},
-                {'type': 'remove-tag',
-                 'tags': ['Env']}]},
+        p = self.load_policy(
+            {
+                'name': 'kafka',
+                'resource': 'aws.kafka',
+                'filters': [{'tag:App': 'absent'}, {'tag:Env': 'Dev'}],
+                'actions': [
+                    {'type': 'tag', 'tags': {'App': 'Custodian'}},
+                    {'type': 'remove-tag', 'tags': ['Env']},
+                ],
+            },
             session_factory=factory,
-            config={'region': 'ap-northeast-2'}
+            config={'region': 'ap-northeast-2'},
         )
         resources = p.run()
         assert len(resources) == 1
         assert resources[0]['ClusterName'] == 'demo-cluster-1'
         client = factory().client('kafka', region_name='ap-northeast-2')
-        assert client.list_tags_for_resource(
-            ResourceArn=resources[0]['ClusterArn'])['Tags'] == {
-                'App': 'Custodian'}
+        assert client.list_tags_for_resource(ResourceArn=resources[0]['ClusterArn'])['Tags'] == {
+            'App': 'Custodian'
+        }
 
     def test_set_monitoring(self):
         factory = self.replay_flight_data('test_kafka_set_monitoring')
-        p = self.load_policy({
-            'name': 'kafka',
-            'resource': 'aws.kafka',
-            'filters': [
-                {'tag:App': 'Custodian'},
-                {'State': 'ACTIVE'},
-                {'EnhancedMonitoring': 'DEFAULT'},
-            ],
-            'actions': [
-                {'type': 'set-monitoring',
-                 'config': {
-                     'EnhancedMonitoring': 'PER_BROKER',
-                     'OpenMonitoring': {
-                         'Prometheus': {
-                             'JmxExporter': {
-                                 'EnabledInBroker': True}}}}}]},
+        p = self.load_policy(
+            {
+                'name': 'kafka',
+                'resource': 'aws.kafka',
+                'filters': [
+                    {'tag:App': 'Custodian'},
+                    {'State': 'ACTIVE'},
+                    {'EnhancedMonitoring': 'DEFAULT'},
+                ],
+                'actions': [
+                    {
+                        'type': 'set-monitoring',
+                        'config': {
+                            'EnhancedMonitoring': 'PER_BROKER',
+                            'OpenMonitoring': {
+                                'Prometheus': {'JmxExporter': {'EnabledInBroker': True}}
+                            },
+                        },
+                    }
+                ],
+            },
             session_factory=factory,
-            config={'region': 'ap-northeast-2'})
+            config={'region': 'ap-northeast-2'},
+        )
         resources = p.run()
         assert len(resources) == 1
         assert resources[0]['ClusterName'] == 'demo-cluster-1'
         if self.recording:
             time.sleep(5)
 
-        info = factory().client('kafka', region_name='ap-northeast-2').describe_cluster(
-            ClusterArn=resources[0]['ClusterArn'])['ClusterInfo']
+        info = (
+            factory()
+            .client('kafka', region_name='ap-northeast-2')
+            .describe_cluster(ClusterArn=resources[0]['ClusterArn'])['ClusterInfo']
+        )
 
         assert info['State'] == 'UPDATING'
 
     def test_delete(self):
         factory = self.replay_flight_data('test_kafka_delete')
-        p = self.load_policy({
-            'name': 'kafka',
-            'resource': 'aws.kafka',
-            'filters': [
-                {'ClusterName': 'demo-cluster-1'}],
-            'actions': [
-                {'type': 'delete'},
-            ]},
+        p = self.load_policy(
+            {
+                'name': 'kafka',
+                'resource': 'aws.kafka',
+                'filters': [{'ClusterName': 'demo-cluster-1'}],
+                'actions': [
+                    {'type': 'delete'},
+                ],
+            },
             session_factory=factory,
-            config={'region': 'ap-northeast-2'})
+            config={'region': 'ap-northeast-2'},
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
 
@@ -134,15 +143,11 @@ class KafkaTest(BaseTest):
                 'name': 'kafka-kms-filter',
                 'resource': 'kafka',
                 'filters': [
-                    {
-                        'type': 'kms-key',
-                        'key': 'c7n:AliasName',
-                        'value': 'alias/aws/kafka'
-                    }
-                ]
+                    {'type': 'kms-key', 'key': 'c7n:AliasName', 'value': 'alias/aws/kafka'}
+                ],
             },
             session_factory=session_factory,
-            config={'region': 'ap-northeast-2'}
+            config={'region': 'ap-northeast-2'},
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -150,8 +155,7 @@ class KafkaTest(BaseTest):
         self.assertEqual(aliases['Aliases'][0]['AliasName'], 'alias/aws/kafka')
 
     def test_kafka_cluster_provisioned_and_serverless(self):
-        session_factory = self.replay_flight_data(
-            'test_kafka_cluster_provisioned_and_serverless')
+        session_factory = self.replay_flight_data('test_kafka_cluster_provisioned_and_serverless')
         p = self.load_policy(
             {
                 'name': 'kafka-kms-filter',

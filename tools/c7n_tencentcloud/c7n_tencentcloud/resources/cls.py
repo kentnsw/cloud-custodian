@@ -38,6 +38,7 @@ class LogTopic(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "TopicId"
         endpoint = "cls.tencentcloudapi.com"
         service = "cls"

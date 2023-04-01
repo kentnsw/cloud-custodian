@@ -35,6 +35,6 @@ class AlertLogs(ArmResourceManager):
             'resourceGroup',
             'properties.scopes',
             'properties.condition',
-            'properties.actions'
+            'properties.actions',
         )
         resource_type = 'Microsoft.Insights/ActivityLogAlerts'
