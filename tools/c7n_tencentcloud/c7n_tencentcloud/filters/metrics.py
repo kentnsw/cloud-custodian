@@ -20,16 +20,43 @@ from c7n_tencentcloud.query import ResourceTypeInfo
 log = logging.getLogger("custodian.tencentcloud.filter")
 
 
-STATISTICS_OPERATORS = {
-    "Average": mean,
-    "Sum": sum,
-    "Maximum": max,
-    "Minimum": min
-}
+STATISTICS_OPERATORS = {"Average": mean, "Sum": sum, "Maximum": max, "Minimum": min}
 
 
 class MetricsFilter(Filter):
-    """MetricsFilter"""
+    """Supports metrics filters on resources.
+
+    Docs on cloud monitor metrics
+    https://www.tencentcloud.com/document/product/248
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+          - name: cvm-underutilized
+            resource: tencentcloud.cvm
+            filters:
+              - type: metrics
+                name: CPUUsage
+                days: 3
+                period: 3600
+                value: 1.5
+                statistics: Average
+                op: less-than
+          - name: clb_metrics_filter
+            resource: tencentcloud.clb
+            filters:
+              - type: metrics
+                name: TotalReq
+                statistics: Sum
+                period: 3600
+                days: 30
+                value: 0
+                missing-value: 0
+                op: eq
+    """
+
     name = "metrics"
     schema = type_schema(
         name,
@@ -41,8 +68,8 @@ class MetricsFilter(Filter):
             "value": {"type": "number"},
             "missing-value": {"type": "number"},
             "period": {"type": "number"},
-            "required": ("value", "name")
-        }
+            "required": ("value", "name"),
+        },
     )
     schema_alias = True
     permissions = ()
@@ -85,7 +112,7 @@ class MetricsFilter(Filter):
             "Period": self.period,
             "StartTime": self.start_time,
             "EndTime": self.end_time,
-            "Instances": instances
+            "Instances": instances,
         }
 
     def validate(self):
@@ -99,15 +126,15 @@ class MetricsFilter(Filter):
         if self.days == 0:
             raise PolicyValidationError("metrics filter days value cannot be 0")
         if self.batch_size == 0:
-            raise PolicyValidationError("too many data points, "
-                                        "pls reduce the days or use large granularity")
+            raise PolicyValidationError(
+                "too many data points, " "pls reduce the days or use large granularity"
+            )
 
     def get_client(self):
         """get_client"""
-        return local_session(self.manager.session_factory).client("monitor.tencentcloudapi.com",
-                                                                  "service",
-                                                                  "2018-07-24",
-                                                                  self.manager.config.region)
+        return local_session(self.manager.session_factory).client(
+            "monitor.tencentcloudapi.com", "service", "2018-07-24", self.manager.config.region
+        )
 
     def process(self, resources, event=None):
         """process"""

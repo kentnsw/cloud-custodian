@@ -1,6 +1,9 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
+import json
 import jmespath
+import jmespath.parser
+import pytest
 from pytest_terraform import terraform
 from unittest import TestCase
 
@@ -10,26 +13,32 @@ from c7n.cwe import CloudWatchEvents
 from c7n.resources import cw
 
 
+class JmespathEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, jmespath.parser.ParsedResult):
+            return obj.parsed
+        return json.JSONEncoder.default(self, obj)
+
+
+@pytest.mark.audited
 @terraform('event_bridge_bus')
 def test_event_bus_describe(test, event_bridge_bus):
     factory = test.replay_flight_data('test_cwe_bus_xaccount')
-    p = test.load_policy({
-        'name': 'bus-xaccount',
-        'resource': 'aws.event-bus',
-        'filters': [
-            {'tag:Env': 'Sandbox'},
-            'cross-account'
-        ],
-    }, session_factory=factory)
+    p = test.load_policy(
+        {
+            'name': 'bus-xaccount',
+            'resource': 'aws.event-bus',
+            'filters': [{'tag:Env': 'Sandbox'}, 'cross-account'],
+        },
+        session_factory=factory,
+    )
     resources = p.run()
     assert len(resources) == 1
-    resources[0]['Name'] == event_bridge_bus[
-        'aws_cloudwatch_event_bus.messenger.name']
+    resources[0]['Name'] == event_bridge_bus['aws_cloudwatch_event_bus.messenger.name']
     assert 'CrossAccountViolations' in resources[0]
 
 
 class CloudWatchEventTest(BaseTest):
-
     def test_event_rule_tags(self):
         factory = self.replay_flight_data('test_cwe_rule_tags')
         client = factory().client('events')
@@ -37,18 +46,20 @@ class CloudWatchEventTest(BaseTest):
             {
                 'name': 'cwe-rule',
                 'resource': 'aws.event-rule',
-                'filters': [
-                    {'tag:App': 'absent'},
-                    {'Name': 'cloud-custodian-mailer'}],
-                'actions': [
-                    {'type': 'tag', 'tags': {'App': 'Custodian'}}]
-            }, session_factory=factory, config={'region': 'us-west-2'})
+                'filters': [{'tag:App': 'absent'}, {'Name': 'cloud-custodian-mailer'}],
+                'actions': [{'type': 'tag', 'tags': {'App': 'Custodian'}}],
+            },
+            session_factory=factory,
+            config={'region': 'us-west-2'},
+        )
         resources = policy.run()
         self.assertEqual(len(resources), 1)
-        tags = {t['Key']: t['Value'] for t in
-                client.list_tags_for_resource(
-                    ResourceARN=policy.resource_manager.get_arns(resources)[0]).get(
-                        'Tags')}
+        tags = {
+            t['Key']: t['Value']
+            for t in client.list_tags_for_resource(
+                ResourceARN=policy.resource_manager.get_arns(resources)[0]
+            ).get('Tags')
+        }
         self.assertEqual(tags, {'App': 'Custodian'})
 
     def test_event_rule_enable(self):
@@ -58,18 +69,12 @@ class CloudWatchEventTest(BaseTest):
             {
                 'name': 'cwe-enable-rule',
                 'resource': 'aws.event-rule',
-                'actions': [
-                    {
-                        'type': 'set-rule-state',
-                        'enabled': True
-                    }
-                ]
+                'actions': [{'type': 'set-rule-state', 'enabled': True}],
             },
             session_factory=factory,
         )
         resources = policy.run()
-        response = client.describe_rule(
-            Name=resources[0]['Name'])
+        response = client.describe_rule(Name=resources[0]['Name'])
         self.assertEqual(response['State'], 'ENABLED')
 
     def test_event_rule_disable(self):
@@ -79,18 +84,12 @@ class CloudWatchEventTest(BaseTest):
             {
                 'name': 'cwe-enable-rule',
                 'resource': 'aws.event-rule',
-                'actions': [
-                    {
-                        'type': 'set-rule-state',
-                        'enabled': False
-                    }
-                ]
+                'actions': [{'type': 'set-rule-state', 'enabled': False}],
             },
             session_factory=factory,
         )
         resources = policy.run()
-        response = client.describe_rule(
-            Name=resources[0]['Name'])
+        response = client.describe_rule(Name=resources[0]['Name'])
         self.assertEqual(response['State'], 'DISABLED')
 
     def test_target_cross_account_remove(self):
@@ -107,33 +106,29 @@ class CloudWatchEventTest(BaseTest):
         )
         resources = policy.run()
         self.assertEqual(len(resources), 1)
-        targets = client.list_targets_by_rule(Rule=resources[0]["c7n:parent-id"]).get(
-            "Targets"
-        )
+        targets = client.list_targets_by_rule(Rule=resources[0]["c7n:parent-id"]).get("Targets")
         self.assertEqual(targets, [])
 
     def test_event_rule_force_delete(self):
         session_factory = self.replay_flight_data("test_cwe_rule_force_delete")
         client = session_factory().client('events')
-        policy = self.load_policy({
-            "name": "cwe-filter-on-target",
-            "resource": "aws.event-rule",
-            "filters": [
-                {
-                    "type": "event-rule-target",
-                    "key": "[].Arn",
-                    "value": "arn:aws:lambda:us-east-1:644160558196:function:test",
-                    "op": "in",
-                    "value_type": "swap"
-                }
-            ],
-            "actions": [
-                {
-                    "type": "delete",
-                    "force": True
-                }
-            ]
-        }, session_factory=session_factory)
+        policy = self.load_policy(
+            {
+                "name": "cwe-filter-on-target",
+                "resource": "aws.event-rule",
+                "filters": [
+                    {
+                        "type": "event-rule-target",
+                        "key": "[].Arn",
+                        "value": "arn:aws:lambda:us-east-1:644160558196:function:test",
+                        "op": "in",
+                        "value_type": "swap",
+                    }
+                ],
+                "actions": [{"type": "delete", "force": True}],
+            },
+            session_factory=session_factory,
+        )
         resources = policy.run()
         with self.assertRaises(client.exceptions.ResourceNotFoundException):
             client.describe_rule(Name=resources[0]["Name"])
@@ -143,19 +138,21 @@ class CloudWatchEventTest(BaseTest):
         session_factory = self.replay_flight_data("test_cwe_rule_invalid_targets")
         lambda_client = session_factory().client('lambda')
         sns_client = session_factory().client('sns')
-        policy = self.load_policy({
-            "name": "cwe-filter-on-invalid-target",
-            "resource": "aws.event-rule",
-            "filters": [
-                {
-                    "type": "invalid-targets"
-                }
-            ],
-        }, session_factory=session_factory)
+        policy = self.load_policy(
+            {
+                "name": "cwe-filter-on-invalid-target",
+                "resource": "aws.event-rule",
+                "filters": [{"type": "invalid-targets"}],
+            },
+            session_factory=session_factory,
+        )
         resources = policy.run()
-        invalid_targets = set([
-            "arn:aws:lambda:us-east-1:644160558196:function:test",
-            "arn:aws:sns:us-east-1:644160558196:foo"])
+        invalid_targets = set(
+            [
+                "arn:aws:lambda:us-east-1:644160558196:function:test",
+                "arn:aws:sns:us-east-1:644160558196:foo",
+            ]
+        )
         self.assertEqual(set(resources[0]["c7n:InvalidTargets"]), invalid_targets)
         with self.assertRaises(lambda_client.exceptions.ClientError):
             lambda_client.get_function(FunctionName="test")
@@ -166,16 +163,14 @@ class CloudWatchEventTest(BaseTest):
 
     def test_event_rule_invalid_targets_all(self):
         session_factory = self.replay_flight_data("test_cwe_rule_invalid_targets")
-        policy = self.load_policy({
-            "name": "cwe-filter-on-invalid-target",
-            "resource": "aws.event-rule",
-            "filters": [
-                {
-                    "type": "invalid-targets",
-                    "all": True
-                }
-            ],
-        }, session_factory=session_factory)
+        policy = self.load_policy(
+            {
+                "name": "cwe-filter-on-invalid-target",
+                "resource": "aws.event-rule",
+                "filters": [{"type": "invalid-targets", "all": True}],
+            },
+            session_factory=session_factory,
+        )
         resources = policy.run()
         self.assertEqual(len(resources), 0)
 
@@ -183,15 +178,17 @@ class CloudWatchEventTest(BaseTest):
         r = {
             'Name': 'test-ebs-snapshot',
             'Arn': 'arn:aws:events:us-east-1:644160558196:rule/test-ebs-snapshot',
-            'c7n:ChildArns': ['arn:aws:events:us-east-1:644160558196:target/create-snapshot',
-                            'arn:aws:lambda:us-east-1:644160558196:function:custodian-code']
+            'c7n:ChildArns': [
+                'arn:aws:events:us-east-1:644160558196:target/create-snapshot',
+                'arn:aws:lambda:us-east-1:644160558196:function:custodian-code',
+            ],
         }
         self.assertFalse(
-            cw.ValidEventRuleTargetFilter('event-rule').filter_unsupported_resources(r))
+            cw.ValidEventRuleTargetFilter('event-rule').filter_unsupported_resources(r)
+        )
 
 
 class CloudWatchEventsFacadeTest(TestCase):
-
     def test_get_ids(self):
         self.assertEqual(
             CloudWatchEvents.get_ids(
@@ -205,22 +202,37 @@ class CloudWatchEventsFacadeTest(TestCase):
         self.assertEqual(
             CloudWatchEvents.get_ids(
                 {'detail': event_data('event-cloud-trail-run-instances.json')},
-                {'type': 'cloudtrail', 'events': [
-                    {'ids': 'detail.responseElements.instancesSet.items[].instanceId',
-                     'source': 'ec2.amazonaws.com',
-                     'event': 'RunInstances'}]}),
+                {
+                    'type': 'cloudtrail',
+                    'events': [
+                        {
+                            'ids': 'detail.responseElements.instancesSet.items[].instanceId',
+                            'source': 'ec2.amazonaws.com',
+                            'event': 'RunInstances',
+                        }
+                    ],
+                },
+            ),
             ["i-784cdacd", "i-7b4cdace"],
         )
 
     def test_get_ids_sans_without_details_expr(self):
         self.assertEqual(
-            sorted(CloudWatchEvents.get_ids(
-                {'detail': event_data('event-cloud-trail-run-instances.json')},
-                {'type': 'cloudtrail', 'events': [
-                    {'ids': 'responseElements.instancesSet.items[].instanceId',
-                     'source': 'ec2.amazonaws.com',
-                     'event': 'RunInstances'}
-                ]})),
+            sorted(
+                CloudWatchEvents.get_ids(
+                    {'detail': event_data('event-cloud-trail-run-instances.json')},
+                    {
+                        'type': 'cloudtrail',
+                        'events': [
+                            {
+                                'ids': 'responseElements.instancesSet.items[].instanceId',
+                                'source': 'ec2.amazonaws.com',
+                                'event': 'RunInstances',
+                            }
+                        ],
+                    },
+                )
+            ),
             ["i-784cdacd", "i-7b4cdace"],
         )
 
@@ -315,10 +327,13 @@ class CloudWatchEventsFacadeTest(TestCase):
             self.assertFalse(CloudWatchEvents.match(event_data(event)))
 
     def test_cloud_trail_resource(self):
+        matched_event = CloudWatchEvents.match(event_data("event-cloud-trail-s3.json"))
+        expected_event = {
+            "source": "s3.amazonaws.com",
+            "ids": jmespath.compile("detail.requestParameters.bucketName"),
+        }
+
         self.assertEqual(
-            CloudWatchEvents.match(event_data("event-cloud-trail-s3.json")),
-            {
-                "source": "s3.amazonaws.com",
-                "ids": jmespath.compile("detail.requestParameters.bucketName"),
-            },
+            json.dumps(matched_event, sort_keys=True, cls=JmespathEncoder),
+            json.dumps(expected_event, sort_keys=True, cls=JmespathEncoder),
         )

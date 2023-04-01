@@ -18,42 +18,38 @@ from c7n.resources.aws import shape_validate, Arn
 
 
 def test_sqs_endpoint_url(test):
-    session_factory = test.replay_flight_data(
-        "test_sqs_endpoint_url", region="us-east-1")
-    p = test.load_policy({
-        'name': 'sqs-check',
-        'resource': 'aws.sqs'
-    }, session_factory=session_factory)
+    session_factory = test.replay_flight_data("test_sqs_endpoint_url", region="us-east-1")
+    p = test.load_policy(
+        {'name': 'sqs-check', 'resource': 'aws.sqs'}, session_factory=session_factory
+    )
     urls = [q['QueueUrl'] for q in p.run()]
     assert urls == [
         'https://sqs.us-east-1.amazonaws.com/644160558196/devtest2',
-        'https://sqs.us-east-1.amazonaws.com/644160558196/hubalytics-dev-ArchiveHourlyQueue-1VHR8KVX2MY48', # noqa
+        'https://sqs.us-east-1.amazonaws.com/644160558196/hubalytics-dev-ArchiveHourlyQueue-1VHR8KVX2MY48',  # noqa
         'https://sqs.us-east-1.amazonaws.com/644160558196/maid-delivery',
     ]
     assert p.resource_manager.get_client().meta.endpoint_url == (
-        "https://sqs.us-east-1.amazonaws.com")
+        "https://sqs.us-east-1.amazonaws.com"
+    )
 
 
 def test_sqs_config_translate(test):
     # we're using a cwe event as a config, so have to mangle to
     # config's inane format (json strings in json)
     event = event_data('sqs-discover.json')
-    p = test.load_policy({
-        'name': 'sqs-check',
-        'resource': 'aws.sqs',
-        'mode': {'type': 'config-rule'}})
+    p = test.load_policy(
+        {'name': 'sqs-check', 'resource': 'aws.sqs', 'mode': {'type': 'config-rule'}}
+    )
     config = p.resource_manager.get_source('config')
     resource = config.load_resource(event['detail']['configurationItem'])
     Arn.parse(resource['QueueArn']).resource == 'config-changes'
     assert resource == {
-        'CreatedTimestamp': datetime(
-            2020, 10, 6, 22, 27, 29, tzinfo=tzutc()),
+        'CreatedTimestamp': datetime(2020, 10, 6, 22, 27, 29, tzinfo=tzutc()),
         'DelaySeconds': '0',
-        'LastModifiedTimestamp': datetime(
-            2020, 10, 6, 22, 27, 29, tzinfo=tzutc()),
+        'LastModifiedTimestamp': datetime(2020, 10, 6, 22, 27, 29, tzinfo=tzutc()),
         'MaximumMessageSize': '262144',
         'MessageRetentionPeriod': '345600',
-        'Policy': '{"Version":"2012-10-17","Statement":[{"Sid":"","Effect":"Allow","Principal":{"Service":"events.amazonaws.com"},"Action":"sqs:SendMessage","Resource":"arn:aws:sqs:us-east-1:644160558196:config-changes"}]}', # noqa
+        'Policy': '{"Version":"2012-10-17","Statement":[{"Sid":"","Effect":"Allow","Principal":{"Service":"events.amazonaws.com"},"Action":"sqs:SendMessage","Resource":"arn:aws:sqs:us-east-1:644160558196:config-changes"}]}',  # noqa
         'QueueArn': 'arn:aws:sqs:us-east-1:644160558196:config-changes',
         'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/644160558196/config-changes',
         'ReceiveMessageWaitTimeSeconds': '0',
@@ -61,6 +57,7 @@ def test_sqs_config_translate(test):
     }
 
 
+@pytest.mark.audited
 @terraform('sqs_delete', teardown=terraform.TEARDOWN_IGNORE)
 def test_sqs_delete(test, sqs_delete):
     session_factory = test.replay_flight_data("test_sqs_delete", region='us-east-2')
@@ -92,48 +89,58 @@ def test_sqs_delete(test, sqs_delete):
 
 
 def test_sqs_set_encryption_options(test):
-    p = test.load_policy({
-        'name': 'set-encryption-params',
-        'resource': 'sqs',
-        'actions': [{'type': 'set-encryption'}]
-    })
+    p = test.load_policy(
+        {
+            'name': 'set-encryption-params',
+            'resource': 'sqs',
+            'actions': [{'type': 'set-encryption'}],
+        }
+    )
 
     set_encrypt = p.resource_manager.actions[0]
     collected = []
 
     def collect_params(client, queue_url, params):
         collected.append(params)
+
     set_encrypt.process_queue = collect_params
 
     set_encrypt.data = {'enabled': False}
     set_encrypt.process([{}])
-    assert collected.pop() == {'SqsManagedSseEnabled': 'false',
-                               'KmsMasterKeyId': ''}
+    assert collected.pop() == {'SqsManagedSseEnabled': 'false', 'KmsMasterKeyId': ''}
 
     set_encrypt.data = {}
     set_encrypt.process([{}])
-    assert collected.pop() == {'SqsManagedSseEnabled': 'true',
-                               'KmsMasterKeyId': ''}
+    assert collected.pop() == {'SqsManagedSseEnabled': 'true', 'KmsMasterKeyId': ''}
 
     set_encrypt.data = {'key': 'xyz'}
     set_encrypt.process([{}])
-    assert collected.pop() == {'SqsManagedSseEnabled': 'false',
-                               'KmsDataKeyReusePeriodSeconds': '300',
-                               'KmsMasterKeyId': 'alias/xyz'}
+    assert collected.pop() == {
+        'SqsManagedSseEnabled': 'false',
+        'KmsDataKeyReusePeriodSeconds': '300',
+        'KmsMasterKeyId': 'alias/xyz',
+    }
 
     set_encrypt.data = {'key': '40753d23-0bef-459d-870e-c0963b827b51'}
     set_encrypt.process([{}])
-    assert collected.pop() == {'SqsManagedSseEnabled': 'false',
-                               'KmsDataKeyReusePeriodSeconds': '300',
-                               'KmsMasterKeyId': '40753d23-0bef-459d-870e-c0963b827b51'}
+    assert collected.pop() == {
+        'SqsManagedSseEnabled': 'false',
+        'KmsDataKeyReusePeriodSeconds': '300',
+        'KmsMasterKeyId': '40753d23-0bef-459d-870e-c0963b827b51',
+    }
 
-    set_encrypt.data = {'key': 'arn:aws:kms:us-east-1:1122334455:key/fb5bc39f-3cdb-438b-b959-3b812ae71628'}  # noqa
+    set_encrypt.data = {
+        'key': 'arn:aws:kms:us-east-1:1122334455:key/fb5bc39f-3cdb-438b-b959-3b812ae71628'
+    }  # noqa
     set_encrypt.process([{}])
-    assert collected.pop() == {'SqsManagedSseEnabled': 'false',
-                               'KmsDataKeyReusePeriodSeconds': '300',
-                               'KmsMasterKeyId': 'arn:aws:kms:us-east-1:1122334455:key/fb5bc39f-3cdb-438b-b959-3b812ae71628'}  # noqa
+    assert collected.pop() == {
+        'SqsManagedSseEnabled': 'false',
+        'KmsDataKeyReusePeriodSeconds': '300',
+        'KmsMasterKeyId': 'arn:aws:kms:us-east-1:1122334455:key/fb5bc39f-3cdb-438b-b959-3b812ae71628',
+    }  # noqa
 
 
+# running functionally seems to get an error on mismatched key ids
 @terraform('sqs_set_encryption')
 def test_sqs_set_encryption(test, sqs_set_encryption):
     session_factory = test.replay_flight_data("test_sqs_set_encryption", region='us-west-2')
@@ -166,6 +173,7 @@ def test_sqs_set_encryption(test, sqs_set_encryption):
     test.assertEqual(check_master_key, key_id)
 
 
+@pytest.mark.audited
 @terraform('sqs_remove_matched')
 def test_sqs_remove_matched(test, sqs_remove_matched):
     session_factory = test.replay_flight_data("test_sqs_remove_matched", region="us-east-2")
@@ -191,10 +199,7 @@ def test_sqs_remove_matched(test, sqs_remove_matched):
     resources = p.run()
 
     queue_url = resources[0]["QueueUrl"]
-    queue_attributes = client.get_queue_attributes(
-        QueueUrl=queue_url,
-        AttributeNames=["Policy"]
-    )
+    queue_attributes = client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["Policy"])
     data = json.loads(queue_attributes["Attributes"]["Policy"])
 
     test.assertEqual([s["Sid"] for s in data.get("Statement", ())], ["SpecificAllow"])
@@ -202,14 +207,12 @@ def test_sqs_remove_matched(test, sqs_remove_matched):
 
 def test_sqs_get_resources_augment(test):
     session_factory = test.replay_flight_data("test_sqs_get_augment")
-    p = test.load_policy(
-        {"name": "sqs", "resource": "sqs"},
-        session_factory=session_factory)
-    resources = p.resource_manager.get_resources([
-        'https://sqs.us-east-1.amazonaws.com/644160558196/test-queue'])
+    p = test.load_policy({"name": "sqs", "resource": "sqs"}, session_factory=session_factory)
+    resources = p.resource_manager.get_resources(
+        ['https://sqs.us-east-1.amazonaws.com/644160558196/test-queue']
+    )
     assert len(resources) == 1
-    assert {t['Key']: t['Value'] for t in resources[0]['Tags']} == {
-        'App': 'Args', 'Env': 'Dev'}
+    assert {t['Key']: t['Value'] for t in resources[0]['Tags']} == {'App': 'Args', 'Env': 'Dev'}
     # assert even though multiple tagged queues in the env we only fetch data
     # for the one we're processing.
     dp = Path(placebo_dir('test_sqs_get_augment')) / 'tagging.GetResources_1.json'
@@ -220,7 +223,6 @@ def test_sqs_get_resources_augment(test):
 
 
 class QueueTests(BaseTest):
-
     @functional
     def test_sqs_remove_named(self):
         session_factory = self.replay_flight_data("test_sqs_remove_named")
@@ -267,9 +269,7 @@ class QueueTests(BaseTest):
                 "name": "sqs-rm-named",
                 "resource": "sqs",
                 "filters": [{"QueueUrl": queue_url}],
-                "actions": [
-                    {"type": "remove-statements", "statement_ids": ["RemoveMe"]}
-                ],
+                "actions": [{"type": "remove-statements", "statement_ids": ["RemoveMe"]}],
             },
             session_factory=session_factory,
         )
@@ -282,11 +282,7 @@ class QueueTests(BaseTest):
         data = json.loads(
             client.get_queue_attributes(
                 QueueUrl=resources[0]["QueueUrl"], AttributeNames=["Policy"]
-            )[
-                "Attributes"
-            ][
-                "Policy"
-            ]
+            )["Attributes"]["Policy"]
         )
         self.assertTrue("RemoveMe" not in [s["Sid"] for s in data.get("Statement", ())])
 
@@ -298,17 +294,14 @@ class QueueTests(BaseTest):
                 "name": "sqs-rm-all",
                 "resource": "sqs",
                 "filters": [{"QueueUrl": queue_url}],
-                "actions": [
-                    {"type": "remove-statements", "statement_ids": ["RemoveMe"]}
-                ],
+                "actions": [{"type": "remove-statements", "statement_ids": ["RemoveMe"]}],
             },
             session_factory=factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         client = factory().client("sqs")
-        d2 = client.get_queue_attributes(
-            QueueUrl=queue_url, AttributeNames=["All"])["Attributes"]
+        d2 = client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["All"])["Attributes"]
         self.assertNotIn("Policy", d2)
 
     @functional
@@ -361,7 +354,7 @@ class QueueTests(BaseTest):
                                 "Effect": "Allow",
                                 "Principal": "*",
                                 "Action": ["sqs:GetQueueAttributes"],
-                                "Resource": queue_url
+                                "Resource": queue_url,
                             }
                         ],
                         "remove-statements": [],
@@ -417,7 +410,7 @@ class QueueTests(BaseTest):
                                 "Effect": "Allow",
                                 "Principal": "*",
                                 "Action": ["sqs:GetQueueAttributes"],
-                            }
+                            },
                         ],
                     }
                 ),
@@ -441,7 +434,7 @@ class QueueTests(BaseTest):
                                 "Effect": "Allow",
                                 "Principal": "*",
                                 "Action": ["sqs:GetQueueAttributes"],
-                                "Resource": queue_url
+                                "Resource": queue_url,
                             }
                         ],
                         "remove-statements": ["RemoveMe"],
@@ -539,9 +532,7 @@ class QueueTests(BaseTest):
         client = session_factory().client("sqs")
         name = "test-sqs-4"
         queue_url = client.create_queue(QueueName=name)["QueueUrl"]
-        client.tag_queue(
-            QueueUrl=queue_url, Tags={"remove-this-tag": "tag to be removed"}
-        )
+        client.tag_queue(QueueUrl=queue_url, Tags={"remove-this-tag": "tag to be removed"})
         self.addCleanup(client.delete_queue, QueueUrl=queue_url)
 
         if self.recording:
@@ -551,9 +542,7 @@ class QueueTests(BaseTest):
             {
                 "name": "sqs-mark-for-op",
                 "resource": "sqs",
-                "filters": [
-                    {"QueueUrl": queue_url}, {"tag:remove-this-tag": "present"}
-                ],
+                "filters": [{"QueueUrl": queue_url}, {"tag:remove-this-tag": "present"}],
                 "actions": [{"type": "remove-tag", "tags": ["remove-this-tag"]}],
             },
             session_factory=session_factory,
@@ -583,9 +572,7 @@ class QueueTests(BaseTest):
             {
                 "name": "sqs-marked-for-op",
                 "resource": "sqs",
-                "filters": [
-                    {"type": "marked-for-op", "tag": "tag-for-op", "op": "delete"}
-                ],
+                "filters": [{"type": "marked-for-op", "tag": "tag-for-op", "op": "delete"}],
             },
             session_factory=session_factory,
         )
@@ -618,16 +605,12 @@ class QueueTests(BaseTest):
 
         retention = client.get_queue_attributes(
             QueueUrl=resources[0]["QueueUrl"], AttributeNames=["MessageRetentionPeriod"]
-        )[
-            "Attributes"
-        ]
+        )["Attributes"]
         self.assertEqual(int(retention["MessageRetentionPeriod"]), 86400)
 
     def test_sqs_get_resources(self):
         factory = self.replay_flight_data("test_sqs_get_resources")
-        p = self.load_policy(
-            {"name": "sqs-reduce", "resource": "sqs"}, session_factory=factory
-        )
+        p = self.load_policy({"name": "sqs-reduce", "resource": "sqs"}, session_factory=factory)
         url1 = "https://us-east-2.queue.amazonaws.com/644160558196/BrickHouse"
         url2 = "https://sqs.us-east-2.amazonaws.com/644160558196/BrickHouse"
         *_, enum_extra_args = p.resource_manager.resource_type.enum_spec
@@ -645,7 +628,7 @@ class QueueTests(BaseTest):
                 "name": "sqs-list",
                 "resource": "sqs",
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         log_output = self.capture_logging("custodian.resources.sqs", level=logging.WARNING)
 
@@ -668,56 +651,71 @@ class QueueTests(BaseTest):
                                 "type": "value",
                                 "key": "KmsMasterKeyId",
                                 "value": "^(alias/aws/)",
-                                "op": "regex"
+                                "op": "regex",
                             },
                             {
                                 "type": "kms-key",
                                 "key": "c7n:AliasName",
                                 "value": "^(alias/aws/)",
-                                "op": "regex"
-                            }
+                                "op": "regex",
+                            },
                         ]
                     }
-                ]
+                ],
             },
             session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(2, len(resources))
         for r in resources:
-            self.assertTrue(r['KmsMasterKeyId'] in [
-                u'alias/aws/sqs',
-                u'arn:aws:kms:us-east-1:644160558196:key/8785aeb9-a616-4e2b-bbd3-df3cde76bcc5'
-            ])
-            self.assertTrue(r['QueueArn'] in [
-                u'arn:aws:sqs:us-east-1:644160558196:sqs-test-alias',
-                u'arn:aws:sqs:us-east-1:644160558196:sqs-test-id'
-            ])
+            self.assertTrue(
+                r['KmsMasterKeyId']
+                in [
+                    u'alias/aws/sqs',
+                    u'arn:aws:kms:us-east-1:644160558196:key/8785aeb9-a616-4e2b-bbd3-df3cde76bcc5',
+                ]
+            )
+            self.assertTrue(
+                r['QueueArn']
+                in [
+                    u'arn:aws:sqs:us-east-1:644160558196:sqs-test-alias',
+                    u'arn:aws:sqs:us-east-1:644160558196:sqs-test-id',
+                ]
+            )
 
     def test_sqs_post_finding(self):
         factory = self.replay_flight_data('test_sqs_post_finding')
-        p = self.load_policy({
-            'name': 'sqs',
-            'resource': 'aws.sqs',
-            'actions': [
-                {'type': 'post-finding',
-                 'types': [
-                     'Software and Configuration Checks/OrgStandard/abc-123']}]},
-            session_factory=factory, config={'region': 'us-west-2'})
-        queues = p.resource_manager.get_resources([
-            'test_sqs_modify_policy_add_remove_statements'])
+        p = self.load_policy(
+            {
+                'name': 'sqs',
+                'resource': 'aws.sqs',
+                'actions': [
+                    {
+                        'type': 'post-finding',
+                        'types': ['Software and Configuration Checks/OrgStandard/abc-123'],
+                    }
+                ],
+            },
+            session_factory=factory,
+            config={'region': 'us-west-2'},
+        )
+        queues = p.resource_manager.get_resources(['test_sqs_modify_policy_add_remove_statements'])
         post_finding = p.resource_manager.actions[0]
         rfinding = post_finding.format_resource(queues[0])
 
-        assert rfinding == {'Details': {
-            'AwsSqsQueue': {
-                'KmsDataKeyReusePeriodSeconds': 300,
-                'KmsMasterKeyId': 'alias/aws/sqs',
-                'QueueName': 'test_sqs_modify_policy_add_remove_statements'}},
+        assert rfinding == {
+            'Details': {
+                'AwsSqsQueue': {
+                    'KmsDataKeyReusePeriodSeconds': 300,
+                    'KmsMasterKeyId': 'alias/aws/sqs',
+                    'QueueName': 'test_sqs_modify_policy_add_remove_statements',
+                }
+            },
             'Id': 'arn:aws:sqs:us-west-2:644160558196:test_sqs_modify_policy_add_remove_statements',
             'Partition': 'aws',
             'Region': 'us-west-2',
-            'Type': 'AwsSqsQueue'}
+            'Type': 'AwsSqsQueue',
+        }
         shape_validate(
             rfinding['Details']['AwsSqsQueue'],
             'AwsSqsQueueDetails',
@@ -726,40 +724,46 @@ class QueueTests(BaseTest):
 
     def test_sqs_access_analyzer_parameterized(self):
         factory = self.replay_flight_data('test_sqs_analyzer_finding')
-        p = self.load_policy({
-            'name': 'check-sqs',
-            'resource': 'aws.sqs',
-            'filters': [
-                {'QueueUrl': 'https://queue.amazonaws.com/644160558196/public-test'},
-                {'type': 'iam-analyzer',
-                 'key': 'analyzedAt',
-                 'value_type': 'age',
-                 'value': 5,
-                 'op': 'gt'},
-            ]
-        }, session_factory=factory)
+        p = self.load_policy(
+            {
+                'name': 'check-sqs',
+                'resource': 'aws.sqs',
+                'filters': [
+                    {'QueueUrl': 'https://queue.amazonaws.com/644160558196/public-test'},
+                    {
+                        'type': 'iam-analyzer',
+                        'key': 'analyzedAt',
+                        'value_type': 'age',
+                        'value': 5,
+                        'op': 'gt',
+                    },
+                ],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertIn('c7n:AccessAnalysis', resources[0])
 
     def test_sqs_access_analyzer(self):
         factory = self.replay_flight_data('test_sqs_analyzer_finding')
-        p = self.load_policy({
-            'name': 'check-sqs',
-            'resource': 'aws.sqs',
-            'filters': [
-                {'QueueUrl': 'https://queue.amazonaws.com/644160558196/public-test'},
-                {'type': 'iam-analyzer'}
-            ]
-        }, session_factory=factory)
+        p = self.load_policy(
+            {
+                'name': 'check-sqs',
+                'resource': 'aws.sqs',
+                'filters': [
+                    {'QueueUrl': 'https://queue.amazonaws.com/644160558196/public-test'},
+                    {'type': 'iam-analyzer'},
+                ],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertIn('c7n:AccessAnalysis', resources[0])
 
     def test_sqs_has_statement_definition(self):
-        session_factory = self.replay_flight_data(
-            "test_sqs_has_statement"
-        )
+        session_factory = self.replay_flight_data("test_sqs_has_statement")
         self.patch(SQS, "executor_factory", MainThreadExecutor)
         p = self.load_policy(
             {
@@ -773,11 +777,10 @@ class QueueTests(BaseTest):
                                 "Effect": "Deny",
                                 "Action": "sqs:*",
                                 "Principal": "*",
-                                "Condition":
-                                    {"Bool": {"aws:SecureTransport": "false"}},
-                                "Resource": "{queue_arn}"
+                                "Condition": {"Bool": {"aws:SecureTransport": "false"}},
+                                "Resource": "{queue_arn}",
                             }
-                        ]
+                        ],
                     }
                 ],
             },
@@ -785,13 +788,12 @@ class QueueTests(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]["QueueArn"],
-        "arn:aws:sqs:us-east-1:644160558196:sqs-test-has-statement")
+        self.assertEqual(
+            resources[0]["QueueArn"], "arn:aws:sqs:us-east-1:644160558196:sqs-test-has-statement"
+        )
 
     def test_sqs_has_statement_star_definition(self):
-        session_factory = self.replay_flight_data(
-            "test_sqs_has_statement"
-        )
+        session_factory = self.replay_flight_data("test_sqs_has_statement")
         self.patch(SQS, "executor_factory", MainThreadExecutor)
         p = self.load_policy(
             {
@@ -805,11 +807,10 @@ class QueueTests(BaseTest):
                                 "Effect": "Deny",
                                 "Action": "*",
                                 "Principal": "*",
-                                "Condition":
-                                    {"Bool": {"aws:SecureTransport": "false"}},
-                                "Resource": "{queue_arn}"
+                                "Condition": {"Bool": {"aws:SecureTransport": "false"}},
+                                "Resource": "{queue_arn}",
                             }
-                        ]
+                        ],
                     }
                 ],
             },
@@ -817,8 +818,10 @@ class QueueTests(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]["QueueArn"],
-        "arn:aws:sqs:us-east-1:644160558196:sqs-test-has-statement-star")
+        self.assertEqual(
+            resources[0]["QueueArn"],
+            "arn:aws:sqs:us-east-1:644160558196:sqs-test-has-statement-star",
+        )
 
     def test_sqs_deadletter_filter(self):
         factory = self.replay_flight_data("test_sqs_deadletter_filter")
@@ -832,14 +835,12 @@ class QueueTests(BaseTest):
                         "type": "value",
                         "key": "QueueArn",
                         "value": "arn:aws:sqs:us-east-1:644160558196:bar",
-                        "op": "ne"
+                        "op": "ne",
                     },
-                    {
-                        "type": "dead-letter"
-                    },
-                ]
+                    {"type": "dead-letter"},
+                ],
             },
-            session_factory=factory
+            session_factory=factory,
         )
         resources = policy.run()
         self.assertEqual(len(resources), 2)

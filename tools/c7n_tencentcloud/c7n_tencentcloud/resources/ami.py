@@ -11,10 +11,31 @@ from c7n_tencentcloud.utils import PageMethod
 
 @resources.register("ami")
 class AMI(QueryResourceManager):
-    """ami"""
+    """ami Tencent Cloud image
+
+    Docs on ami resource
+    https://www.tencentcloud.com/document/product/213/4940
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+        - name: ami_old_and_not_used
+          resource: tencentcloud.ami
+          filters:
+            - type: unused
+              value: true
+            - type: value
+              key: CreatedTime
+              value_type: age
+              value: 90
+              op: greater-than
+    """
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "ImageId"
         endpoint = "cvm.tencentcloudapi.com"
         service = "cvm"
@@ -30,14 +51,7 @@ class AMI(QueryResourceManager):
         only query image-type = PRIVATE_IMAGE
         """
         config_query = self.data.get("query", [])
-        params = {
-            "Filters": [
-                {
-                    "Name": "image-type",
-                    "Values": ["PRIVATE_IMAGE"]
-                }
-            ]
-        }
+        params = {"Filters": [{"Name": "image-type", "Values": ["PRIVATE_IMAGE"]}]}
         for it in config_query:
             params.update(it)
 
@@ -62,12 +76,15 @@ class ImageUnusedFilter(Filter):
                   - type: unused
                     value: true
     """
+
     schema = type_schema('unused', value={'type': 'boolean'})
 
     def get_permissions(self):
-        return list(itertools.chain(*[
-            self.manager.get_resource_manager(m).get_permissions()
-            for m in ('ami', 'cvm')]))
+        return list(
+            itertools.chain(
+                *[self.manager.get_resource_manager(m).get_permissions() for m in ('ami', 'cvm')]
+            )
+        )
 
     def _pull_cvm_images(self):
         cvm_manager = self.manager.get_resource_manager('cvm')

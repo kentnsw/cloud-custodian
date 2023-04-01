@@ -12,9 +12,12 @@ from c7n.exceptions import PolicyExecutionError, PolicyValidationError
 from c7n.utils import yaml_load
 
 from .common import BaseTest
+
+import pytest
 from pytest_terraform import terraform
 
 
+@pytest.mark.audited
 @terraform('tag_action_filter_call')
 def test_tag_action_filter_call(test, tag_action_filter_call):
     aws_region = 'us-east-1'
@@ -25,14 +28,8 @@ def test_tag_action_filter_call(test, tag_action_filter_call):
             'name': 'delete_marked_for_op_tag',
             'resource': 'ec2',
             'filters': [
-                {
-                    'State.Name': 'running'
-                },
-                {
-                    'type': 'marked-for-op',
-                    'tag': 'action_tag',
-                    'op': 'stop'
-                }
+                {'State.Name': 'running'},
+                {'type': 'marked-for-op', 'tag': 'action_tag', 'op': 'stop'},
             ],
             'actions': ['stop'],
         },
@@ -77,15 +74,14 @@ class TagInterpolationTest(BaseTest):
             },
             session_factory=mock_factory,
         )
+        policy.expand_variables(policy.get_variables())
         policy.resource_manager.actions[0].process(resources)
 
         return (create_tags, tag_resources)
 
     @freeze_time("2022-06-27 12:34:56")
     def test_ec2_tag_interpolation(self):
-        (create_tags, _) = self.__tag_interpolation_helper(
-            'ec2', [{'InstanceId': 'i-12345'}]
-        )
+        (create_tags, _) = self.__tag_interpolation_helper('ec2', [{'InstanceId': 'i-12345'}])
         create_tags.assert_called_once_with(
             Resources=['i-12345'],
             Tags=[
@@ -126,15 +122,19 @@ class TagInterpolationTest(BaseTest):
 
 
 class UniversalTagTest(BaseTest):
-
     def test_auto_tag_registration(self):
         try:
-            self.load_policy({
-                'name': 'sfn-auto',
-                'resource': 'step-machine',
-                'mode': {'type': 'cloudtrail',
-                         'events': [{'ids': 'some', 'source': 'thing', 'event': 'wicked'}]},
-                'actions': [{'type': 'auto-tag-user', 'tag': 'creator'}]})
+            self.load_policy(
+                {
+                    'name': 'sfn-auto',
+                    'resource': 'step-machine',
+                    'mode': {
+                        'type': 'cloudtrail',
+                        'events': [{'ids': 'some', 'source': 'thing', 'event': 'wicked'}],
+                    },
+                    'actions': [{'type': 'auto-tag-user', 'tag': 'creator'}],
+                }
+            )
         except Exception as e:
             self.fail('auto-tag policy failed to load %s' % e)
 
@@ -148,11 +148,9 @@ class UniversalTagTest(BaseTest):
             {
                 'name': 'elasticache-no-tags',
                 'resource': 'cache-cluster',
-                'filters': [
-                    {'CacheClusterId': 'test'}
-                ]
+                'filters': [{'CacheClusterId': 'test'}],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         results = policy.run()
         self.assertTrue('Tags' in results[0])
@@ -171,12 +169,11 @@ class UniversalTagTest(BaseTest):
             {"FailedResourcesMap": {"arn:abc": {"ErrorCode": "ThrottlingException"}}},
             {"Result": 32},
         ]
-        self.assertEqual(
-            universal_retry(method, ["arn:abc", "arn:def"]), {"Result": 32}
-        )
+        self.assertEqual(universal_retry(method, ["arn:abc", "arn:def"]), {"Result": 32})
         sleep.assert_called_once()
         self.assertTrue(
-            method.call_args_list == [
+            method.call_args_list
+            == [
                 call(ResourceARNList=["arn:abc", "arn:def"]),
                 call(ResourceARNList=["arn:abc"]),
             ]
@@ -190,37 +187,47 @@ class UniversalTagTest(BaseTest):
         self.assertRaises(Exception, universal_retry, method, ["arn:abc"])
 
     def test_mark_for_op_deprecations(self):
-        policy = self.load_policy({
-            'name': 'dep-test',
-            'resource': 'ec2',
-            'actions': [{'type': 'mark-for-op', 'op': 'stop'}]})
+        policy = self.load_policy(
+            {
+                'name': 'dep-test',
+                'resource': 'ec2',
+                'actions': [{'type': 'mark-for-op', 'op': 'stop'}],
+            }
+        )
 
-        self.assertDeprecation(policy, """
+        self.assertDeprecation(
+            policy,
+            """
             policy 'dep-test'
               actions:
                 mark-for-op: optional fields deprecated (one of 'hours' or 'days' must be specified)
-            """)
+            """,
+        )
 
     def test_unmark_deprecations(self):
-        policy = self.load_policy({
-            'name': 'dep-test',
-            'resource': 'ec2',
-            'filters': [{'tag:foo': 'exists'}],
-            'actions': [{'type': 'unmark', 'tags': ['foo']}]})
+        policy = self.load_policy(
+            {
+                'name': 'dep-test',
+                'resource': 'ec2',
+                'filters': [{'tag:foo': 'exists'}],
+                'actions': [{'type': 'unmark', 'tags': ['foo']}],
+            }
+        )
 
-        self.assertDeprecation(policy, """
+        self.assertDeprecation(
+            policy,
+            """
             policy 'dep-test'
               actions:
                 remove-tag: alias 'unmark' has been deprecated
-            """)
+            """,
+        )
 
 
 class CoalesceCopyUserTags(BaseTest):
     def test_copy_bool_user_tags(self):
         tags = [{'Key': 'test-key', 'Value': 'test-value'}]
-        resource = {
-            'Tags': tags
-        }
+        resource = {'Tags': tags}
 
         copy_tags = True
         user_tags = []
@@ -236,18 +243,10 @@ class CoalesceCopyUserTags(BaseTest):
 
     def test_copy_list_user_tags(self):
         tags = [
-            {
-                'Key': 'test-key-1',
-                'Value': 'test-value'
-            },
-            {
-                'Key': 'test-key',
-                'Value': 'test-value'
-            }
+            {'Key': 'test-key-1', 'Value': 'test-value'},
+            {'Key': 'test-key', 'Value': 'test-value'},
         ]
-        resource = {
-            'Tags': tags
-        }
+        resource = {'Tags': tags}
 
         copy_tags = ['test-key-1']
         user_tags = []
@@ -257,19 +256,11 @@ class CoalesceCopyUserTags(BaseTest):
 
     def test_copy_asterisk_user_tags(self):
         tags = [
-            {
-                'Key': 'test-key-1',
-                'Value': 'test-value'
-            },
-            {
-                'Key': 'test-key',
-                'Value': 'test-value'
-            }
+            {'Key': 'test-key-1', 'Value': 'test-value'},
+            {'Key': 'test-key', 'Value': 'test-value'},
         ]
 
-        resource = {
-            'Tags': tags
-        }
+        resource = {'Tags': tags}
 
         copy_tags = ['*']
         user_tags = []
@@ -285,19 +276,11 @@ class CoalesceCopyUserTags(BaseTest):
 
     def test_copy_user_tags_conflict(self):
         tags = [
-            {
-                'Key': 'test-key-1',
-                'Value': 'test-value'
-            },
-            {
-                'Key': 'test-key',
-                'Value': 'test-value'
-            }
+            {'Key': 'test-key-1', 'Value': 'test-value'},
+            {'Key': 'test-key', 'Value': 'test-value'},
         ]
 
-        resource = {
-            'Tags': tags
-        }
+        resource = {'Tags': tags}
 
         copy_tags = ['*']
         user_tags = [{'Key': 'test-key', 'Value': 'test-value-user'}]
@@ -321,21 +304,12 @@ class CopyRelatedResourceTag(BaseTest):
             {
                 "name": "copy-related-resource-tags-snapshots-volumes",
                 "resource": "ebs-snapshot",
-                "filters": [
-                    {
-                        "Tags": "empty"
-                    }
-                ],
+                "filters": [{"Tags": "empty"}],
                 "actions": [
-                    {
-                        "type": "copy-related-tag",
-                        "resource": "ebs",
-                        "key": "VolumeId",
-                        "tags": "*"
-                    }
-                ]
+                    {"type": "copy-related-tag", "resource": "ebs", "key": "VolumeId", "tags": "*"}
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -352,24 +326,17 @@ class CopyRelatedResourceTag(BaseTest):
             {
                 "name": "copy-related-resource-tags-snapshots-volumes",
                 "resource": "ebs-snapshot",
-                "filters": [
-                    {
-                        "Tags": "empty"
-                    }
-                ],
+                "filters": [{"Tags": "empty"}],
                 "actions": [
                     {
                         "type": "copy-related-tag",
                         "resource": "ebs",
                         "key": "VolumeId",
-                        "tags": [
-                            "tag1",
-                            "tag3"
-                        ]
+                        "tags": ["tag1", "tag3"],
                     }
-                ]
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -401,13 +368,11 @@ class CopyRelatedResourceTag(BaseTest):
                         "resource": "ebs",
                         "key": "VolumeId",
                         "skip_missing": False,
-                        "tags": [
-                            "*"
-                        ]
+                        "tags": ["*"],
                     }
-                ]
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
 
         with self.assertRaises(PolicyExecutionError):
@@ -424,11 +389,9 @@ class CopyRelatedResourceTag(BaseTest):
                         "resource": "ebs",
                         "key": "VolumeId",
                         "skip_missing": False,
-                        "tags": [
-                            "*"
-                        ]
+                        "tags": ["*"],
                     }
-                ]
+                ],
             }
         )
         self.assertFalse(p.validate())
@@ -442,11 +405,9 @@ class CopyRelatedResourceTag(BaseTest):
                     "resource": "not-a-resource",
                     "key": "VolumeId",
                     "skip_missing": False,
-                    "tags": [
-                        "*"
-                    ]
+                    "tags": ["*"],
                 }
-            ]
+            ],
         }
         self.assertRaises(PolicyValidationError, self.load_policy, policy)
 
@@ -454,31 +415,37 @@ class CopyRelatedResourceTag(BaseTest):
         # check the case where the related expression doesn't return
         # value.
         output = self.capture_logging('custodian.actions')
-        session_factory = self.replay_flight_data(
-            'test_copy_related_resource_tag_empty')
+        session_factory = self.replay_flight_data('test_copy_related_resource_tag_empty')
         client = session_factory().client('ec2')
-        p = self.load_policy({
-            'name': 'copy-related-ec2',
-            'resource': 'aws.eni',
-            'actions': [{
-                'type': 'copy-related-tag',
-                'resource': 'ec2',
-                'skip_missing': True,
-                'key': 'Attachment.InstanceId',
-                'tags': '*'}]},
-            session_factory=session_factory)
+        p = self.load_policy(
+            {
+                'name': 'copy-related-ec2',
+                'resource': 'aws.eni',
+                'actions': [
+                    {
+                        'type': 'copy-related-tag',
+                        'resource': 'ec2',
+                        'skip_missing': True,
+                        'key': 'Attachment.InstanceId',
+                        'tags': '*',
+                    }
+                ],
+            },
+            session_factory=session_factory,
+        )
         p.run()
         if self.recording:
             time.sleep(3)
-        nics = client.describe_network_interfaces(
-            NetworkInterfaceIds=['eni-0e1324ba169ed7b2f'])['NetworkInterfaces']
+        nics = client.describe_network_interfaces(NetworkInterfaceIds=['eni-0e1324ba169ed7b2f'])[
+            'NetworkInterfaces'
+        ]
         self.assertEqual(
-            nics[0]['TagSet'],
-            [{'Key': 'Env', 'Value': 'Dev'},
-             {'Key': 'Origin', 'Value': 'Home'}])
+            nics[0]['TagSet'], [{'Key': 'Env', 'Value': 'Dev'}, {'Key': 'Origin', 'Value': 'Home'}]
+        )
         self.assertEqual(
             output.getvalue().strip(),
-            'Tagged 1 resources from related, missing-skipped 1 unchanged 0')
+            'Tagged 1 resources from related, missing-skipped 1 unchanged 0',
+        )
 
     def test_copy_related_resource_tag_multi_ref(self):
         session_factory = self.replay_flight_data('test_copy_related_resource_tag_multi_ref')
@@ -527,3 +494,64 @@ class CopyRelatedResourceTag(BaseTest):
 
         self.assertEqual(len(untagged_snaps), 1)
         self.assertTrue('Tags' not in untagged_snaps[0].keys())
+
+    def test_copy_related_tag_resourcegroupstaggingapi(self):
+        session_factory = self.replay_flight_data("test_copy_related_tag_resourcegroupstaggingapi")
+        ec2_client = session_factory().client("ec2")
+        policy = {
+            "name": "copy-tags-from-tags",
+            "resource": "aws.ec2",
+            "filters": [
+                {"type": "value", "key": "tag:test-tag", "value": "absent"},
+            ],
+            "actions": [
+                {
+                    "type": "copy-related-tag",
+                    "resource": "resourcegroupstaggingapi",
+                    "key": "tag:Foo",
+                    "tags": "*",
+                }
+            ],
+        }
+        policy = self.load_policy(policy, session_factory=session_factory)
+        resources = policy.run()
+        self.assertEqual(len(resources), 1)
+        tags = ec2_client.describe_tags(
+            Filters=[{"Name": "resource-id", "Values": [resources[0]['InstanceId']]}]
+        )
+        found = False
+        for t in tags["Tags"]:
+            if t['Key'] == 'test-tag':
+                found = True
+        self.assertTrue(found)
+
+    def test_copy_related_tag_validate_aws_prefix(self):
+        policy = {
+            'name': 'copy-related-tag-aws-prefix',
+            'resource': 'ami',
+            'actions': [
+                {
+                    'type': 'copy-related-tag',
+                    'resource': 'aws.ebs-snapshot',
+                    'key': '',
+                    'tags': '*',
+                }
+            ],
+        }
+        # policy will validate on load
+        policy = self.load_policy(policy)
+
+    def test_copy_related_tag_validate_aws_prefix_fake_resource(self):
+        policy = {
+            'name': 'copy-related-tag-aws-prefix',
+            'resource': 'ami',
+            'actions': [
+                {
+                    'type': 'copy-related-tag',
+                    'resource': 'aws.not-real',
+                    'key': '',
+                    'tags': '*',
+                }
+            ],
+        }
+        self.assertRaises(PolicyValidationError, self.load_policy, policy)

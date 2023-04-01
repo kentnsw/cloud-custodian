@@ -14,7 +14,6 @@ from c7n import cache, config
 
 
 class TestCache(TestCase):
-
     def test_factory(self):
         self.assertIsInstance(cache.factory(None), cache.NullCache)
         test_config = Namespace(cache_period=60, cache="test-cloud-custodian.cache")
@@ -24,11 +23,10 @@ class TestCache(TestCase):
 
 
 class MemCacheTest(TestCase):
-
     def test_mem_factory(self):
         self.assertEqual(
-            cache.factory(config.Bag(cache='memory', cache_period=5)).__class__,
-            cache.InMemoryCache)
+            cache.factory(config.Bag(cache='memory', cache_period=5)).__class__, cache.InMemoryCache
+        )
 
     def test_get_set(self):
         mem_cache = cache.InMemoryCache({})
@@ -37,9 +35,7 @@ class MemCacheTest(TestCase):
         self.assertEqual(mem_cache.load(), True)
 
         mem_cache = cache.InMemoryCache({})
-        self.assertEqual(
-            mem_cache.get({'region': 'us-east-1'}),
-            {'hello': 'world'})
+        self.assertEqual(mem_cache.get({'region': 'us-east-1'}), {'hello': 'world'})
         mem_cache.close()
 
 
@@ -87,8 +83,8 @@ def test_sqlkv_parent_dir_create(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform == 'win32',
-    reason="windows can't remove a recently created but closed file")
+    sys.platform == 'win32', reason="windows can't remove a recently created but closed file"
+)
 def test_sqlkv_convert(tmp_path):
     cache_path = tmp_path / "cache2.db"
     with open(cache_path, 'wb') as fh:

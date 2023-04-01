@@ -19,7 +19,8 @@ from random import sample
 import jmespath
 
 from c7n.element import Element
-from c7n.exceptions import PolicyValidationError
+from c7n.exceptions import PolicyValidationError, PolicyExecutionError
+from c7n.manager import ResourceManager
 from c7n.registry import PluginRegistry
 from c7n.resolver import ValuesFrom
 from c7n.utils import set_annotation, type_schema, parse_cidr, parse_date
@@ -94,25 +95,37 @@ OPERATORS = {
     'not-in': operator_ni,
     'contains': operator.contains,
     'difference': difference,
-    'intersect': intersect}
+    'intersect': intersect,
+}
 
 
 VALUE_TYPES = [
-    'age', 'integer', 'number', 'expiration', 'normalize', 'size',
-    'cidr', 'cidr_size', 'swap', 'resource_count', 'expr',
-    'unique_size', 'date', 'version']
+    'age',
+    'integer',
+    'expiration',
+    'normalize',
+    'size',
+    'cidr',
+    'cidr_size',
+    'swap',
+    'resource_count',
+    'expr',
+    'unique_size',
+    'date',
+    'version',
+]
 
 
 class FilterRegistry(PluginRegistry):
-
     def __init__(self, *args, **kw):
-        super(FilterRegistry, self).__init__(*args, **kw)
+        super().__init__(*args, **kw)
         self.register('value', ValueFilter)
         self.register('or', Or)
         self.register('and', And)
         self.register('not', Not)
         self.register('event', EventFilter)
         self.register('reduce', ReduceFilter)
+        self.register('list-item', ListItemFilter)
 
     def parse(self, data, manager):
         results = []
@@ -143,16 +156,12 @@ class FilterRegistry(PluginRegistry):
         else:
             filter_type = data.get('type')
         if not filter_type:
-            raise PolicyValidationError(
-                "%s Invalid Filter %s" % (
-                    self.plugin_type, data))
+            raise PolicyValidationError("%s Invalid Filter %s" % (self.plugin_type, data))
         filter_class = self.get(filter_type)
         if filter_class is not None:
             return filter_class(data, manager)
         else:
-            raise PolicyValidationError(
-                "%s Invalid filter type %s" % (
-                    self.plugin_type, data))
+            raise PolicyValidationError("%s Invalid filter type %s" % (self.plugin_type, data))
 
 
 def trim_runtime(filters):
@@ -164,6 +173,7 @@ def trim_runtime(filters):
     When evaluating conditions for dryrun or provisioning stages we
     remove them.
     """
+
     def remove_filter(f):
         block = f.get_block_parent()
         block.filters.remove(f)
@@ -178,6 +188,7 @@ def trim_runtime(filters):
 # Really should be an abstract base class (abc) or
 # zope.interface
 
+
 class Filter(Element):
 
     log = logging.getLogger('custodian.filters')
@@ -187,7 +198,7 @@ class Filter(Element):
         self.manager = manager
 
     def process(self, resources, event=None):
-        """ Bulk process resources and return filtered set."""
+        """Bulk process resources and return filtered set."""
         return list(filter(self, resources))
 
     def get_block_operator(self):
@@ -213,12 +224,10 @@ class Filter(Element):
         block_op = self.get_block_operator()
         if block_op in ('and', 'not'):
             r[self.matched_annotation_key] = intersect_list(
-                values,
-                r.get(self.matched_annotation_key))
+                values, r.get(self.matched_annotation_key)
+            )
         elif block_op == 'or':
-            r[self.matched_annotation_key] = union_list(
-                values,
-                r.get(self.matched_annotation_key))
+            r[self.matched_annotation_key] = union_list(values, r.get(self.matched_annotation_key))
 
 
 class BaseValueFilter(Filter):
@@ -274,11 +283,10 @@ class BaseValueFilter(Filter):
             pattern = re.compile(regex)
             if pattern.groups != 1:
                 raise PolicyValidationError(
-                    "value_regex must have a single capturing group: %s" %
-                    self.data)
+                    "value_regex must have a single capturing group: %s" % self.data
+                )
         except re.error as e:
-            raise PolicyValidationError(
-                "Invalid value_regex: %s %s" % (e, self.data))
+            raise PolicyValidationError("Invalid value_regex: %s %s" % (e, self.data))
         return self
 
 
@@ -305,7 +313,6 @@ def union_list(a, b):
 
 
 class BooleanGroupFilter(Filter):
-
     def __init__(self, data, registry, manager):
         super(BooleanGroupFilter, self).__init__(data)
         self.registry = registry
@@ -336,7 +343,6 @@ class BooleanGroupFilter(Filter):
 
 
 class Or(BooleanGroupFilter):
-
     def process(self, resources, event=None):
         if self.manager:
             return self.process_set(resources, event)
@@ -360,16 +366,13 @@ class Or(BooleanGroupFilter):
         results = set()
         for f in self.filters:
             if compiled:
-                results = results.union([
-                    compiled.search(r) for r in f.process(resources, event)])
+                results = results.union([compiled.search(r) for r in f.process(resources, event)])
             else:
-                results = results.union([
-                    r[rtype_id] for r in f.process(resources, event)])
+                results = results.union([r[rtype_id] for r in f.process(resources, event)])
         return [resource_map[r_id] for r_id in results]
 
 
 class And(BooleanGroupFilter):
-
     def process(self, resources, events=None):
         if self.manager:
             sweeper = AnnotationSweeper(self.get_resource_type_id(), resources)
@@ -386,7 +389,6 @@ class And(BooleanGroupFilter):
 
 
 class Not(BooleanGroupFilter):
-
     def process(self, resources, event=None):
         if self.manager:
             return self.process_set(resources, event)
@@ -433,6 +435,7 @@ class AnnotationSweeper:
 
     See https://github.com/cloud-custodian/cloud-custodian/issues/2116
     """
+
     def __init__(self, id_key, resources):
         self.id_key = id_key
         ra_map = {}
@@ -478,8 +481,8 @@ class ComparableVersion(version.LooseVersion):
 
 
 class ValueFilter(BaseValueFilter):
-    """Generic value filter using jmespath
-    """
+    """Generic value filter using jmespath"""
+
     op = v = vtype = None
 
     schema = {
@@ -497,15 +500,16 @@ class ValueFilter(BaseValueFilter):
             'value_regex': {'type': 'string'},
             'value_from': {'$ref': '#/definitions/filters_common/value_from'},
             'value': {'$ref': '#/definitions/filters_common/value'},
-            'op': {'$ref': '#/definitions/filters_common/comparison_operators'}
-        }
+            'op': {'$ref': '#/definitions/filters_common/comparison_operators'},
+            'value_path': {'type': 'string'},
+        },
     }
     schema_alias = True
     annotate = True
     required_keys = {'value', 'key'}
 
     def _validate_resource_count(self):
-        """ Specific validation for `resource_count` type
+        """Specific validation for `resource_count` type
 
         The `resource_count` type works a little differently because it operates
         on the entire set of resources.  It:
@@ -515,19 +519,20 @@ class ValueFilter(BaseValueFilter):
         """
         for field in ('op', 'value'):
             if field not in self.data:
-                raise PolicyValidationError(
-                    "Missing '%s' in value filter %s" % (field, self.data))
+                raise PolicyValidationError("Missing '%s' in value filter %s" % (field, self.data))
 
-        if not (isinstance(self.data['value'], int) or
-                isinstance(self.data['value'], list)):
+        if not (isinstance(self.data['value'], int) or isinstance(self.data['value'], list)):
             raise PolicyValidationError(
-                "`value` must be an integer in resource_count filter %s" % self.data)
+                "`value` must be an integer in resource_count filter %s" % self.data
+            )
 
         # I don't see how to support regex for this?
-        if (self.data['op'] not in OPERATORS or self.data['op'] in {'regex', 'regex-case'} or
-                'value_regex' in self.data):
-            raise PolicyValidationError(
-                "Invalid operator in value filter %s" % self.data)
+        if (
+            self.data['op'] not in OPERATORS
+            or self.data['op'] in {'regex', 'regex-case'}
+            or 'value_regex' in self.data
+        ):
+            raise PolicyValidationError("Invalid operator in value filter %s" % self.data)
 
         return self
 
@@ -542,27 +547,26 @@ class ValueFilter(BaseValueFilter):
         elif self.data.get('value_type') == 'date':
             if not parse_date(self.data.get('value')):
                 raise PolicyValidationError(
-                    "value_type: date with invalid date value:%s",
-                    self.data.get('value', ''))
+                    "value_type: date with invalid date value:%s", self.data.get('value', '')
+                )
         if 'key' not in self.data and 'key' in self.required_keys:
-            raise PolicyValidationError(
-                "Missing 'key' in value filter %s" % self.data)
-        if ('value' not in self.data and
-                'value_from' not in self.data and
-                'value' in self.required_keys):
-            raise PolicyValidationError(
-                "Missing 'value' in value filter %s" % self.data)
+            raise PolicyValidationError("Missing 'key' in value filter %s" % self.data)
+        if (
+            'value' not in self.data
+            and 'value_from' not in self.data
+            and 'value_path' not in self.data
+            and 'value' in self.required_keys
+        ):
+            raise PolicyValidationError("Missing 'value' in value filter %s" % self.data)
         if 'op' in self.data:
-            if not self.data['op'] in OPERATORS:
-                raise PolicyValidationError(
-                    "Invalid operator in value filter %s" % self.data)
+            if self.data['op'] not in OPERATORS:
+                raise PolicyValidationError("Invalid operator in value filter %s" % self.data)
             if self.data['op'] in {'regex', 'regex-case'}:
                 # Sanity check that we can compile
                 try:
                     re.compile(self.data['value'])
                 except re.error as e:
-                    raise PolicyValidationError(
-                        "Invalid regex: %s %s" % (e, self.data))
+                    raise PolicyValidationError("Invalid regex: %s %s" % (e, self.data))
         if 'value_regex' in self.data:
             return self._validate_value_regex(self.data['value_regex'])
 
@@ -591,14 +595,43 @@ class ValueFilter(BaseValueFilter):
         value_regex = self.data.get('value_regex')
         return super(ValueFilter, self).get_resource_value(k, i, value_regex, ktype)
 
+    def get_path_value(self, i):
+        """Retrieve values using JMESPath.
+
+        When using a Value Filter, a ``value_path`` can be specified.
+        This means the value(s) the filter will compare against are
+        calculated during the initialization of the filter.
+
+        Note that this option only pulls properties of the resource
+        currently being filtered.
+
+        .. code-block:: yaml
+            - name: find-admins-with-user-roles
+              resource: gcp.project
+              filters:
+                - type: iam-policy
+                  doc:
+                    key: bindings[?(role=='roles/admin')].members[]
+                    op: intersect
+                    value_path: bindings[?(role=='roles/user_access')].members[]
+
+        The iam-policy use the implementation of the generic Value Filter.
+        This implementation allows for the comparison of two separate lists of values
+        within the same resource.
+        """
+        return jmespath.search(self.data.get('value_path'), i)
+
     def match(self, i):
         if i is None:
             return False
 
         if self.v is None and len(self.data) == 1:
             [(self.k, self.v)] = self.data.items()
-        elif (self.v is None and not hasattr(self, 'content_initialized')
-                or hasattr(self, 'content_need_reinit')):
+        elif (
+            self.v is None
+            and not hasattr(self, 'content_initialized')
+            or hasattr(self, 'content_need_reinit')
+        ):
             self.k = self.data.get('key')
             self.op = self.data.get('op')
             if 'value_from' in self.data:
@@ -606,8 +639,8 @@ class ValueFilter(BaseValueFilter):
                 # NOTE support vars in expr
                 self.resolveExprVariables(values, i)
                 self.v = values.get_values()
-                if self.recoverOriginExpr(values):
-                    self.content_need_reinit = True
+            elif 'value_path' in self.data:
+                self.v = self.get_path_value(i)
             else:
                 self.v = self.data.get('value')
             self.content_initialized = True
@@ -621,12 +654,8 @@ class ValueFilter(BaseValueFilter):
                 i[self.k] = self.v
             return True
 
-        # value extract, note that overrided get_resource_value() only takes 2 args
-        if "key_type" in self.data:
-            r = self.get_resource_value(self.k, i, self.data.get('key_type'))
-        else:
-            r = self.get_resource_value(self.k, i)
-
+        # value extract
+        r = self.get_resource_value(self.k, i)
         if self.op in ('in', 'not-in') and r is None:
             r = ()
 
@@ -667,9 +696,9 @@ class ValueFilter(BaseValueFilter):
 
     def _replace_var_placeholders(self, expr, default_var_value, i):
         if "{{" in expr:
-            var_key = expr[expr.find("{{") + 2: expr.find("}}")]
+            var_key = expr[expr.find("{{") + 2 : expr.find("}}")]
         else:
-            var_key = expr[expr.find("{") + 1: expr.find("}")]
+            var_key = expr[expr.find("{") + 1 : expr.find("}")]
 
         var_value = self.get_resource_value(var_key, i, self.data.get('key_type'))
 
@@ -745,7 +774,7 @@ class ValueFilter(BaseValueFilter):
         elif self.vtype == 'cidr':
             s = parse_cidr(sentinel)
             v = parse_cidr(value)
-            if (isinstance(s, ipaddress._BaseAddress) and isinstance(v, ipaddress._BaseNetwork)):
+            if isinstance(s, ipaddress._BaseAddress) and isinstance(v, ipaddress._BaseNetwork):
                 return v, s
             return s, v
         elif self.vtype == 'cidr_size':
@@ -779,6 +808,7 @@ class AgeFilter(Filter):
     **Deprecated** use a value filter with `value_type: age` which can be
     done on any attribute.
     """
+
     threshold_date = None
 
     # The name of attribute to compare to threshold; must override in subclass
@@ -788,8 +818,7 @@ class AgeFilter(Filter):
 
     def validate(self):
         if not self.date_attribute:
-            raise NotImplementedError(
-                "date_attribute must be overriden in subclass")
+            raise NotImplementedError("date_attribute must be overriden in subclass")
         return self
 
     def get_resource_date(self, i):
@@ -830,8 +859,8 @@ class EventFilter(ValueFilter):
     def validate(self):
         if 'mode' not in self.manager.data:
             raise PolicyValidationError(
-                "Event filters can only be used with lambda policies in %s" % (
-                    self.manager.data,))
+                "Event filters can only be used with lambda policies in %s" % (self.manager.data,)
+            )
         return self
 
     def process(self, resources, event=None):
@@ -914,6 +943,7 @@ class ReduceFilter(BaseValueFilter):
             limit-percent: 10
 
     """
+
     annotate = False
 
     schema = {
@@ -1089,3 +1119,134 @@ class ReduceFilter(BaseValueFilter):
             return items[::-1]
         else:
             return sorted(items, key=key, reverse=(self.order == 'desc'))
+
+
+class ListItemModel:
+    id = 'c7n:_id'
+
+
+class ListItemRegistry(FilterRegistry):
+    def __init__(self, *args, **kw):
+        super(FilterRegistry, self).__init__(*args, **kw)
+        self.register('value', ValueFilter)
+        self.register('or', Or)
+        self.register('and', And)
+        self.register('not', Not)
+        self.register('reduce', ReduceFilter)
+
+
+class ListItemResourceManager(ResourceManager):
+    filter_registry = ListItemRegistry('filters')
+
+    def get_model(self):
+        return ListItemModel
+
+
+class ListItemFilter(Filter):
+    """
+    Perform multi attribute filtering on items within a list,
+    for example looking for security groups that have rules which
+    include 0.0.0.0/0 and port 22 open.
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+          - name: security-group-with-22-open-to-world
+            resource: aws.security-group
+            filters:
+              - type: list-item
+                key: IpPermissions
+                attrs:
+                  - type: value
+                    key: IpRanges[].CidrIp
+                    value: '0.0.0.0/0'
+                    op: in
+                    value_type: swap
+                  - type: value
+                    key: FromPort
+                    value: 22
+                  - type: value
+                    key: ToPort
+                    value: 22
+          - name: find-task-def-not-using-registry
+            resource: aws.ecs-task-definition
+            filters:
+              - not:
+                - type: list-item
+                  key: containerDefinitions
+                  attrs:
+                    - not:
+                      - type: value
+                        key: image
+                        value: "${account_id}.dkr.ecr.us-east-2.amazonaws.com.*"
+                        op: regex
+    """
+
+    schema = type_schema(
+        'list-item',
+        **{
+            'key': {'type': 'string'},
+            'attrs': {'$ref': '#/definitions/filters_common/list_item_attrs'},
+            'count': {'type': 'number'},
+            'count_op': {'$ref': '#/definitions/filters_common/comparison_operators'},
+        },
+    )
+
+    schema_alias = True
+    annotate_items = False
+
+    _expr = None
+
+    @property
+    def expr(self):
+        if self._expr:
+            return self._expr
+        self._expr = jmespath.compile(self.data['key'])
+        return self._expr
+
+    def process(self, resources, event=None):
+        result = []
+        frm = ListItemResourceManager(
+            self.manager.ctx, data={'filters': self.data.get('attrs', [])}
+        )
+        for r in resources:
+            list_values = self.get_item_values(r)
+            if not list_values:
+                continue
+            if not isinstance(list_values, list):
+                item_type = type(list_values)
+                raise PolicyExecutionError(
+                    f"list-item filter value for {self.data['key']} is a {item_type} not a list"
+                )
+            for idx, list_value in enumerate(list_values):
+                list_value['c7n:_id'] = idx
+            list_resources = frm.filter_resources(list_values, event)
+            matched_indicies = [r['c7n:_id'] for r in list_resources]
+            for idx, list_value in enumerate(list_values):
+                list_value.pop('c7n:_id')
+            if self.data.get('count'):
+                count = self.data['count']
+                op = OPERATORS[self.data.get('count_op', 'eq')]
+                if op(len(list_resources), count):
+                    result.append(r)
+            elif list_resources:
+                if not self.annotate_items:
+                    annotations = [
+                        f'{self.data.get("key", self.type)}[{str(i)}]' for i in matched_indicies
+                    ]
+                else:
+                    annotations = list_resources
+                r.setdefault('c7n:ListItemMatches', [])
+                r['c7n:ListItemMatches'].extend(annotations)
+                result.append(r)
+        return result
+
+    def get_item_values(self, resource):
+        return self.expr.search(resource)
+
+    def __call__(self, resource):
+        if self.process((resource,)):
+            return True
+        return False

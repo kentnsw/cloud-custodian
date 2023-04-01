@@ -7,25 +7,28 @@ from c7n.exceptions import PolicyValidationError
 from c7n.filters.kms import KmsRelatedFilter
 from c7n.filters import Filter
 from c7n.manager import resources
-from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter
+from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter, NetworkLocation
 from c7n.filters.policystatement import HasStatementFilter
 from c7n.query import (
-    QueryResourceManager, ChildResourceManager, TypeInfo, DescribeSource, ConfigSource
+    QueryResourceManager,
+    ChildResourceManager,
+    TypeInfo,
+    DescribeSource,
+    ConfigSource,
 )
 from c7n.tags import universal_augment
 from c7n.utils import local_session, type_schema, get_retry
 from .aws import shape_validate
+from c7n.filters.backup import ConsecutiveAwsBackupsFilter
 
 
 class EFSDescribe(DescribeSource):
-
     def augment(self, resources):
         return universal_augment(self.manager, resources)
 
 
 @resources.register('efs')
 class ElasticFileSystem(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'efs'
         enum_spec = ('describe_file_systems', 'FileSystems', None)
@@ -39,16 +42,13 @@ class ElasticFileSystem(QueryResourceManager):
         filter_type = 'scalar'
         universal_taggable = True
         config_type = cfn_type = 'AWS::EFS::FileSystem'
+        arn = 'FileSystemArn'
 
-    source_mapping = {
-        'describe': EFSDescribe,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': EFSDescribe, 'config': ConfigSource}
 
 
 @resources.register('efs-mount-target')
 class ElasticFileSystemMountTarget(ChildResourceManager):
-
     class resource_type(TypeInfo):
         service = 'efs'
         parent_spec = ('efs', 'FileSystemId', None)
@@ -79,8 +79,7 @@ class SecurityGroup(SecurityGroupFilter):
         if self.efs_group_cache:
             group_ids = set()
             for r in resources:
-                group_ids.update(
-                    self.efs_group_cache.get(r['MountTargetId'], ()))
+                group_ids.update(self.efs_group_cache.get(r['MountTargetId'], ()))
             return list(group_ids)
 
         client = local_session(self.manager.session_factory).client('efs')
@@ -90,14 +89,15 @@ class SecurityGroup(SecurityGroupFilter):
 
         for r in resources:
             groups[r['MountTargetId']] = retry(
-                client.describe_mount_target_security_groups,
-                MountTargetId=r['MountTargetId'])['SecurityGroups']
+                client.describe_mount_target_security_groups, MountTargetId=r['MountTargetId']
+            )['SecurityGroups']
             group_ids.update(groups[r['MountTargetId']])
 
         self.efs_group_cache = groups
         return list(group_ids)
 
 
+@ElasticFileSystemMountTarget.filter_registry.register('network-location', NetworkLocation)
 @ElasticFileSystem.filter_registry.register('kms-key')
 class KmsFilter(KmsRelatedFilter):
 
@@ -108,9 +108,11 @@ class KmsFilter(KmsRelatedFilter):
 class Delete(Action):
 
     schema = type_schema('delete')
-    permissions = ('elasticfilesystem:DescribeMountTargets',
-                   'elasticfilesystem:DeleteMountTarget',
-                   'elasticfilesystem:DeleteFileSystem')
+    permissions = (
+        'elasticfilesystem:DescribeMountTargets',
+        'elasticfilesystem:DeleteMountTarget',
+        'elasticfilesystem:DeleteFileSystem',
+    )
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('efs')
@@ -124,8 +126,7 @@ class Delete(Action):
         for r in resources:
             if not r['NumberOfMountTargets']:
                 continue
-            for t in client.describe_mount_targets(
-                    FileSystemId=r['FileSystemId'])['MountTargets']:
+            for t in client.describe_mount_targets(FileSystemId=r['FileSystemId'])['MountTargets']:
                 client.delete_mount_target(MountTargetId=t['MountTargetId'])
 
 
@@ -135,7 +136,7 @@ class ConfigureLifecycle(BaseAction):
 
     :example:
 
-      .. code-block:: yaml
+    .. code-block:: yaml
 
             policies:
               - name: efs-apply-lifecycle
@@ -147,13 +148,13 @@ class ConfigureLifecycle(BaseAction):
                       - 'TransitionToIA': 'AFTER_7_DAYS'
 
     """
+
     schema = type_schema(
         'configure-lifecycle-policy',
         state={'enum': ['enable', 'disable']},
-        rules={
-            'type': 'array',
-            'items': {'type': 'object'}},
-        required=['state'])
+        rules={'type': 'array', 'items': {'type': 'object'}},
+        required=['state'],
+    )
 
     permissions = ('elasticfilesystem:PutLifecycleConfiguration',)
     shape = 'PutLifecycleConfigurationRequest'
@@ -161,10 +162,12 @@ class ConfigureLifecycle(BaseAction):
     def validate(self):
         if self.data.get('state') == 'enable' and 'rules' not in self.data:
             raise PolicyValidationError(
-                'rules are required to enable lifecycle configuration %s' % (self.manager.data))
+                'rules are required to enable lifecycle configuration %s' % (self.manager.data)
+            )
         if self.data.get('state') == 'disable' and 'rules' in self.data:
             raise PolicyValidationError(
-                'rules not required to disable lifecycle configuration %s' % (self.manager.data))
+                'rules not required to disable lifecycle configuration %s' % (self.manager.data)
+            )
         if self.data.get('rules'):
             attrs = {}
             attrs['LifecyclePolicies'] = self.data['rules']
@@ -178,7 +181,8 @@ class ConfigureLifecycle(BaseAction):
             try:
                 client.put_lifecycle_configuration(
                     FileSystemId=r['FileSystemId'],
-                    LifecyclePolicies=op_map.get(self.data.get('state')))
+                    LifecyclePolicies=op_map.get(self.data.get('state')),
+                )
             except client.exceptions.FileSystemNotFound:
                 continue
 
@@ -189,7 +193,7 @@ class LifecyclePolicy(Filter):
 
     :example:
 
-      .. code-block:: yaml
+    .. code-block:: yaml
 
             policies:
               - name: efs-filter-lifecycle
@@ -200,11 +204,13 @@ class LifecyclePolicy(Filter):
                     value: AFTER_7_DAYS
 
     """
+
     schema = type_schema(
         'lifecycle-policy',
         state={'enum': ['present', 'absent']},
         value={'type': 'string'},
-        required=['state'])
+        required=['state'],
+    )
 
     permissions = ('elasticfilesystem:DescribeLifecycleConfiguration',)
 
@@ -224,8 +230,9 @@ class LifecyclePolicy(Filter):
         client = local_session(self.manager.session_factory).client('efs')
         for r in resources:
             try:
-                lfc = client.describe_lifecycle_configuration(
-                    FileSystemId=r['FileSystemId']).get('LifecyclePolicies')
+                lfc = client.describe_lifecycle_configuration(FileSystemId=r['FileSystemId']).get(
+                    'LifecyclePolicies'
+                )
                 r['c7n:LifecyclePolicies'] = lfc
             except client.exceptions.FileSystemNotFound:
                 continue
@@ -270,8 +277,7 @@ class CheckSecureTransport(Filter):
         if self.policy_annotation in resource:
             return resource[self.policy_annotation]
         try:
-            result = client.describe_file_system_policy(
-                FileSystemId=resource['FileSystemId'])
+            result = client.describe_file_system_policy(FileSystemId=resource['FileSystemId'])
         except client.exceptions.PolicyNotFound:
             return None
         resource[self.policy_annotation] = json.loads(result['Policy'])
@@ -290,8 +296,9 @@ class CheckSecureTransport(Filter):
             try:
                 effect = s['Effect']
                 secureTransportValue = s['Condition']['Bool']['aws:SecureTransport']
-                if ((effect == 'Deny' and secureTransportValue == 'false') or
-                        (effect == 'Allow' and secureTransportValue == 'true')):
+                if (effect == 'Deny' and secureTransportValue == 'false') or (
+                    effect == 'Allow' and secureTransportValue == 'true'
+                ):
                     return False
             except (KeyError, TypeError):
                 pass
@@ -302,14 +309,13 @@ class CheckSecureTransport(Filter):
         c = local_session(self.manager.session_factory).client('efs')
         results = [r for r in resources if self.securetransport_check_policy(c, r)]
         self.log.info(
-            "%d of %d EFS policies don't enforce secure transport",
-            len(results), len(resources))
+            "%d of %d EFS policies don't enforce secure transport", len(results), len(resources)
+        )
         return results
 
 
 @ElasticFileSystem.filter_registry.register('has-statement')
 class EFSHasStatementFilter(HasStatementFilter):
-
     def __init__(self, data, manager=None):
         super().__init__(data, manager)
         self.policy_attribute = 'c7n:Policy'
@@ -323,8 +329,7 @@ class EFSHasStatementFilter(HasStatementFilter):
         if self.policy_attribute in resource:
             return resource
         try:
-            result = client.describe_file_system_policy(
-                FileSystemId=resource['FileSystemId'])
+            result = client.describe_file_system_policy(FileSystemId=resource['FileSystemId'])
             resource[self.policy_attribute] = result['Policy']
         except client.exceptions.PolicyNotFound:
             resource[self.policy_attribute] = None
@@ -335,5 +340,8 @@ class EFSHasStatementFilter(HasStatementFilter):
         return {
             'fs_arn': fs['FileSystemArn'],
             'account_id': self.manager.config.account_id,
-            'region': self.manager.config.region
+            'region': self.manager.config.region,
         }
+
+
+ElasticFileSystem.filter_registry.register('consecutive-aws-backups', ConsecutiveAwsBackupsFilter)

@@ -7,7 +7,6 @@ from c7n.utils import local_session, get_support_region
 
 @resources.register('support-case')
 class SupportCase(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'support'
         enum_spec = ('describe_cases', 'cases', None)

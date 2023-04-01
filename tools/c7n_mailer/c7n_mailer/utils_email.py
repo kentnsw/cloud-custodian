@@ -4,8 +4,7 @@ import logging
 from email.mime.text import MIMEText
 from email.utils import parseaddr
 
-from .utils import (
-    get_message_subject, get_rendered_jinja)
+from .utils import get_message_subject, get_rendered_jinja
 
 logger = logging.getLogger('c7n_mailer.utils.email')
 
@@ -52,7 +51,7 @@ PRIORITIES = {
         'X-MSMail-Priority': 'Low',
         'Priority': 'non-urgent',
         'Importance': 'low',
-    }
+    },
 }
 
 
@@ -81,8 +80,7 @@ def priority_header_is_valid(priority_header, logger):
 
 
 def set_mimetext_headers(
-    message, subject, from_addr, to_addrs, cc_addrs, additional_headers,
-    priority, logger
+    message, subject, from_addr, to_addrs, cc_addrs, additional_headers, priority, logger
 ):
     """Sets headers on Mimetext message"""
 
@@ -90,6 +88,7 @@ def set_mimetext_headers(
     message['From'] = from_addr
     message['To'] = ', '.join(to_addrs)
     if cc_addrs:
+        # NOTE filter out unenhanced cc_addrs added by self.get_mimetext_message
         cc_addrs = [cc for cc in cc_addrs if is_email(cc)]
         message['Cc'] = ', '.join(cc_addrs)
     if additional_headers:
@@ -104,19 +103,16 @@ def set_mimetext_headers(
     return message
 
 
-def get_mimetext_message(config, logger, message, resources, to_addrs, template='template'):
+def get_mimetext_message(config, logger, message, resources, to_addrs):
     body = get_rendered_jinja(
-        to_addrs, message, resources, logger,
-        template, 'default', config['templates_folders'])
+        to_addrs, message, resources, logger, 'template', 'default', config['templates_folders']
+    )
 
     email_format = message['action'].get('template_format', None)
     if not email_format:
-        email_format = message['action'].get(
-            template, 'default').endswith('html') and 'html' or 'plain'
-
-    additional_headers = config.get('additional_email_headers', {})
-    additional_headers['resource_count'] = str(len(resources))
-    additional_headers['email_template'] = message['action'].get(template, 'default')
+        email_format = (
+            message['action'].get('template', 'default').endswith('html') and 'html' or 'plain'
+        )
 
     return set_mimetext_headers(
         message=MIMEText(body, email_format, 'utf-8'),
@@ -125,7 +121,7 @@ def get_mimetext_message(config, logger, message, resources, to_addrs, template=
         to_addrs=to_addrs,
         # FIXME cc has been processed and enhanced in get_email_to_addrs_to_resources_map
         cc_addrs=message['action'].get('cc', []),
-        additional_headers=additional_headers,
+        additional_headers=config.get('additional_email_headers', {}),
         priority=message['action'].get('priority_header', None),
-        logger=logger
+        logger=logger,
     )

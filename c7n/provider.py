@@ -3,11 +3,14 @@
 
 import abc
 import importlib
+import logging
 
 from c7n.registry import PluginRegistry
 
 
 clouds = PluginRegistry('c7n.providers')
+
+log = logging.getLogger('c7n.providers')
 
 
 class Provider(metaclass=abc.ABCMeta):
@@ -31,8 +34,7 @@ class Provider(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def initialize(self, options):
-        """Perform any provider specific initialization
-        """
+        """Perform any provider specific initialization"""
 
     @abc.abstractmethod
     def initialize_policies(self, policy_collection, options):
@@ -49,8 +51,7 @@ class Provider(metaclass=abc.ABCMeta):
     @classmethod
     def get_resource_types(cls, resource_types):
         """Return the resource classes for the given type names"""
-        resource_classes, not_found = import_resource_classes(
-            cls.resource_map, resource_types)
+        resource_classes, not_found = import_resource_classes(cls.resource_map, resource_types)
         for r in resource_classes:
             cls.resources.notify(r)
         return resource_classes, not_found
@@ -75,8 +76,18 @@ def import_resource_classes(resource_map, resource_types):
         rmodule, rclass = provider_value.rsplit('.', 1)
         rmods.add(rmodule)
 
+    import_errs = set()
     for rmodule in rmods:
-        mod_map[rmodule] = importlib.import_module(rmodule)
+        try:
+            mod_map[rmodule] = importlib.import_module(rmodule)
+        except ModuleNotFoundError:  # pragma: no cover
+            import_errs.add(rmodule)
+
+    for emod in import_errs:  # pragma: no cover
+        for rtype, rclass in resource_map.items():
+            if emod == rclass.rsplit('.', 1)[0]:
+                log.warning('unable to import %s from %s', rtype, emod)
+                resource_types.remove(rtype)
 
     for rtype in resource_types:
         if rtype in not_found:
@@ -119,12 +130,10 @@ def get_resource_class(resource_type):
 
     provider = clouds.get(provider_name)
     if provider is None:
-        raise KeyError(
-            "Invalid cloud provider: %s" % provider_name)
+        raise KeyError("Invalid cloud provider: %s" % provider_name)
 
     if resource_type not in provider.resource_map:
-        raise KeyError("Invalid resource: %s for provider: %s" % (
-            resource, provider_name))
+        raise KeyError("Invalid resource: %s for provider: %s" % (resource, provider_name))
     factory = provider.resources.get(resource)
     assert factory, "Resource:%s not loaded" % resource_type
     return factory

@@ -13,7 +13,6 @@ from c7n_gcp.filters import IamPolicyFilter
 
 @resources.register('bucket')
 class Bucket(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'storage'
         version = 'v1'
@@ -21,22 +20,15 @@ class Bucket(QueryResourceManager):
         scope = 'project'
         enum_spec = ('list', 'items[]', {'projection': 'full'})
         name = id = 'name'
-        default_report_fields = [
-            "name", "timeCreated", "location", "storageClass"]
+        default_report_fields = ["name", "timeCreated", "location", "storageClass"]
         asset_type = "storage.googleapis.com/Bucket"
         scc_type = "google.cloud.storage.Bucket"
         metric_key = 'resource.labels.bucket_name'
+        urn_component = "bucket"
 
         @staticmethod
         def get(client, resource_info):
-            return client.execute_command(
-                'get', {'bucket': resource_info['bucket_name']})
-
-        @staticmethod
-        def get_label_params(resource, all_labels):
-            return {'bucket': resource['name'],
-                    'fields': 'labels',
-                    'body': {'labels': all_labels}}
+            return client.execute_command('get', {'bucket': resource_info['bucket_name']})
 
 
 @Bucket.filter_registry.register('iam-policy')
@@ -44,6 +36,7 @@ class BucketIamPolicyFilter(IamPolicyFilter):
     """
     Overrides the base implementation to process bucket resources correctly.
     """
+
     permissions = ('storage.buckets.getIamPolicy',)
 
     def _verb_arguments(self, resource):
@@ -61,8 +54,8 @@ def invoke_api_set_labels(action, params):
         # NOTE override the client with storage.Client
         session = local_session(action.manager.session_factory)
         client = storage.Client(
-            project=session.get_default_project(),
-            credentials=session._credentials)
+            project=session.get_default_project(), credentials=session._credentials
+        )
         bucket = client.get_bucket(params["bucket"])
         bucket.labels = params["body"]["labels"]
         bucket.patch()
@@ -74,14 +67,12 @@ def invoke_api_set_labels(action, params):
 
 @Bucket.action_registry.register('set-labels')
 class BucketSetLabelsAction(SetLabelsAction):
-
     def invoke_api(self, client, op_name, params):
         return invoke_api_set_labels(self, params)
 
 
 @Bucket.action_registry.register('mark-for-op')
 class BucketLabelDelayedAction(LabelDelayedAction):
-
     def invoke_api(self, client, op_name, params):
         return invoke_api_set_labels(self, params)
 
@@ -130,9 +121,11 @@ class PublicAccessPrevention(MethodAction):
     #
     def get_resource_params(self, model, resource):
         state = self.data.get('state', "inherited")
-        return {'bucket': resource['name'],
-                'fields': 'iamConfiguration',
-                'body': {'iamConfiguration': {'publicAccessPrevention': state}}}
+        return {
+            'bucket': resource['name'],
+            'fields': 'iamConfiguration',
+            'body': {'iamConfiguration': {'publicAccessPrevention': state}},
+        }
 
 
 @Bucket.action_registry.register('set-uniform-access')
@@ -172,7 +165,9 @@ class BucketLevelAccess(MethodAction):
     #
     def get_resource_params(self, model, resource):
         enabled = self.data.get('state', True)
-        return {'bucket': resource['name'],
-                'fields': 'iamConfiguration',
-                'projection': 'noAcl',  # not documented but
-                'body': {'iamConfiguration': {'uniformBucketLevelAccess': {'enabled': enabled}}}}
+        return {
+            'bucket': resource['name'],
+            'fields': 'iamConfiguration',
+            'projection': 'noAcl',  # not documented but
+            'body': {'iamConfiguration': {'uniformBucketLevelAccess': {'enabled': enabled}}},
+        }

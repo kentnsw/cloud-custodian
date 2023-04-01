@@ -61,12 +61,12 @@ class PostgresqlServer(ArmResourceManager):
 class PostgresqlServerFirewallRulesFilter(FirewallRulesFilter):
     def _query_rules(self, resource):
         query = self.client.firewall_rules.list_by_server(
-            resource['resourceGroup'],
-            resource['name'])
+            resource['resourceGroup'], resource['name']
+        )
         resource_rules = IPSet()
         for r in query:
             rule = IPRange(r.start_ip_address, r.end_ip_address)
-            if rule == AZURE_SERVICES:
+            if rule == AZURE_SERVICES and not self.data.get('include-azure-services', False):
                 # Ignore 0.0.0.0 magic value representing Azure Cloud bypass
                 continue
             resource_rules.add(rule)
@@ -121,7 +121,7 @@ class ConfigurationParametersFilter(ValueFilter):
         'configuration-parameter',
         required=['type', 'name'],
         rinherit=ValueFilter.schema,
-        name=dict(type='string')
+        name=dict(type='string'),
     )
 
     def __call__(self, resource):
@@ -129,9 +129,7 @@ class ConfigurationParametersFilter(ValueFilter):
         if key not in resource['properties']:
             client = self.manager.get_client()
             query = client.configurations.get(
-                resource['resourceGroup'],
-                resource['name'],
-                self.data["name"]
+                resource['resourceGroup'], resource['name'], self.data["name"]
             )
 
             resource['properties'][key] = query.serialize(True).get('properties')

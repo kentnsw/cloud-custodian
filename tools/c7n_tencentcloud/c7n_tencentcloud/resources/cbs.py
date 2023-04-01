@@ -15,10 +15,31 @@ from c7n_tencentcloud.utils import PageMethod
 
 @resources.register("cbs")
 class CBS(QueryResourceManager):
-    """CBS"""
+    """CBS: Cloud Block Storage
+
+    Docs on CBS
+    https://www.tencentcloud.com/document/product/362
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+        - name: cbs_not_encrypt
+          resource: tencentcloud.cbs
+          filters:
+            - type: value
+              key: Encrypt
+              value: false
+        - name: cbs_unattached
+          resource: tencentcloud.cbs
+          filters:
+            - DiskState: UNATTACHED
+    """
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "DiskId"
         endpoint = "cbs.tencentcloudapi.com"
         service = "cbs"
@@ -35,9 +56,32 @@ class CBS(QueryResourceManager):
 
 @CBS.action_registry.register('copy-instance-tags')
 class CbsCopyInstanceTagsAction(TencentCloudBaseAction):
+    """Action to copy tags from instance to cbs resources which are attached to it
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+          - name: copy_instance_tags
+            resource: tencentcloud.cbs
+            filters:
+              - DiskState: ATTACHED
+              - type: value
+                key: 'InstanceIdList[0]'
+                value: not-null
+            actions:
+              - type: copy-instance-tags
+                tags:
+                  - test_pro_16
+                  - test_pro_17
+              - type: copy-instance-tags
+                tags:
+                  - test_pro_18
+    """
+
     schema_alias = True
-    schema = type_schema("copy-instance-tags",
-                         tags={"type": "array"})
+    schema = type_schema("copy-instance-tags", tags={"type": "array"})
 
     t_api_method_name = "ModifyResourceTags"
 
@@ -52,8 +96,10 @@ class CbsCopyInstanceTagsAction(TencentCloudBaseAction):
         get cbs tag request params,single resource operation
         https://cloud.tencent.com/document/api/651/35322
         """
-        params = {"Resource": self.manager.source.get_resource_qcs([resource])[0],
-                  "ReplaceTags": []}
+        params = {
+            "Resource": self.manager.source.get_resource_qcs([resource])[0],
+            "ReplaceTags": [],
+        }
         tags = instances_tags.get(resource["InstanceId"])
         for tag in tags:
             if tag["TagKey"] in self.data.get('tags'):
@@ -71,8 +117,12 @@ class CbsCopyInstanceTagsAction(TencentCloudBaseAction):
                 params = self._get_tag_request_params(res, instances_tags)
                 if len(params["ReplaceTags"]) > 0:
                     resp = client.execute_query(self.t_api_method_name, params)
-                    self.log.debug("%s , params: %s,resp: %s ", self.data.get('type'),
-                                   json.dumps(params), json.dumps(resp))
+                    self.log.debug(
+                        "%s , params: %s,resp: %s ",
+                        self.data.get('type'),
+                        json.dumps(params),
+                        json.dumps(resp),
+                    )
         except (RetryError, TencentCloudSDKException) as err:
             raise PolicyExecutionError(err) from err
 

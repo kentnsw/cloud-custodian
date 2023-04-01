@@ -10,8 +10,10 @@ from azure.core.exceptions import AzureError
 
 from c7n.actions import BaseAction
 from c7n.filters import Filter, FilterValidationError
-from c7n.filters.core import PolicyValidationError
+from c7n.filters.core import PolicyValidationError, ValueFilter
 from c7n.utils import type_schema
+
+from msrestazure.tools import parse_resource_id
 
 
 @resources.register('networksecuritygroup')
@@ -131,12 +133,12 @@ class NetworkSecurityGroupFilter(Filter):
             MATCH: {'type': 'string', 'enum': ['all', 'any']},
             PORTS: {'type': 'string'},
             EXCEPT_PORTS: {'type': 'string'},
-            IP_PROTOCOL: {'type': 'string', 'enum': ['TCP', 'UDP', '*']},
+            IP_PROTOCOL: {'type': 'string', 'enum': ['ICMP', 'TCP', 'UDP', '*']},
             ACCESS: {'type': 'string', 'enum': [ALLOW_OPERATION, DENY_OPERATION]},
             SOURCE: {'type': 'string'},
             DESTINATION: {'type': 'string'},
         },
-        'required': ['type', ACCESS]
+        'required': ['type', ACCESS],
     }
 
     def validate(self):
@@ -170,9 +172,9 @@ class NetworkSecurityGroupFilter(Filter):
         return nsgs
 
     def _check_nsg(self, nsg):
-        nsg_ports = PortsRangeHelper.build_ports_dict(nsg, self.direction_key, self.ip_protocol,
-                                                      self.source_address,
-                                                      self.destination_address)
+        nsg_ports = PortsRangeHelper.build_ports_dict(
+            nsg, self.direction_key, self.ip_protocol, self.source_address, self.destination_address
+        )
 
         num_allow_ports = len([p for p in self.ports if nsg_ports.get(p)])
         num_deny_ports = len(self.ports) - num_allow_ports
@@ -201,6 +203,59 @@ class EgressFilter(NetworkSecurityGroupFilter):
     schema = type_schema('egress', rinherit=NetworkSecurityGroupFilter.schema)
 
 
+@NetworkSecurityGroup.filter_registry.register('flow-logs')
+class FlowLogs(ValueFilter):
+    """Filter a Network Security Group by its associated flow logs. NOTE: only one flow log
+    can be assigned to a Network Security Group, but to maintain parity with the Azure API, a list
+    of flow logs is returned to the filter.
+
+    :example:
+
+    Find all network security groups with a flow-log retention less than 90 days
+
+    .. code-block:: yaml
+
+        policies:
+          - name: flow-logs
+            resource: azure.networksecuritygroup
+            filters:
+              - or:
+                - type: flow-logs
+                  key: logs
+                  value: empty
+                - type: flow-logs
+                  key: logs[0].retentionPolicy.days
+                  op: lt
+                  value: 90
+    """
+
+    schema = type_schema('flow-logs', rinherit=ValueFilter.schema)
+
+    def _get_flow_logs(self, resource):
+        parsed_ids = [
+            parse_resource_id(log['id']) for log in resource['properties'].get('flowLogs', [])
+        ]
+
+        client = self.manager.get_client()
+
+        return [
+            client.flow_logs.get(
+                resource['resourceGroup'], parsed_id['name'], parsed_id['resource_name']
+            )
+            .serialize(True)
+            .get('properties')
+            for parsed_id in parsed_ids
+        ]
+
+    def __call__(self, resource):
+        key = 'c7n:flow-logs'
+
+        if key not in resource['properties']:
+            resource['properties'][key] = {'logs': self._get_flow_logs(resource)}
+
+        return super().__call__(resource['properties'][key])
+
+
 class NetworkSecurityGroupPortsAction(BaseAction):
     """
     Action to perform on Network Security Groups
@@ -212,11 +267,11 @@ class NetworkSecurityGroupPortsAction(BaseAction):
             'type': {'enum': []},
             PORTS: {'type': 'string'},
             EXCEPT_PORTS: {'type': 'string'},
-            IP_PROTOCOL: {'type': 'string', 'enum': ['TCP', 'UDP', '*']},
+            IP_PROTOCOL: {'type': 'string', 'enum': ['ICMP', 'TCP', 'UDP', '*']},
             DIRECTION: {'type': 'string', 'enum': ['Inbound', 'Outbound']},
-            PREFIX: {'type': 'string', 'maxLength': 44}  # 80 symbols limit, guid takes 36
+            PREFIX: {'type': 'string', 'maxLength': 44},  # 80 symbols limit, guid takes 36
         },
-        'required': ['type', DIRECTION]
+        'required': ['type', DIRECTION],
     }
 
     def validate(self):
@@ -260,14 +315,16 @@ class NetworkSecurityGroupPortsAction(BaseAction):
             if not ports:
                 # If its empty, it means NSG already blocks/allows access to all ports,
                 # no need to change.
-                self.manager.log.info("Network security group %s satisfies provided "
-                                      "ports configuration, no actions scheduled.", nsg_name)
+                self.manager.log.info(
+                    "Network security group %s satisfies provided "
+                    "ports configuration, no actions scheduled.",
+                    nsg_name,
+                )
                 continue
 
             rules = nsg['properties']['securityRules']
             rules = sorted(rules, key=lambda k: k['properties']['priority'])
-            rules = [r for r in rules
-                     if StringUtils.equal(r['properties']['direction'], direction)]
+            rules = [r for r in rules if StringUtils.equal(r['properties']['direction'], direction)]
             lowest_priority = rules[0]['properties']['priority'] if len(rules) > 0 else 4096
 
             # Create new top-priority rule to allow/block ports from the action.
@@ -283,21 +340,23 @@ class NetworkSecurityGroupPortsAction(BaseAction):
                     'protocol': ip_protocol,
                     'sourceAddressPrefix': '*',
                     'sourcePortRange': '*',
-                }
+                },
             }
-            self.manager.log.info("NSG %s. Creating new rule to %s access for ports %s",
-                                  nsg_name, self.access_action, ports)
+            self.manager.log.info(
+                "NSG %s. Creating new rule to %s access for ports %s",
+                nsg_name,
+                self.access_action,
+                ports,
+            )
 
             try:
                 self.manager.get_client().security_rules.begin_create_or_update(
-                    resource_group,
-                    nsg_name,
-                    rule_name,
-                    new_rule
+                    resource_group, nsg_name, rule_name, new_rule
                 )
             except AzureError as e:
-                self.manager.log.error('Failed to create or update security rule for %s NSG.',
-                                       nsg_name)
+                self.manager.log.error(
+                    'Failed to create or update security rule for %s NSG.', nsg_name
+                )
                 self.manager.log.error(e)
 
 
@@ -306,6 +365,7 @@ class CloseRules(NetworkSecurityGroupPortsAction):
     """
     Deny access to Security Rule
     """
+
     schema = type_schema('close', rinherit=NetworkSecurityGroupPortsAction.schema)
     access_action = DENY_OPERATION
 
@@ -315,5 +375,6 @@ class OpenRules(NetworkSecurityGroupPortsAction):
     """
     Allow access to Security Rule
     """
+
     schema = type_schema('open', rinherit=NetworkSecurityGroupPortsAction.schema)
     access_action = ALLOW_OPERATION

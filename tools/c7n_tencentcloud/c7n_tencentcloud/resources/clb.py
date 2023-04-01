@@ -13,10 +13,15 @@ from c7n_tencentcloud.utils import PageMethod, isoformat_datetime_str
 
 @resources.register("clb")
 class CLB(QueryResourceManager):
-    """CLB"""
+    """CLB
+
+    Docs on CLB resources
+    https://www.tencentcloud.com/document/product/214
+    """
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "LoadBalancerId"
         endpoint = "clb.tencentcloudapi.com"
         service = "clb"
@@ -35,8 +40,9 @@ class CLB(QueryResourceManager):
         if instances:
             for resource in resources_param:
                 cli = self.get_client()
-                resp = cli.execute_query("DescribeTargets",
-                                         {"LoadBalancerId": resource["LoadBalancerId"]})
+                resp = cli.execute_query(
+                    "DescribeTargets", {"LoadBalancerId": resource["LoadBalancerId"]}
+                )
                 listeners = resp["Response"]["Listeners"]
                 instance_ids = []
                 for listener in listeners:
@@ -48,15 +54,46 @@ class CLB(QueryResourceManager):
                 resource["Instances"] = instance_ids
         for resource in resources_param:
             field_format = self.resource_type.datetime_fields_format["CreateTime"]
-            resource["CreateTime"] = isoformat_datetime_str(resource["CreateTime"],
-                                                        field_format[0],
-                                                        field_format[1])
+            resource["CreateTime"] = isoformat_datetime_str(
+                resource["CreateTime"], field_format[0], field_format[1]
+            )
         return resources_param
 
 
 @CLB.filter_registry.register("metrics")
 class CLBMetricsFilter(MetricsFilter):
-    """CLBMetricsFilter"""
+    """Filter a CLB resource by metrics
+
+    Docs on CLB metrics
+
+    - Public Network CLB
+      https://www.tencentcloud.com/document/product/248/10997
+    - Private Network CLB
+      https://www.tencentcloud.com/document/product/248/39529
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+            - name: clb_metrics_filter
+              resource: tencentcloud.clb
+              filters:
+                - type: value
+                  key: CreateTime
+                  value_type: age
+                  value: 30
+                  op: gte
+                - type: metrics
+                  name: TotalReq
+                  statistics: Sum
+                  period: 3600
+                  days: 30
+                  value: 0
+                  missing-value: 0
+                  op: eq
+    """
+
     DEFAULT_NAMESPACE = {"clb:clb": "QCE/LB_PUBLIC"}
 
     def _get_request_params(self, resources, namespace):
@@ -64,32 +101,23 @@ class CLBMetricsFilter(MetricsFilter):
         dimensions = []
         for metadata_pair in dimension_metadata:
             if namespace == "QCE/LB_PUBLIC":
-                dimensions.append({
-                    "Dimensions": [{
-                        "Name": "vip",
-                        "Value": metadata_pair[0]
-                    }]
-                })
+                dimensions.append({"Dimensions": [{"Name": "vip", "Value": metadata_pair[0]}]})
             if namespace == "QCE/LB_PRIVATE":
-                dimensions.append({
-                    "Dimensions": [
-                        {
-                            "Name": "vip",
-                            "Value": metadata_pair[0]
-                        },
-                        {
-                            "Name": "vpcId",
-                            "Value": metadata_pair[1]
-                        }
-                    ]
-                })
+                dimensions.append(
+                    {
+                        "Dimensions": [
+                            {"Name": "vip", "Value": metadata_pair[0]},
+                            {"Name": "vpcId", "Value": metadata_pair[1]},
+                        ]
+                    }
+                )
         return {
             "Namespace": namespace,
             "MetricName": self.metric_name,
             "Period": self.period,
             "StartTime": self.start_time,
             "EndTime": self.end_time,
-            "Instances": dimensions
+            "Instances": dimensions,
         }
 
     def get_metrics_data_point(self, resources, namespace):

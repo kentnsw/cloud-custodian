@@ -9,11 +9,13 @@ from c7n_gcp.client import Session
 
 @click.command()
 @click.option(
-    '-f', '--output', type=click.File('w'), default='-',
-    help="File to store the generated config (default stdout)")
-@click.option('-i', '--ignore', multiple=True,
-  help="list of folders that won't be added to the config file")
-def main(output, ignore):
+    '-f',
+    '--output',
+    type=click.File('w'),
+    default='-',
+    help="File to store the generated config (default stdout)",
+)
+def main(output):
     """
     Generate a c7n-org gcp projects config file
     """
@@ -38,12 +40,11 @@ def main(output, ignore):
 
             if 'labels' in project:
                 project_info['tags'] = [
-                    '%s:%s' % (k, v) for k, v in project.get('labels', {}).items()]
-                project_info['vars'] = {k: v for k, v in project.get('labels', {}).items()}
+                    'label:%s:%s' % (k, v) for k, v in project.get('labels', {}).items()
+                ]
             results.append(project_info)
 
-    output.write(
-        yaml.safe_dump({'projects': results}, default_flow_style=False))
+    output.write(yaml.safe_dump({'projects': results}, default_flow_style=False))
 
 
 if __name__ == '__main__':

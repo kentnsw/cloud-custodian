@@ -38,7 +38,7 @@ class MailerSqsQueueIterator:
             WaitTimeSeconds=self.timeout,
             MaxNumberOfMessages=3,
             MessageAttributeNames=self.msg_attributes,
-            AttributeNames=["SentTimestamp"],
+            AttributeNames=['SentTimestamp'],
         )
 
         msgs = response.get("Messages", [])
@@ -52,10 +52,7 @@ class MailerSqsQueueIterator:
     next = __next__  # python2.7
 
     def ack(self, m):
-        self.aws_sqs.delete_message(
-            QueueUrl=self.queue_url,
-            ReceiptHandle=m["ReceiptHandle"],
-        )
+        self.aws_sqs.delete_message(QueueUrl=self.queue_url, ReceiptHandle=m['ReceiptHandle'])
 
 
 class MailerSqsQueueProcessor(MessageTargetMixin):
@@ -102,9 +99,9 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
         for sqs_message in sqs_messages:
             self.logger.debug(
                 "Message id: %s received %s"
-                % (sqs_message["MessageId"], sqs_message.get("MessageAttributes", ""))
+                % (sqs_message['MessageId'], sqs_message.get('MessageAttributes', ''))
             )
-            msg_kind = sqs_message.get("MessageAttributes", {}).get("mtype")
+            msg_kind = sqs_message.get('MessageAttributes', {}).get('mtype')
             if msg_kind:
                 msg_kind = msg_kind["StringValue"]
             if not msg_kind == DATA_MESSAGE:
@@ -139,17 +136,31 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
     # If you explicitly declare which tags are aws_usernames (synonymous with ldap uids)
     # in the ldap_uid_tags section of your mailer.yml, we'll do a lookup of those emails
     # (and their manager if that option is on) and also send emails there.
-    def process_message(self, message, messageId=None, sentTimestamp=0):
+    def process_sqs_message(self, encoded_sqs_message):
+        body = encoded_sqs_message['Body']
+        try:
+            body = json.dumps(json.loads(body)['Message'])
+        except ValueError:
+            pass
+        sqs_message = json.loads(zlib.decompress(base64.b64decode(body)))
+
         self.logger.debug(
             "Got account:%s message:%s %s:%d policy:%s recipients:%s"
             % (
-                message.get("account", "na"),
-                messageId,
-                message["policy"]["resource"],
-                len(message["resources"]),
-                message["policy"]["name"],
-                ", ".join(message["action"].get("to", [])),
+                sqs_message.get('account', 'na'),
+                encoded_sqs_message['MessageId'],
+                sqs_message['policy']['resource'],
+                len(sqs_message['resources']),
+                sqs_message['policy']['name'],
+                ', '.join(sqs_message['action'].get('to', [])),
             )
+        )
+
+        self.handle_targets(
+            sqs_message,
+            encoded_sqs_message["Attributes"]["SentTimestamp"],
+            email_delivery=True,
+            sns_delivery=True,
         )
 
         self.handle_targets(message, sentTimestamp)

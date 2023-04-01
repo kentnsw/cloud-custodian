@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 
 
 class CloudFrontWaf(BaseTest):
-
     def test_waf(self):
         factory = self.replay_flight_data("test_distribution_waf")
         p = self.load_policy(
@@ -90,14 +89,20 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-active-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "responseElements.distribution.id",
-                    "event": "CreateDistribution"
-                }]},
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "responseElements.distribution.id",
+                            "event": "CreateDistribution",
+                        }
+                    ],
+                },
                 "filters": [{"type": "wafv2-enabled", "state": False}],
-                "actions": [{"type": "set-wafv2", "state": True,
-                             "force": True, "web-acl": "testv2"}],
+                "actions": [
+                    {"type": "set-wafv2", "state": True, "force": True, "web-acl": "testv2"}
+                ],
             },
             session_factory=factory,
         )
@@ -112,11 +117,16 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-update-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "requestParameters.id",
-                    "event": "UpdateDistribution"
-                }]},
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "requestParameters.id",
+                            "event": "UpdateDistribution",
+                        }
+                    ],
+                },
                 "filters": [{"type": "wafv2-enabled", "state": True}],
             },
             session_factory=factory,
@@ -128,14 +138,19 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-update-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "requestParameters.id",
-                    "event": "UpdateDistribution"
-                }]},
-                "filters": [{"type": "wafv2-enabled",
-                             "web-acl": "FMManagedWebACLV2-FMS-.*",
-                             "state": True}],
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "requestParameters.id",
+                            "event": "UpdateDistribution",
+                        }
+                    ],
+                },
+                "filters": [
+                    {"type": "wafv2-enabled", "web-acl": "FMManagedWebACLV2-FMS-.*", "state": True}
+                ],
             },
             session_factory=factory,
         )
@@ -146,16 +161,27 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-update-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "requestParameters.id",
-                    "event": "UpdateDistribution"
-                }]},
-                "filters": [{"type": "wafv2-enabled",
-                             "web-acl": "FMManagedWebACLV2-FMS-.*",
-                             "state": True}],
-                "actions": [{"type": "set-wafv2", "state": True,
-                             "force": True, "web-acl": "FMManagedWebACLV2-FMS-T.*"}],
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "requestParameters.id",
+                            "event": "UpdateDistribution",
+                        }
+                    ],
+                },
+                "filters": [
+                    {"type": "wafv2-enabled", "web-acl": "FMManagedWebACLV2-FMS-.*", "state": True}
+                ],
+                "actions": [
+                    {
+                        "type": "set-wafv2",
+                        "state": True,
+                        "force": True,
+                        "web-acl": "FMManagedWebACLV2-FMS-T.*",
+                    }
+                ],
             },
             session_factory=factory,
         )
@@ -169,16 +195,25 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-update-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "requestParameters.id",
-                    "event": "UpdateDistribution"
-                }]},
-                "filters": [{"type": "wafv2-enabled",
-                             "web-acl": "testv2",
-                             "state": False}],
-                "actions": [{"type": "set-wafv2", "state": True, "force": True,
-                             "web-acl": "FMManagedWebACLV2-FMS-T.*"}],
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "requestParameters.id",
+                            "event": "UpdateDistribution",
+                        }
+                    ],
+                },
+                "filters": [{"type": "wafv2-enabled", "web-acl": "testv2", "state": False}],
+                "actions": [
+                    {
+                        "type": "set-wafv2",
+                        "state": True,
+                        "force": True,
+                        "web-acl": "FMManagedWebACLV2-FMS-T.*",
+                    }
+                ],
             },
             session_factory=factory,
         )
@@ -191,14 +226,20 @@ class CloudFrontWaf(BaseTest):
             {
                 "name": "waf-cloudfront-active-response",
                 "resource": "distribution",
-                "mode": {"type": "cloudtrail", "events": [{
-                    "source": "cloudfront.amazonaws.com",
-                    "ids": "requestParameters.resource",
-                    "event": "TagResource"
-                }]},
+                "mode": {
+                    "type": "cloudtrail",
+                    "events": [
+                        {
+                            "source": "cloudfront.amazonaws.com",
+                            "ids": "requestParameters.resource",
+                            "event": "TagResource",
+                        }
+                    ],
+                },
                 "filters": [{"type": "wafv2-enabled", "state": False}],
-                "actions": [{"type": "set-wafv2", "state": True,
-                             "force": True, "web-acl": "testv2"}],
+                "actions": [
+                    {"type": "set-wafv2", "state": True, "force": True, "web-acl": "testv2"}
+                ],
             },
             session_factory=factory,
         )
@@ -208,7 +249,6 @@ class CloudFrontWaf(BaseTest):
 
 
 class CloudFront(BaseTest):
-
     def test_shield_metric_filter(self):
         factory = self.replay_flight_data("test_distribution_shield_metrics")
         p = self.load_policy(
@@ -235,9 +275,7 @@ class CloudFront(BaseTest):
             {
                 "name": "requests-filter",
                 "resource": "distribution",
-                "filters": [
-                    {"type": "metrics", "name": "Requests", "value": 3, "op": "ge"}
-                ],
+                "filters": [{"type": "metrics", "name": "Requests", "value": 3, "op": "ge"}],
             },
             session_factory=factory,
         )
@@ -253,12 +291,8 @@ class CloudFront(BaseTest):
             {
                 "name": "distribution-set-ssl",
                 "resource": "distribution",
-                "filters": [
-                    {"type": "value", "key": k, "value": "allow-all", "op": "contains"}
-                ],
-                "actions": [
-                    {"type": "set-protocols", "ViewerProtocolPolicy": "https-only"}
-                ],
+                "filters": [{"type": "value", "key": k, "value": "allow-all", "op": "contains"}],
+                "actions": [{"type": "set-protocols", "ViewerProtocolPolicy": "https-only"}],
             },
             session_factory=factory,
         )
@@ -271,9 +305,7 @@ class CloudFront(BaseTest):
         client = local_session(factory).client("cloudfront")
         resp = client.list_distributions()
         self.assertEqual(
-            resp["DistributionList"]["Items"][0]["DefaultCacheBehavior"][
-                "ViewerProtocolPolicy"
-            ],
+            resp["DistributionList"]["Items"][0]["DefaultCacheBehavior"]["ViewerProtocolPolicy"],
             "https-only",
         )
 
@@ -286,9 +318,7 @@ class CloudFront(BaseTest):
             {
                 "name": "distribution-set-ssl",
                 "resource": "distribution",
-                "filters": [
-                    {"type": "value", "key": k, "value": "TLSv1", "op": "contains"}
-                ],
+                "filters": [{"type": "value", "key": k, "value": "TLSv1", "op": "contains"}],
                 "actions": [
                     {
                         "type": "set-protocols",
@@ -308,30 +338,22 @@ class CloudFront(BaseTest):
         client = local_session(factory).client("cloudfront")
         resp = client.list_distributions()
         self.assertEqual(
-            resp["DistributionList"]["Items"][0]["Origins"]["Items"][0][
-                "CustomOriginConfig"
-            ][
+            resp["DistributionList"]["Items"][0]["Origins"]["Items"][0]["CustomOriginConfig"][
                 "OriginProtocolPolicy"
             ],
             "https-only",
         )
         self.assertTrue(
-            "TLSv1.2" in resp["DistributionList"]["Items"][0]["Origins"]["Items"][0][
-                "CustomOriginConfig"
-            ][
+            "TLSv1.2"
+            in resp["DistributionList"]["Items"][0]["Origins"]["Items"][0]["CustomOriginConfig"][
                 "OriginSslProtocols"
-            ][
-                "Items"
-            ]
+            ]["Items"]
         )
         self.assertFalse(
-            "TLSv1" in resp["DistributionList"]["Items"][0]["Origins"]["Items"][0][
-                "CustomOriginConfig"
-            ][
+            "TLSv1"
+            in resp["DistributionList"]["Items"][0]["Origins"]["Items"][0]["CustomOriginConfig"][
                 "OriginSslProtocols"
-            ][
-                "Items"
-            ]
+            ]["Items"]
         )
 
     def test_distribution_disable(self):
@@ -372,7 +394,7 @@ class CloudFront(BaseTest):
                     {
                         "type": "mismatch-s3-origin",
                     }
-                ]
+                ],
             },
             session_factory=factory,
         )
@@ -380,6 +402,26 @@ class CloudFront(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertEqual(resources[0]['c7n:mismatched-s3-origin'][0], 'c7n-idontexist')
+
+    def test_distribution_check_s3_origin_missing_bucket_region(self):
+        factory = self.replay_flight_data("test_distribution_check_s3_origin_missing_bucket_region")
+
+        p = self.load_policy(
+            {
+                "name": "test_distribution_check_s3_origin_missing_bucket",
+                "resource": "distribution",
+                "filters": [
+                    {
+                        "type": "mismatch-s3-origin",
+                    }
+                ],
+            },
+            session_factory=factory,
+        )
+
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
+        self.assertEqual(resources[0]['c7n:mismatched-s3-origin'][0], 'c7n-test-bucket')
 
     def test_distribution_check_logging_enabled(self):
         factory = self.replay_flight_data("test_distribution_check_logging_enabled")
@@ -389,12 +431,8 @@ class CloudFront(BaseTest):
                 "name": "test_distribution_logging_enabled",
                 "resource": "distribution",
                 "filters": [
-                    {
-                        "type": "distribution-config",
-                        "key": "Logging.Enabled",
-                        "value": True
-                    }
-                ]
+                    {"type": "distribution-config", "key": "Logging.Enabled", "value": True}
+                ],
             },
             session_factory=factory,
         )
@@ -411,31 +449,27 @@ class CloudFront(BaseTest):
         mock_factory = MagicMock()
         mock_factory.region = 'us-east-1'
         mock_factory().client(
-            'cloudfront').exceptions.NoSuchDistribution = (
-                client.exceptions.NoSuchDistribution)
+            'cloudfront'
+        ).exceptions.NoSuchDistribution = client.exceptions.NoSuchDistribution
 
-        mock_factory().client('cloudfront').get_distribution_config.side_effect = (
-            client.exceptions.NoSuchDistribution(
-                {'Error': {'Code': 'xyz'}},
-                operation_name='get_distribution_config'))
+        mock_factory().client(
+            'cloudfront'
+        ).get_distribution_config.side_effect = client.exceptions.NoSuchDistribution(
+            {'Error': {'Code': 'xyz'}}, operation_name='get_distribution_config'
+        )
         p = self.load_policy(
             {
                 "name": "test_distribution_logging_enabled",
                 "resource": "distribution",
                 "filters": [
-                    {
-                        "type": "distribution-config",
-                        "key": "Logging.Enabled",
-                        "value": True
-                    }
-                ]
+                    {"type": "distribution-config", "key": "Logging.Enabled", "value": True}
+                ],
             },
             session_factory=mock_factory,
         )
 
         try:
-            p.resource_manager.filters[0].process(
-                [{'Id': 'abc'}])
+            p.resource_manager.filters[0].process([{'Id': 'abc'}])
         except client.exceptions.NoSuchDistribution:
             self.fail('should not raise')
         mock_factory().client('cloudfront').get_distribution_config.assert_called_once()
@@ -448,12 +482,8 @@ class CloudFront(BaseTest):
                 "name": "test_streaming_distribution_logging_enabled",
                 "resource": "streaming-distribution",
                 "filters": [
-                    {
-                        "type": "distribution-config",
-                        "key": "Logging.Enabled",
-                        "value": True
-                    }
-                ]
+                    {"type": "distribution-config", "key": "Logging.Enabled", "value": True}
+                ],
             },
             session_factory=factory,
         )
@@ -461,8 +491,7 @@ class CloudFront(BaseTest):
         resources = p.run()
 
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]['c7n:distribution-config']['Logging']['Enabled'],
-            True)
+        self.assertEqual(resources[0]['c7n:distribution-config']['Logging']['Enabled'], True)
 
     def test_streaming_distribution_check_logging_enabled_error(self):
         factory = self.replay_flight_data("test_streaming_distribution_check_logging_enabled")
@@ -471,31 +500,27 @@ class CloudFront(BaseTest):
         mock_factory = MagicMock()
         mock_factory.region = 'us-east-1'
         mock_factory().client(
-            'cloudfront').exceptions.NoSuchStreamingDistribution = (
-                client.exceptions.NoSuchStreamingDistribution)
+            'cloudfront'
+        ).exceptions.NoSuchStreamingDistribution = client.exceptions.NoSuchStreamingDistribution
 
-        mock_factory().client('cloudfront').get_streaming_distribution_config.side_effect = (
-            client.exceptions.NoSuchStreamingDistribution(
-                {'Error': {'Code': 'xyz'}},
-                operation_name='get_streaming_distribution_config'))
+        mock_factory().client(
+            'cloudfront'
+        ).get_streaming_distribution_config.side_effect = client.exceptions.NoSuchStreamingDistribution(
+            {'Error': {'Code': 'xyz'}}, operation_name='get_streaming_distribution_config'
+        )
         p = self.load_policy(
             {
                 "name": "test_streaming_distribution_logging_enabled",
                 "resource": "streaming-distribution",
                 "filters": [
-                    {
-                        "type": "distribution-config",
-                        "key": "Logging.Enabled",
-                        "value": True
-                    }
-                ]
+                    {"type": "distribution-config", "key": "Logging.Enabled", "value": True}
+                ],
             },
             session_factory=mock_factory,
         )
 
         try:
-            p.resource_manager.filters[0].process(
-                [{'Id': 'abc'}])
+            p.resource_manager.filters[0].process([{'Id': 'abc'}])
         except client.exceptions.NoSuchDistribution:
             self.fail('should not raise')
         mock_factory().client('cloudfront').get_streaming_distribution_config.assert_called_once()
@@ -543,9 +568,7 @@ class CloudFront(BaseTest):
 
         client = local_session(factory).client("cloudfront")
         resp = client.list_streaming_distributions()
-        self.assertEqual(
-            resp["StreamingDistributionList"]["Items"][0]["Enabled"], False
-        )
+        self.assertEqual(resp["StreamingDistributionList"]["Items"][0]["Enabled"], False)
 
     def test_streaming_distribution_tag(self):
         factory = self.replay_flight_data("test_streaming_distrbution_tag")
@@ -572,7 +595,7 @@ class CloudFront(BaseTest):
             {
                 "name": "cloudfront-tagging-us-east-1",
                 "resource": "distribution",
-                "filters": [{"tag:tag": "present"}]
+                "filters": [{"tag:tag": "present"}],
             },
             config=dict(region='us-east-1'),
             session_factory=factory,
@@ -582,7 +605,7 @@ class CloudFront(BaseTest):
             {
                 "name": "cloudfront-tagging-us-west-2",
                 "resource": "distribution",
-                "filters": [{"tag:tag": "present"}]
+                "filters": [{"tag:tag": "present"}],
             },
             config=dict(region='us-west-2'),
             session_factory=factory,
@@ -595,8 +618,8 @@ class CloudFront(BaseTest):
 
     def test_cloudfront_update_deep_attribute(self):
         factory = self.replay_flight_data(
-            "test_distribution_update_deep_attribute",
-            region="us-east-2")
+            "test_distribution_update_deep_attribute", region="us-east-2"
+        )
         p = self.load_policy(
             {
                 "name": "cloudfront-update-tls",
@@ -644,13 +667,12 @@ class CloudFront(BaseTest):
         # Check attribute updated by policy action
         self.assertEqual(
             resp['DistributionConfig']['ViewerCertificate']['MinimumProtocolVersion'],
-            'TLSv1.2_2018'
+            'TLSv1.2_2018',
         )
 
         # Check deep attribute from original configuration
         self.assertEqual(
-            resp['DistributionConfig']['ViewerCertificate']['CertificateSource'],
-            'acm'
+            resp['DistributionConfig']['ViewerCertificate']['CertificateSource'], 'acm'
         )
 
     def test_cloudfront_update_distribution(self):
@@ -677,8 +699,8 @@ class CloudFront(BaseTest):
                                 "IncludeCookies": False,
                                 "Bucket": 'test-logging.s3.amazonaws.com',
                                 "Prefix": '',
-                            }
-                        }
+                            },
+                        },
                     }
                 ],
             },
@@ -693,9 +715,7 @@ class CloudFront(BaseTest):
         client = local_session(factory).client("cloudfront")
         dist_id = resources[0]['Id']
         resp = client.get_distribution_config(Id=dist_id)
-        self.assertEqual(
-            resp['DistributionConfig']['Logging']['Enabled'], True
-        )
+        self.assertEqual(resp['DistributionConfig']['Logging']['Enabled'], True)
 
     def test_cloudfront_update_streaming_distribution(self):
         factory = self.replay_flight_data("test_distribution_update_streaming_distribution")
@@ -719,7 +739,7 @@ class CloudFront(BaseTest):
                                 "Bucket": 'test-streaming-distribution-logging.s3.amazonaws.com',
                                 "Prefix": '',
                             }
-                        }
+                        },
                     }
                 ],
             },
@@ -734,14 +754,10 @@ class CloudFront(BaseTest):
         client = local_session(factory).client("cloudfront")
         dist_id = resources[0]['Id']
         resp = client.get_streaming_distribution_config(Id=dist_id)
-        self.assertEqual(
-            resp['StreamingDistributionConfig']['Logging']['Enabled'], True
-        )
+        self.assertEqual(resp['StreamingDistributionConfig']['Logging']['Enabled'], True)
 
     def test_cloudfront_post_finding(self):
-        factory = self.replay_flight_data(
-            "test_distribution_post_finding",
-            region="us-east-2")
+        factory = self.replay_flight_data("test_distribution_post_finding", region="us-east-2")
         p = self.load_policy(
             {
                 "name": "cloudfront-post-finding",
@@ -762,9 +778,7 @@ class CloudFront(BaseTest):
                         "type": "post-finding",
                         "compliance_status": "FAILED",
                         "description": "Deprecated TLS version support",
-                        "types": [
-                            "Software and Configuration Checks/AWS Security Best Practices"
-                        ],
+                        "types": ["Software and Configuration Checks/AWS Security Best Practices"],
                     },
                 ],
             },
@@ -778,18 +792,18 @@ class CloudFront(BaseTest):
         shape_validate(
             formatted_resource['Details']['AwsCloudFrontDistribution'],
             'AwsCloudFrontDistributionDetails',
-            'securityhub')
+            'securityhub',
+        )
 
 
 class CloudFrontWafV2(BaseTest):
-
     def test_wafv2(self):
         factory = self.replay_flight_data("test_distribution_wafv2")
         p = self.load_policy(
             {
                 "name": "wafv2-cfront",
                 "resource": "distribution",
-                "filters": [{"type": "wafv2-enabled", "state": False}]
+                "filters": [{"type": "wafv2-enabled", "state": False}],
             },
             session_factory=factory,
         )

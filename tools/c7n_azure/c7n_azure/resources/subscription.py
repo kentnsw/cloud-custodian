@@ -3,10 +3,12 @@
 
 from azure.mgmt.resource.policy.models import PolicyAssignment
 from azure.mgmt.resource import SubscriptionClient
+from azure.mgmt.monitor import MonitorManagementClient
 
 from c7n.actions import BaseAction
 from c7n.exceptions import PolicyValidationError
 from c7n.filters.missing import Missing
+from c7n.filters.core import ValueFilter
 from c7n.manager import ResourceManager
 from c7n.utils import local_session, type_schema
 
@@ -72,15 +74,105 @@ class Subscription(ResourceManager, metaclass=QueryMeta):
 Subscription.filter_registry.register('missing', Missing)
 
 
+@Subscription.filter_registry.register('diagnostic-settings')
+class SubscriptionDiagnosticSettingFilter(ValueFilter):
+    """Filter by diagnostic settings for this subscription
+
+    Each diagnostic setting for the subscription is made available to the filter. The data format
+    is the result of making the following Azure API call and extracting the "value" property:
+    https://learn.microsoft.com/en-us/rest/api/monitor/subscription-diagnostic-settings/list?tabs=HTTP
+
+    :example:
+
+    Example JSON document showing the data format provided to the filter
+
+    .. code-block:: json
+        {
+          "id": "...",
+          "name": "...",
+          "properties": {
+            "eventHubAuthorizationRuleId": "...",
+            "eventHubName": "...",
+            "logs": [
+              { "category": "Administrative", "enabled": true },
+              { "category": "Security", "enabled": false }
+            ],
+            "marketplacePartnerId": "...",
+            "serviceBusRuleId": "...",
+            "storageAccountId": "...",
+            "workspaceId": "..."
+          },
+          "systemData": {}
+          "type": "..."
+        }
+
+    :example:
+
+    Check if the subscription has Security logs enabled in at least one setting
+
+    .. code-block:: yaml
+
+        policies:
+          - name: subscription-security-logs-enabled
+            resource: azure.subscription
+            filters:
+              - not:
+                - type: diagnostic-settings
+                  key: "properties.logs[?category == 'Security'].enabled[]"
+                  op: contains
+                  value: true
+
+    """
+
+    cache_key = 'c7n:diagnostic-settings'
+
+    schema = type_schema('diagnostic-settings', rinherit=ValueFilter.schema)
+
+    def _get_subscription_diagnostic_settings(self, session, subscription_id):
+        client = MonitorManagementClient(session.get_credentials(), subscription_id=subscription_id)
+
+        query = client.subscription_diagnostic_settings.list(subscription_id)
+
+        settings = query.serialize(True).get('value', [])
+
+        # put an empty item in when no diag settings so the absent operator can function
+        if not settings:
+            settings = [{}]
+
+        return settings
+
+    def process(self, resources, event=None):
+        session = local_session(self.manager.session_factory)
+
+        matched = []
+        for resource in resources:
+            subscription_id = resource['subscriptionId']
+
+            if self.cache_key in resource:
+                settings = resource[self.cache_key]
+            else:
+                settings = self._get_subscription_diagnostic_settings(session, subscription_id)
+                resource[self.cache_key] = settings
+
+            filtered_settings = super().process(settings, event=None)
+
+            if filtered_settings:
+                matched.append(resource)
+
+        return matched
+
+
 @Subscription.action_registry.register('add-policy')
 class AddPolicy(BaseAction):
 
-    schema = type_schema('add-policy',
+    schema = type_schema(
+        'add-policy',
         required=['name', 'display_name', 'definition_name'],
         scope={'type': 'string'},
         definition_name={'type': 'string'},
         name={'type': 'string'},
-        display_name={'type': 'string'})
+        display_name={'type': 'string'},
+    )
 
     policyDefinitionPrefix = '/providers/Microsoft.Authorization/policyDefinitions/'
 
@@ -93,30 +185,35 @@ class AddPolicy(BaseAction):
         self.policyDefinitionName = self.data['definition_name']
 
     def _get_definition_id(self, name):
-        return next((r for r in self.policyClient.policy_definitions.list()
-                     if name == r.display_name or name == r.id or name == r.name), None)
+        return next(
+            (
+                r
+                for r in self.policyClient.policy_definitions.list()
+                if name == r.display_name or name == r.id or name == r.name
+            ),
+            None,
+        )
 
     def _add_policy(self, subscription):
         parameters = PolicyAssignment(
-            display_name=self.displayName,
-            policy_definition_id=self.policyDefinition.id)
+            display_name=self.displayName, policy_definition_id=self.policyDefinition.id
+        )
         self.policyClient.policy_assignments.create(
-            scope=self.scope,
-            policy_assignment_name=self.paName,
-            parameters=parameters
+            scope=self.scope, policy_assignment_name=self.paName, parameters=parameters
         )
 
     def process(self, subscriptions):
         self.session = local_session(self.manager.session_factory)
         self.policyClient = self.session.client("azure.mgmt.resource.policy.PolicyClient")
 
-        self.scope = '/subscriptions/' + self.session.subscription_id + \
-                     '/' + self.data.get('scope', '')
+        self.scope = (
+            '/subscriptions/' + self.session.subscription_id + '/' + self.data.get('scope', '')
+        )
         self.policyDefinition = self._get_definition_id(self.policyDefinitionName)
         if self.policyDefinition is None:
             raise PolicyValidationError(
-                "Azure Policy Definition '%s' not found." % (
-                    self.policyDefinitionName))
+                "Azure Policy Definition '%s' not found." % (self.policyDefinitionName)
+            )
 
         for s in subscriptions:
             self._add_policy(s)

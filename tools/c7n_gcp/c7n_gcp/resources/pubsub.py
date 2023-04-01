@@ -11,25 +11,29 @@ todo, needs detail_spec
 """
 
 
+class PubSubTypeInfo(TypeInfo):
+    service = 'pubsub'
+    version = 'v1'
+    scope_template = 'projects/{}'
+    name = id = "name"
+    urn_id_segments = (-1,)  # Just use the last segment of the id in the URN
+
+
 @resources.register('pubsub-topic')
 class PubSubTopic(QueryResourceManager):
-    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.topics
-    """
-    class resource_type(TypeInfo):
-        service = 'pubsub'
-        version = 'v1'
+    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.topics"""
+
+    class resource_type(PubSubTypeInfo):
         component = 'projects.topics'
         enum_spec = ('list', 'topics[]', None)
-        scope_template = "projects/{}"
-        name = id = "name"
         default_report_fields = ["name", "kmsKeyName"]
         asset_type = "pubsub.googleapis.com/Topic"
         metric_key = "resource.labels.topic_id"
+        urn_component = "topic"
 
         @staticmethod
         def get(client, resource_info):
-            return client.execute_command(
-                'get', {'topic': resource_info['topic_id']})
+            return client.execute_command('get', {'topic': resource_info['topic_id']})
 
 
 @PubSubTopic.action_registry.register('delete')
@@ -44,25 +48,25 @@ class DeletePubSubTopic(MethodAction):
 
 @resources.register('pubsub-subscription')
 class PubSubSubscription(QueryResourceManager):
-    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions
-    """
-    class resource_type(TypeInfo):
-        service = 'pubsub'
-        version = 'v1'
+    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions"""
+
+    class resource_type(PubSubTypeInfo):
         component = 'projects.subscriptions'
         enum_spec = ('list', 'subscriptions[]', None)
-        scope_template = 'projects/{}'
-        name = id = 'name'
         default_report_fields = [
-            "name", "topic", "ackDeadlineSeconds",
-            "retainAckedMessages", "messageRetentionDuration"]
+            "name",
+            "topic",
+            "ackDeadlineSeconds",
+            "retainAckedMessages",
+            "messageRetentionDuration",
+        ]
         asset_type = "pubsub.googleapis.com/Subscription"
         metric_key = 'resource.labels.subscription_id'
+        urn_component = "subscription"
 
         @staticmethod
         def get(client, resource_info):
-            return client.execute_command(
-                'get', {'subscription': resource_info['subscription_id']})
+            return client.execute_command('get', {'subscription': resource_info['subscription_id']})
 
 
 @PubSubSubscription.action_registry.register('delete')
@@ -77,17 +81,13 @@ class DeletePubSubSubscription(MethodAction):
 
 @resources.register('pubsub-snapshot')
 class PubSubSnapshot(QueryResourceManager):
-    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.snapshots
-    """
-    class resource_type(TypeInfo):
-        service = 'pubsub'
-        version = 'v1'
+    """GCP resource: https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.snapshots"""
+
+    class resource_type(PubSubTypeInfo):
         component = 'projects.snapshots'
         enum_spec = ('list', 'snapshots[]', None)
-        scope_template = 'projects/{}'
-        name = id = 'name'
-        default_report_fields = [
-            "name", "topic", "expireTime"]
+        default_report_fields = ["name", "topic", "expireTime"]
+        urn_component = "snapshot"
 
 
 @PubSubSnapshot.action_registry.register('delete')

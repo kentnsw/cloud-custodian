@@ -356,10 +356,15 @@ class EmailTest(unittest.TestCase):
     def test_get_ldap_connection(self):
         with patch("c7n_mailer.email_delivery.decrypt") as patched:
             patched.return_value = "a password"
-            delivery = EmailDelivery(
-                {"ldap_uri": "foo"},
-                self.aws_session,
-                MagicMock()
-            )
+            delivery = EmailDelivery({"ldap_uri": "foo"}, self.aws_session, MagicMock())
             patched.assert_called()
             self.assertEqual(delivery.config['ldap_bind_password'], "a password")
+
+    def test_get_valid_emails_from_list_gcp(self):
+        delivery = EmailDelivery(
+            {'ldap_uri': 'foo', 'email_base_url': 'example.com'}, self.aws_session, MagicMock()
+        )
+        result = delivery.get_valid_emails_from_list(['resource-owner', 'foo:bar'])
+        self.assertEqual(len(result), 2)
+        self.assertTrue('foo@example.com' in result)
+        self.assertTrue('bar@example.com' in result)

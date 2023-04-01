@@ -37,22 +37,27 @@ class Client:
     About CommonClient:
         https://cloud.tencent.com/document/sdk/Python Comment Client section
     """
+
     MAX_REQUEST_TIMES = 100
     MAX_RESPONSE_DATA_COUNT = 10000
 
-    def __init__(self,
-                 cred: credential.Credential,
-                 service: str,
-                 version: str,
-                 profile: ClientProfile,
-                 region: str) -> None:
+    def __init__(
+        self,
+        cred: credential.Credential,
+        service: str,
+        version: str,
+        profile: ClientProfile,
+        region: str,
+    ) -> None:
         self._cli = CommonClient(service, version, cred, region, profile)
 
-    @retry(retry_on_exception=retry_exception,
-           retry_on_result=retry_result,
-           wait_exponential_multiplier=100,
-           wait_exponential_max=1000,
-           stop_max_attempt_number=5)
+    @retry(
+        retry_on_exception=retry_exception,
+        retry_on_result=retry_result,
+        wait_exponential_multiplier=100,
+        wait_exponential_max=1000,
+        stop_max_attempt_number=5,
+    )
     def execute_query(self, action: str, params: dict) -> dict:
         """
         Call the client method and get the resources.
@@ -65,8 +70,9 @@ class Client:
         resp = self._cli.call_json(action, params)
         return resp
 
-    def execute_paged_query(self, action: str, params: dict,
-                            jsonpath: str, paging_def: dict) -> list:
+    def execute_paged_query(
+        self, action: str, params: dict, jsonpath: str, paging_def: dict
+    ) -> list:
         """
         Call the client method and get the resource, the paging query is automatically filled.
         """
@@ -82,13 +88,18 @@ class Client:
             if not pagination_token_path:
                 raise PolicyExecutionError("config to use pagination_token but not set token path")
             params[paging_def["limit"]["key"]] = paging_def["limit"]["value"]
+        elif paging_method == PageMethod.Page:
+            params[PageMethod.Page.name] = 1
+            params[paging_def["limit"]["key"]] = paging_def["limit"]["value"]
         else:
             raise PolicyExecutionError("unsupported paging method")
 
         query_counter = 1
         while True:
-            if (query_counter > self.MAX_REQUEST_TIMES
-            or len(results) > self.MAX_RESPONSE_DATA_COUNT):
+            if (
+                query_counter > self.MAX_REQUEST_TIMES
+                or len(results) > self.MAX_RESPONSE_DATA_COUNT
+            ):
                 raise PolicyExecutionError("get too many resources from cloud provider")
 
             # some api Offset and Limit fields are string
@@ -104,8 +115,14 @@ class Client:
                     if len(items) < int(paging_def["limit"]["value"]):
                         # no more data
                         break
-                    params[PageMethod.Offset.name] = int(params[PageMethod.Offset.name]) +\
-                        int(paging_def["limit"]["value"])
+                    params[PageMethod.Offset.name] = int(params[PageMethod.Offset.name]) + int(
+                        paging_def["limit"]["value"]
+                    )
+                elif paging_method == PageMethod.Page:
+                    if len(items) < int(paging_def["limit"]["value"]):
+                        # no more data
+                        break
+                    params[paging_method.name] = int(params[paging_method.name]) + 1
                 else:
                     token = jmespath.search(pagination_token_path, result)
                     if token == "":
@@ -118,6 +135,7 @@ class Client:
 
 class Session:
     """Session"""
+
     def __init__(self) -> None:
         """
         credential_file contains secret_id and secret_key.
@@ -134,8 +152,8 @@ class Session:
         # so we need to check for the token first
         if 'TENCENTCLOUD_TOKEN' in os.environ:
             if (
-                'TENCENTCLOUD_SECRET_ID' not in os.environ or
-                'TENCENTCLOUD_SECRET_KEY' not in os.environ
+                'TENCENTCLOUD_SECRET_ID' not in os.environ
+                or 'TENCENTCLOUD_SECRET_KEY' not in os.environ
             ):
                 raise TencentCloudSDKException(
                     'TENCENTCLOUD_TOKEN provided, but one of TENCENTCLOUD_SECRET_ID'
@@ -144,17 +162,25 @@ class Session:
             cred = credential.Credential(
                 secret_id=os.environ['TENCENTCLOUD_SECRET_ID'],
                 secret_key=os.environ['TENCENTCLOUD_SECRET_KEY'],
-                token=os.environ['TENCENTCLOUD_TOKEN']
+                token=os.environ['TENCENTCLOUD_TOKEN'],
             )
             cred_provider.cred = cred
 
         self._cred = cred_provider.get_credentials()
 
-    def client(self,
-               endpoint: str,
-               service: str,
-               version: str,
-               region: str) -> Client:
+    @property
+    def secret_id(self):
+        return self._cred.secret_id
+
+    @property
+    def secret_key(self):
+        return self._cred.secret_key
+
+    @property
+    def token(self):
+        return self._cred.token
+
+    def client(self, endpoint: str, service: str, version: str, region: str) -> Client:
         """client"""
         http_profile = HttpProfile()
 

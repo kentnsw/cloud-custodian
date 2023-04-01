@@ -85,7 +85,6 @@ class GoogleFlightRecorder(CustodianTestCore):
 
 
 class FlightRecorderTest(TestUtils):
-
     def cleanUp(self):
         LOCAL_THREAD.http = None
         return super(FlightRecorderTest, self).cleanUp()
@@ -113,10 +112,14 @@ class FlightRecorderTest(TestUtils):
         if not os.path.exists(test_dir):
             raise RuntimeError("Invalid Test Dir for flight data %s" % test_dir)
 
+        if project_id is None:
+            project_id = PROJECT_ID
+
         self.addCleanup(self.cleanUp)
-        bound = {'http': HttpReplay(test_dir, discovery_dir)}
-        if project_id:
-            bound['project_id'] = project_id
+        bound = {
+            'http': HttpReplay(test_dir, discovery_dir),
+            'project_id': project_id,
+        }
         return functools.partial(Session, **bound)
 
 

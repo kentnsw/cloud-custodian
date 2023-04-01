@@ -6,12 +6,13 @@ import docker
 import json
 
 from collections import defaultdict
+from distutils import version
 from datetime import datetime, timedelta
 from dateutil.tz import tzoffset, tzutc
 from dateutil.parser import parse as parse_date
 from functools import reduce
 import operator
-
+import re
 
 from c7n.resources import load_available
 from c7n.schema import resource_outline
@@ -50,7 +51,8 @@ aliases = {
     'packaging': 'tests',
     '0': 'release',
     'dep': 'core',
-    'ci': 'tests'}
+    'ci': 'tests',
+}
 
 skip = set(('release', 'merge'))
 
@@ -67,10 +69,7 @@ def resolve_dateref(since, repo):
 
 def schema_outline_from_docker(tag):
     client = docker.from_env()
-    result = client.containers.run(
-        f"cloudcustodian/c7n:{tag}",
-        "schema --outline --json"
-    )
+    result = client.containers.run(f"cloudcustodian/c7n:{tag}", "schema --outline --json")
     return json.loads(result)
 
 
@@ -124,11 +123,13 @@ def schema_diff(schema_old, schema_new):
             else:
                 for category in ('actions', 'filters'):
                     resources_map[resource][f"{category}_added"] = [
-                        item for item in resources_new[resource][category]
+                        item
+                        for item in resources_new[resource][category]
                         if item not in resources_old[resource][category]
                     ]
                     resources_map[resource][f"{category}_removed"] = [
-                        item for item in resources_old[resource][category]
+                        item
+                        for item in resources_old[resource][category]
                         if item not in resources_new[resource][category]
                     ]
 
@@ -136,10 +137,12 @@ def schema_diff(schema_old, schema_new):
     # don't want these to be repeated over and over for each resource:
     global_map = {}
     for category in ('actions', 'filters'):
-        added = global_map[f"{category}_added"] = reduce(operator.and_, [
-            set(rsrc[f"{category}_added"]) for rsrc in resources_map.values()])
-        removed = global_map[f"{category}_removed"] = reduce(operator.and_, [
-            set(rsrc[f"{category}_removed"]) for rsrc in resources_map.values()])
+        added = global_map[f"{category}_added"] = reduce(
+            operator.and_, [set(rsrc[f"{category}_added"]) for rsrc in resources_map.values()]
+        )
+        removed = global_map[f"{category}_removed"] = reduce(
+            operator.and_, [set(rsrc[f"{category}_removed"]) for rsrc in resources_map.values()]
+        )
         if added:
             added_str = listify(
                 [link(category=category, element=el) for el in added],
@@ -150,12 +153,10 @@ def schema_diff(schema_old, schema_new):
             out.append(f"- removed common {category}: {listify(removed)}")
         for resource, attrs in resources_map.items():
             attrs[f'{category}_added'] = [
-                item for item in attrs[f'{category}_added']
-                if item not in added
+                item for item in attrs[f'{category}_added'] if item not in added
             ]
             attrs[f'{category}_removed'] = [
-                item for item in attrs[f'{category}_removed']
-                if item not in removed
+                item for item in attrs[f'{category}_removed'] if item not in removed
             ]
 
     for resource, attrs in resources_map.items():
@@ -165,16 +166,21 @@ def schema_diff(schema_old, schema_new):
                 added = attrs[f'{category}_added']
                 removed = attrs[f'{category}_removed']
                 if added:
-                    added = [
-                        link(resource=resource, category=category, element=el)
-                        for el in added
-                    ]
-                    out.append(f"  - added {category}: "
-                               f"{listify(added, bt=False)}")
+                    added = [link(resource=resource, category=category, element=el) for el in added]
+                    out.append(f"  - added {category}: " f"{listify(added, bt=False)}")
                 if removed:
                     out.append(f"  - removed {category}: {listify(removed)}")
 
     return "\n".join(out) + "\n"
+
+
+def get_last_release(repo):
+    regex = re.compile('^refs/tags/[\d\.]+')
+    versions = [
+        version.LooseVersion(t.rsplit('/', 1)[-1]) for t in repo.references if regex.match(t)
+    ]
+    versions = sorted(versions)
+    return versions[-1].vstring
 
 
 @click.command()
@@ -185,6 +191,8 @@ def schema_diff(schema_old, schema_new):
 @click.option('--user', multiple=True)
 def main(path, output, since, end, user):
     repo = pygit2.Repository(path)
+    if since in ('latest', 'current', 'last'):
+        since = get_last_release(repo)
     if since:
         since_dateref = resolve_dateref(since, repo)
     if end:
@@ -192,8 +200,7 @@ def main(path, output, since, end, user):
 
     groups = {}
     count = 0
-    for commit in repo.walk(
-            repo.head.target):
+    for commit in repo.walk(repo.head.target):
         cdate = commit_date(commit)
         if since and cdate <= since_dateref:
             break
@@ -235,6 +242,7 @@ def main(path, output, since, end, user):
         count += 1
 
     import pprint
+
     print('total commits %d' % count)
     pprint.pprint(dict([(k, len(groups[k])) for k in groups]))
 

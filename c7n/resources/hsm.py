@@ -9,13 +9,11 @@ from c7n.utils import local_session, type_schema
 
 
 class DescribeCloudHSMCluster(DescribeSource):
-
     def get_resources(self, resource_ids, cache=True):
         client = local_session(self.manager.session_factory).client('cloudhsmv2')
         return self.manager.retry(
-            client.describe_clusters,
-            Filters={
-                'clusterIds': resource_ids}).get('Clusters', ())
+            client.describe_clusters, Filters={'clusterIds': resource_ids}
+        ).get('Clusters', ())
 
     def augment(self, resources):
         for r in resources:
@@ -25,7 +23,6 @@ class DescribeCloudHSMCluster(DescribeSource):
 
 @resources.register('cloudhsm-cluster')
 class CloudHSMCluster(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudhsmv2'
         arn_type = 'cluster'
@@ -34,9 +31,7 @@ class CloudHSMCluster(QueryResourceManager):
         id = name = 'ClusterId'
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribeCloudHSMCluster
-    }
+    source_mapping = {'describe': DescribeCloudHSMCluster}
 
 
 @CloudHSMCluster.filter_registry.register('subnet')
@@ -63,13 +58,15 @@ class DeleteHSMCluster(BaseAction):
         resources = self.filter_resources(resources, 'State', self.valid_origin_states)
         client = local_session(self.manager.session_factory).client('cloudhsmv2')
         for r in resources:
-            self.manager.retry(client.delete_cluster, ClusterId=r['ClusterId'], ignore_err_codes=(
-                'CloudHsmResourceNotFoundException',))
+            self.manager.retry(
+                client.delete_cluster,
+                ClusterId=r['ClusterId'],
+                ignore_err_codes=('CloudHsmResourceNotFoundException',),
+            )
 
 
 @resources.register('hsm')
 class CloudHSM(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudhsm'
         enum_spec = ('list_hsms', 'HsmList', None)
@@ -90,7 +87,6 @@ class CloudHSM(QueryResourceManager):
 
 @resources.register('hsm-hapg')
 class PartitionGroup(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudhsm'
         enum_spec = ('list_hapgs', 'HapgList', None)
@@ -102,7 +98,6 @@ class PartitionGroup(QueryResourceManager):
 
 @resources.register('hsm-client')
 class HSMClient(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudhsm'
         enum_spec = ('list_luna_clients', 'ClientList', None)

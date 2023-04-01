@@ -6,7 +6,6 @@ from c7n_gcp.provider import resources
 
 @resources.register('build')
 class CloudBuild(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudbuild'
         version = 'v1'
@@ -17,3 +16,6 @@ class CloudBuild(QueryResourceManager):
         name = id = "id"
         default_report_fields = ["status", "startTime", "logsURL"]
         permissions = ('cloudbuild.builds.list',)
+
+        # Lacking a test so can't confirm any URN.
+        urn_component = "build"

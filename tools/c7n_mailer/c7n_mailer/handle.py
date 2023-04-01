@@ -36,6 +36,7 @@ def start_c7n_mailer(logger, config=None, parallel=False):
         # TODO provide sentTimestamp by converting publishTime of the message
         if "gcp_queue_url" in config:
             from .queue_processor_pubsub import MailerPubSubProcessor
+
             processor_gcp = MailerPubSubProcessor(config, logger, processor=processor_aws)
             processor_gcp.run()
 

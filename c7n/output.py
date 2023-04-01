@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 
 from c7n.exceptions import InvalidOutputConfig
 from c7n.registry import PluginRegistry
-from c7n.utils import parse_url_config
+from c7n.utils import parse_url_config, join_output_path
 
 try:
     import psutil
@@ -47,14 +47,11 @@ class OutputRegistry(PluginRegistry):
         if '://' not in selector and selector in self:
             selector = "{}://".format(selector)
         elif self.default_protocol and '://' not in selector:
-            selector = "{}://{}".format(
-                self.default_protocol, selector)
+            selector = "{}://{}".format(self.default_protocol, selector)
         for k in self.keys():
             if selector.startswith(k):
                 return self[k](ctx, parse_url_config(selector))
-        raise InvalidOutputConfig("Invalid %s: %s" % (
-            self.plugin_type,
-            selector))
+        raise InvalidOutputConfig("Invalid %s: %s" % (self.plugin_type, selector))
 
 
 class BlobOutputRegistry(OutputRegistry):
@@ -68,7 +65,6 @@ class LogOutputRegistry(OutputRegistry):
 
 
 class MetricsRegistry(OutputRegistry):
-
     def select(self, selector, ctx):
         # Compatibility for boolean configuration
         if isinstance(selector, bool) and selector:
@@ -90,23 +86,21 @@ class NullTracer:
 
     Uses native cloud provider integration (xray, stack driver trace).
     """
+
     def __init__(self, ctx, config=None):
         self.ctx = ctx
         self.config = config or {}
 
     @contextlib.contextmanager
     def subsegment(self, name):
-        """Create a named subsegment as a context manager
-        """
+        """Create a named subsegment as a context manager"""
         yield self
 
     def __enter__(self):
-        """Enter main segment for policy execution.
-        """
+        """Enter main segment for policy execution."""
 
     def __exit__(self, exc_type=None, exc_value=None, exc_traceback=None):
-        """Exit main segment for policy execution.
-        """
+        """Exit main segment for policy execution."""
 
 
 class DeltaStats:
@@ -115,6 +109,7 @@ class DeltaStats:
     Popping the stack automatically creates a delta of the last
     stack element to the current stats.
     """
+
     def __init__(self, ctx, config=None):
         self.ctx = ctx
         self.config = config or {}
@@ -124,8 +119,7 @@ class DeltaStats:
         self.snapshot_stack.append(self.get_snapshot())
 
     def pop_snapshot(self):
-        return self.delta(
-            self.snapshot_stack.pop(), self.get_snapshot())
+        return self.delta(self.snapshot_stack.pop(), self.get_snapshot())
 
     def get_snapshot(self):
         return {}
@@ -159,28 +153,24 @@ class NullStats:
         """Take a snapshot of the system stats and append to the stack."""
 
     def pop_snapshot(self):
-        """Remove a snapshot from the stack and return a delta of the current stats to it.
-        """
+        """Remove a snapshot from the stack and return a delta of the current stats to it."""
         return {}
 
     def get_metadata(self):
-        """Return default of current to last snapshot, without popping.
-        """
+        """Return default of current to last snapshot, without popping."""
         return {}
 
     def __enter__(self):
-        """Push a snapshot
-        """
+        """Push a snapshot"""
 
     def __exit__(self, exc_type=None, exc_value=None, exc_traceback=None):
-        """Pop a snapshot
-        """
+        """Pop a snapshot"""
 
 
 @sys_stats_outputs.register('psutil', condition=HAVE_PSUTIL)
 class SystemStats(DeltaStats):
-    """Collect process statistics via psutil as deltas over policy execution.
-    """
+    """Collect process statistics via psutil as deltas over policy execution."""
+
     def __init__(self, ctx, config=None):
         super(SystemStats, self).__init__(ctx, config)
         self.process = psutil.Process(os.getpid())
@@ -200,7 +190,7 @@ class SystemStats(DeltaStats):
         snapshot = {
             'num_threads': self.process.num_threads(),
             'snapshot_time': time.time(),
-            'cache_size': self.ctx.policy.get_cache().size()
+            'cache_size': self.ctx.policy.get_cache().size(),
         }
 
         # no num_fds on Windows, but likely num_handles
@@ -215,24 +205,22 @@ class SystemStats(DeltaStats):
             cpu_time = self.process.cpu_times()
             snapshot['cpu_user'] = cpu_time.user
             snapshot['cpu_system'] = cpu_time.system
-            (snapshot['num_ctx_switches_voluntary'],
-                snapshot['num_ctx_switches_involuntary']) = self.process.num_ctx_switches()
+            (
+                snapshot['num_ctx_switches_voluntary'],
+                snapshot['num_ctx_switches_involuntary'],
+            ) = self.process.num_ctx_switches()
             # io counters ( not available on osx)
             if getattr(self.process, 'io_counters', None):
                 try:
                     io = self.process.io_counters()
-                    for counter in (
-                            'read_count', 'write_count',
-                            'write_bytes', 'read_bytes'):
+                    for counter in ('read_count', 'write_count', 'write_bytes', 'read_bytes'):
                         snapshot[counter] = getattr(io, counter)
                 except NotImplementedError:
                     # some old kernels and Windows Linux Subsystem throw this
                     pass
             # memory counters
             mem = self.process.memory_info()
-            for counter in (
-                    'rss', 'vms', 'shared', 'text', 'data', 'lib',
-                    'pfaults', 'pageins'):
+            for counter in ('rss', 'vms', 'shared', 'text', 'data', 'lib', 'pfaults', 'pageins'):
                 v = getattr(mem, counter, None)
                 if v is not None:
                     snapshot[counter] = v
@@ -281,6 +269,7 @@ class LogMetrics(Metrics):
 
     logs metrics, default handler should send to stderr
     """
+
     def _put_metrics(self, ns, metrics):
         for m in metrics:
             if m['MetricName'] not in ('ActionTime', 'ResourceTime'):
@@ -293,14 +282,11 @@ class LogMetrics(Metrics):
         return label
 
     def _format_metric(self, key, value, unit, dimensions):
-        d = {
-            "MetricName": key,
-            "Timestamp": datetime.datetime.now(),
-            "Value": value,
-            "Unit": unit}
+        d = {"MetricName": key, "Timestamp": datetime.datetime.now(), "Value": value, "Unit": unit}
         d["Dimensions"] = [
             {"Name": "Policy", "Value": self.ctx.policy.name},
-            {"Name": "ResType", "Value": self.ctx.policy.resource_type}]
+            {"Name": "ResType", "Value": self.ctx.policy.resource_type},
+        ]
         for k, v in dimensions.items():
             d['Dimensions'].append({"Name": k, "Value": v})
         return d
@@ -356,14 +342,12 @@ class LogOutput:
 
 @log_outputs.register('default')
 class LogFile(LogOutput):
-
     def __repr__(self):
         return "<LogFile file://%s>" % self.log_path
 
     @property
     def log_path(self):
-        return os.path.join(
-            self.ctx.log_dir, 'custodian-run.log')
+        return os.path.join(self.ctx.log_dir, 'custodian-run.log')
 
     def get_handler(self):
         return logging.FileHandler(self.log_path)
@@ -443,7 +427,7 @@ class DirectoryOutput(OutputFileHandler):
 
         output_path = self.get_output_path(config['url'])
         if output_path.startswith('file://'):
-            output_path = output_path[len('file://'):]
+            output_path = output_path[len('file://') :]
 
         self.root_dir = output_path
         if self.root_dir and not os.path.exists(self.root_dir):
@@ -511,9 +495,10 @@ class BlobOutput(DirectoryOutput):
 
     def get_output_path(self, output_url):
         if '{' not in output_url:
-            date_path = datetime.datetime.utcnow().strftime('%Y/%m/%d/%H')
-            return "/".join(
-                [s.strip('/') for s in [output_url, self.ctx.policy.name, date_path]]
+            return join_output_path(
+                output_url.strip('/'),
+                self.ctx.policy.name,
+                datetime.datetime.utcnow().strftime('%Y/%m/%d/%H'),
             )
         return output_url.format(**self.get_output_vars()).rstrip('/')
 

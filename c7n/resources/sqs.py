@@ -22,16 +22,14 @@ from c7n.resources.securityhub import PostFinding
 
 
 class DescribeQueue(DescribeSource):
-
     def augment(self, resources):
         client = self.manager.get_client()
 
         def _augment(r):
             try:
                 queue = self.manager.retry(
-                    client.get_queue_attributes,
-                    QueueUrl=r,
-                    AttributeNames=['All'])['Attributes']
+                    client.get_queue_attributes, QueueUrl=r, AttributeNames=['All']
+                )['Attributes']
                 queue['QueueUrl'] = r
                 queue['QueueName'] = queue['QueueArn'].rsplit(':', 1)[-1]
             except ClientError as e:
@@ -44,12 +42,10 @@ class DescribeQueue(DescribeSource):
             return queue
 
         with self.manager.executor_factory(max_workers=2) as w:
-            return universal_augment(
-                self.manager, list(filter(None, w.map(_augment, resources))))
+            return universal_augment(self.manager, list(filter(None, w.map(_augment, resources))))
 
 
 class QueueConfigSource(ConfigSource):
-
     def load_resource(self, item):
         resource = super().load_resource(item)
         resource['QueueUrl'] = item['resourceId']
@@ -58,7 +54,6 @@ class QueueConfigSource(ConfigSource):
 
 @resources.register('sqs')
 class SQS(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'sqs'
         arn_type = ""
@@ -79,10 +74,7 @@ class SQS(QueryResourceManager):
             'ApproximateNumberOfMessages',
         )
 
-    source_mapping = {
-        'describe': DescribeQueue,
-        'config': QueueConfigSource
-    }
+    source_mapping = {'describe': DescribeQueue, 'config': QueueConfigSource}
 
     def get_client(self):
         # Work around the fact that boto picks a legacy endpoint by default
@@ -125,11 +117,8 @@ class SQS(QueryResourceManager):
 
 @SQS.filter_registry.register('metrics')
 class MetricsFilter(MetricsFilter):
-
     def get_dimensions(self, resource):
-        return [
-            {'Name': 'QueueName',
-             'Value': resource['QueueUrl'].rsplit('/', 1)[-1]}]
+        return [{'Name': 'QueueName', 'Value': resource['QueueUrl'].rsplit('/', 1)[-1]}]
 
 
 @SQS.filter_registry.register('cross-account')
@@ -146,6 +135,7 @@ class SQSCrossAccount(CrossAccountAccessFilter):
                 filters:
                   - type: cross-account
     """
+
     permissions = ('sqs:GetQueueAttributes',)
 
 
@@ -162,15 +152,18 @@ class SQSPostFinding(PostFinding):
 
     def format_resource(self, r):
         envelope, payload = self.format_envelope(r)
-        payload.update(self.filter_empty({
-            'KmsDataKeyReusePeriodSeconds': r.get('KmsDataKeyReusePeriodSeconds'),
-            'KmsMasterKeyId': r.get('KmsMasterKeyId'),
-            'QueueName': r['QueueArn'].split(':')[-1],
-            'DeadLetterTargetArn': r.get('DeadLetterTargetArn')
-        }))
+        payload.update(
+            self.filter_empty(
+                {
+                    'KmsDataKeyReusePeriodSeconds': r.get('KmsDataKeyReusePeriodSeconds'),
+                    'KmsMasterKeyId': r.get('KmsMasterKeyId'),
+                    'QueueName': r['QueueArn'].split(':')[-1],
+                    'DeadLetterTargetArn': r.get('DeadLetterTargetArn'),
+                }
+            )
+        )
         if 'KmsDataKeyReusePeriodSeconds' in payload:
-            payload['KmsDataKeyReusePeriodSeconds'] = int(
-                payload['KmsDataKeyReusePeriodSeconds'])
+            payload['KmsDataKeyReusePeriodSeconds'] = int(payload['KmsDataKeyReusePeriodSeconds'])
         return envelope
 
 
@@ -180,7 +173,7 @@ class HasStatementFilter(polstmt_filter.HasStatementFilter):
         return {
             'queue_arn': queue['QueueArn'],
             'account_id': self.manager.config.account_id,
-            'region': self.manager.config.region
+            'region': self.manager.config.region,
         }
 
 
@@ -211,8 +204,7 @@ class RemovePolicyStatement(RemovePolicyBase):
             try:
                 results += filter(None, [self.process_resource(client, r)])
             except Exception:
-                self.log.exception(
-                    "Error processing sqs:%s", r['QueueUrl'])
+                self.log.exception("Error processing sqs:%s", r['QueueUrl'])
         return results
 
     def process_resource(self, client, resource):
@@ -222,19 +214,16 @@ class RemovePolicyStatement(RemovePolicyBase):
 
         p = json.loads(resource['Policy'])
         statements, found = self.process_policy(
-            p, resource, CrossAccountAccessFilter.annotation_key)
+            p, resource, CrossAccountAccessFilter.annotation_key
+        )
 
         if not found:
             return
 
         for f in found:
-            client.remove_permission(
-                QueueUrl=resource['QueueUrl'],
-                Label=f['Sid'])
+            client.remove_permission(QueueUrl=resource['QueueUrl'], Label=f['Sid'])
 
-        return {'Name': resource['QueueUrl'],
-                'State': 'PolicyRemoved',
-                'Statements': found}
+        return {'Name': resource['QueueUrl'], 'State': 'PolicyRemoved', 'Statements': found}
 
 
 @SQS.action_registry.register('modify-policy')
@@ -261,6 +250,7 @@ class ModifyPolicyStatement(ModifyPolicyBase):
                             }]
                     remove-statements: '*'
     """
+
     permissions = ('sqs:SetQueueAttributes', 'sqs:GetQueueAttributes')
 
     def process(self, resources):
@@ -271,7 +261,8 @@ class ModifyPolicyStatement(ModifyPolicyBase):
             policy_statements = policy.setdefault('Statement', [])
 
             new_policy, removed = self.remove_statements(
-                policy_statements, r, CrossAccountAccessFilter.annotation_key)
+                policy_statements, r, CrossAccountAccessFilter.annotation_key
+            )
             if new_policy is None:
                 new_policy = policy_statements
             new_policy, added = self.add_statements(new_policy)
@@ -279,16 +270,11 @@ class ModifyPolicyStatement(ModifyPolicyBase):
             if not removed and not added:
                 continue
 
-            results += {
-                'Name': r['QueueUrl'],
-                'State': 'PolicyModified',
-                'Statements': new_policy
-            }
+            results += {'Name': r['QueueUrl'], 'State': 'PolicyModified', 'Statements': new_policy}
 
             policy['Statement'] = new_policy
             client.set_queue_attributes(
-                QueueUrl=r['QueueUrl'],
-                Attributes={'Policy': json.dumps(policy)}
+                QueueUrl=r['QueueUrl'], Attributes={'Policy': json.dumps(policy)}
             )
         return results
 
@@ -324,8 +310,7 @@ class DeleteSqsQueue(BaseAction):
     def process_queue(self, client, queue):
         try:
             client.delete_queue(QueueUrl=queue['QueueUrl'])
-        except (client.exceptions.QueueDoesNotExist,
-                client.exceptions.QueueDeletedRecently):
+        except (client.exceptions.QueueDoesNotExist, client.exceptions.QueueDeletedRecently):
             pass
 
 
@@ -349,12 +334,14 @@ class SetEncryption(BaseAction):
                   - type: set-encryption
                     key: "<alias of kms key>"
     """
+
     schema = type_schema(
         'set-encryption',
         **{
             "enabled": {'type': 'boolean'},
             "reuse-period": {'type': 'integer', 'minimum': 60, 'maximum': 86400},
-            "key": {'type': 'string'}}
+            "key": {'type': 'string'},
+        }
     )
 
     permissions = ('sqs:SetQueueAttributes',)
@@ -364,10 +351,12 @@ class SetEncryption(BaseAction):
         # compatibility, if key is given and not arn/key id/ or prefixed with
         # alias, add alias to it.
         key = self.data.get('key', None)
-        if (key
+        if (
+            key
             and not key.startswith('alias')
             and not key.startswith('arn:')
-                and not self.uuid_regex.search(key)):
+            and not self.uuid_regex.search(key)
+        ):
             key = "alias/" + key
 
         client = self.manager.get_client()
@@ -390,13 +379,9 @@ class SetEncryption(BaseAction):
 
     def process_queue(self, client, queue, params):
         try:
-            client.set_queue_attributes(
-                QueueUrl=queue['QueueUrl'],
-                Attributes=params
-            )
+            client.set_queue_attributes(QueueUrl=queue['QueueUrl'], Attributes=params)
         except (client.exceptions.QueueDoesNotExist,) as e:
-            self.log.exception(
-                "Exception modifying queue:\n %s" % e)
+            self.log.exception("Exception modifying queue:\n %s" % e)
 
 
 @SQS.action_registry.register('set-retention-period')
@@ -420,9 +405,10 @@ class SetRetentionPeriod(BaseAction):
               - type: set-retention-period
                 period: 86400
     """
+
     schema = type_schema(
-        'set-retention-period',
-        period={'type': 'integer', 'minimum': 60, 'maximum': 1209600})
+        'set-retention-period', period={'type': 'integer', 'minimum': 60, 'maximum': 1209600}
+    )
     permissions = ('sqs:SetQueueAttributes',)
 
     def process(self, queues):
@@ -430,9 +416,8 @@ class SetRetentionPeriod(BaseAction):
         period = str(self.data.get('period', 345600))
         for q in queues:
             client.set_queue_attributes(
-                QueueUrl=q['QueueUrl'],
-                Attributes={
-                    'MessageRetentionPeriod': period})
+                QueueUrl=q['QueueUrl'], Attributes={'MessageRetentionPeriod': period}
+            )
 
 
 @SQS.filter_registry.register('dead-letter')

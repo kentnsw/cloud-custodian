@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import functools
 import jmespath
+import re
 from botocore.exceptions import ClientError
 
 from concurrent.futures import as_completed
@@ -75,8 +76,8 @@ OP_SCHEMA = {
         'op': {'enum': ['add', 'remove', 'update', 'copy', 'replace', 'test']},
         'path': {'type': 'string'},
         'value': {'type': 'string'},
-        'from': {'type': 'string'}
-    }
+        'from': {'type': 'string'},
+    },
 }
 
 
@@ -103,31 +104,25 @@ class UpdateAccount(BaseAction):
 
     permissions = ('apigateway:PATCH',)
     schema = utils.type_schema(
-        'update',
-        patch={'type': 'array', 'items': OP_SCHEMA},
-        required=['patch'])
+        'update', patch={'type': 'array', 'items': OP_SCHEMA}, required=['patch']
+    )
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         client.update_account(patchOperations=self.data['patch'])
 
 
 class ApiDescribeSource(query.DescribeSource):
-
     def augment(self, resources):
         for r in resources:
             tags = r.setdefault('Tags', [])
             for k, v in r.pop('tags', {}).items():
-                tags.append({
-                    'Key': k,
-                    'Value': v})
+                tags.append({'Key': k, 'Value': v})
         return resources
 
 
 @resources.register('rest-api')
 class RestApi(query.QueryResourceManager):
-
     class resource_type(query.TypeInfo):
         service = 'apigateway'
         arn_type = '/restapis'
@@ -140,33 +135,29 @@ class RestApi(query.QueryResourceManager):
         universal_taggable = object()
         permissions_enum = ('apigateway:GET',)
 
-    source_mapping = {
-        'config': query.ConfigSource,
-        'describe': ApiDescribeSource
-    }
+    source_mapping = {'config': query.ConfigSource, 'describe': ApiDescribeSource}
 
     @property
     def generate_arn(self):
         """
-         Sample arn: arn:aws:apigateway:us-east-1::/restapis/rest-api-id
-         This method overrides c7n.utils.generate_arn and drops
-         account id from the generic arn.
+        Sample arn: arn:aws:apigateway:us-east-1::/restapis/rest-api-id
+        This method overrides c7n.utils.generate_arn and drops
+        account id from the generic arn.
         """
         if self._generate_arn is None:
             self._generate_arn = functools.partial(
                 generate_arn,
                 self.resource_type.service,
                 region=self.config.region,
-                resource_type=self.resource_type.arn_type)
+                resource_type=self.resource_type.arn_type,
+            )
         return self._generate_arn
 
 
 @RestApi.filter_registry.register('metrics')
 class Metrics(MetricsFilter):
-
     def get_dimensions(self, resource):
-        return [{'Name': 'ApiName',
-                 'Value': resource['name']}]
+        return [{'Name': 'ApiName', 'Value': resource['name']}]
 
 
 @RestApi.filter_registry.register('cross-account')
@@ -183,10 +174,9 @@ class RestApiCrossAccount(CrossAccountAccessFilter):
             # api gateway default iam policy is public
             # authorizers and app code may mitigate but
             # the iam policy intent here is clear.
-            policy = {'Statement': [{
-                'Action': 'execute-api:Invoke',
-                'Effect': 'Allow',
-                'Principal': '*'}]}
+            policy = {
+                'Statement': [{'Action': 'execute-api:Invoke', 'Effect': 'Allow', 'Principal': '*'}]
+            }
         return policy
 
 
@@ -215,19 +205,16 @@ class UpdateApi(BaseAction):
                   path: /description
                   value: "not empty :-)"
     """
+
     permissions = ('apigateway:PATCH',)
     schema = utils.type_schema(
-        'update',
-        patch={'type': 'array', 'items': OP_SCHEMA},
-        required=['patch'])
+        'update', patch={'type': 'array', 'items': OP_SCHEMA}, required=['patch']
+    )
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         for r in resources:
-            client.update_rest_api(
-                restApiId=r['id'],
-                patchOperations=self.data['patch'])
+            client.update_rest_api(restApiId=r['id'], patchOperations=self.data['patch'])
 
 
 @RestApi.action_registry.register('delete')
@@ -248,12 +235,12 @@ class DeleteApi(BaseAction):
            actions:
              - type: delete
     """
+
     permissions = ('apigateway:DELETE',)
     schema = type_schema('delete')
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         retry = get_retry(('TooManyRequestsException',))
 
         for r in resources:
@@ -265,11 +252,9 @@ class DeleteApi(BaseAction):
 
 @query.sources.register('describe-rest-stage')
 class DescribeRestStage(query.ChildDescribeSource):
-
     def __init__(self, manager):
         self.manager = manager
-        self.query = query.ChildResourceQuery(
-            self.manager.session_factory, self.manager)
+        self.query = query.ChildResourceQuery(self.manager.session_factory, self.manager)
         self.query.capture_parent_id = True
 
     def get_query(self):
@@ -279,40 +264,43 @@ class DescribeRestStage(query.ChildDescribeSource):
 
     def augment(self, resources):
         results = []
+        rest_apis = self.manager.get_resource_manager('rest-api').resources()
         # Using capture parent, changes the protocol
         for parent_id, r in resources:
             r['restApiId'] = parent_id
-            r['stageArn'] = "arn:aws:{service}:{region}::" \
-                            "/restapis/{rest_api_id}/stages/" \
-                            "{stage_name}".format(
-                service="apigateway",
-                region=self.manager.config.region,
-                rest_api_id=parent_id,
-                stage_name=r['stageName'])
+            for rest_api in rest_apis:
+                if rest_api['id'] == parent_id:
+                    r['restApiType'] = rest_api['endpointConfiguration']['types']
+            r['stageArn'] = (
+                "arn:aws:{service}:{region}::"
+                "/restapis/{rest_api_id}/stages/"
+                "{stage_name}".format(
+                    service="apigateway",
+                    region=self.manager.config.region,
+                    rest_api_id=parent_id,
+                    stage_name=r['stageName'],
+                )
+            )
             tags = r.setdefault('Tags', [])
             for k, v in r.pop('tags', {}).items():
-                tags.append({
-                    'Key': k,
-                    'Value': v})
+                tags.append({'Key': k, 'Value': v})
             results.append(r)
         return results
 
     def get_resources(self, ids, cache=True):
         deployment_ids = []
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         for id in ids:
             # if we get stage arn, we pick rest_api_id and stageName to get deploymentId
-            if id.startswith('arn:'):
+            if id.startswith('arn:aws:apigateway'):
                 _, ident = id.rsplit(':', 1)
                 parts = ident.split('/', 4)
                 # if we get stage name in arn, use stage_name to get stage information
                 # from stage information, pick deploymentId
                 if len(parts) > 3:
                     response = self.manager.retry(
-                        client.get_stage,
-                        restApiId=parts[2],
-                        stageName=parts[4])
+                        client.get_stage, restApiId=parts[2], stageName=parts[4]
+                    )
                     deployment_ids.append(response[self.manager.resource_type.id])
             else:
                 deployment_ids.append(id)
@@ -321,7 +309,6 @@ class DescribeRestStage(query.ChildDescribeSource):
 
 @resources.register('rest-stage')
 class RestStage(query.ChildResourceManager):
-
     class resource_type(query.TypeInfo):
         service = 'apigateway'
         parent_spec = ('rest-api', 'restApiId', None)
@@ -337,24 +324,23 @@ class RestStage(query.ChildResourceManager):
         supports_trailevents = True
 
     child_source = 'describe'
-    source_mapping = {
-        'describe': DescribeRestStage,
-        'config': query.ConfigSource
-    }
+    source_mapping = {'describe': DescribeRestStage, 'config': query.ConfigSource}
 
     @property
     def generate_arn(self):
         self._generate_arn = functools.partial(
-            generate_arn,
-            self.resource_type.service,
-            region=self.config.region)
+            generate_arn, self.resource_type.service, region=self.config.region
+        )
         return self._generate_arn
 
     def get_arns(self, resources):
         arns = []
         for r in resources:
-            arns.append(self.generate_arn('/restapis/' + r['restApiId'] +
-             '/stages/' + r[self.get_model().name]))
+            arns.append(
+                self.generate_arn(
+                    '/restapis/' + r['restApiId'] + '/stages/' + r[self.get_model().name]
+                )
+            )
         return arns
 
 
@@ -381,19 +367,18 @@ class UpdateStage(BaseAction):
 
     permissions = ('apigateway:PATCH',)
     schema = utils.type_schema(
-        'update',
-        patch={'type': 'array', 'items': OP_SCHEMA},
-        required=['patch'])
+        'update', patch={'type': 'array', 'items': OP_SCHEMA}, required=['patch']
+    )
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         for r in resources:
             self.manager.retry(
                 client.update_stage,
                 restApiId=r['restApiId'],
                 stageName=r['stageName'],
-                patchOperations=self.data['patch'])
+                patchOperations=self.data['patch'],
+            )
 
 
 @RestStage.action_registry.register('delete')
@@ -412,6 +397,7 @@ class DeleteStage(BaseAction):
             actions:
               - type: delete
     """
+
     permissions = ('apigateway:DELETE',)
     schema = utils.type_schema('delete')
 
@@ -420,9 +406,8 @@ class DeleteStage(BaseAction):
         for r in resources:
             try:
                 self.manager.retry(
-                    client.delete_stage,
-                    restApiId=r['restApiId'],
-                    stageName=r['stageName'])
+                    client.delete_stage, restApiId=r['restApiId'], stageName=r['stageName']
+                )
             except client.exceptions.NotFoundException:
                 pass
 
@@ -444,7 +429,6 @@ class RestResource(query.ChildResourceManager):
 
 @query.sources.register('describe-rest-resource')
 class DescribeRestResource(query.ChildDescribeSource):
-
     def get_query(self):
         query = super(DescribeRestResource, self).get_query()
         query.capture_parent_id = True
@@ -461,7 +445,6 @@ class DescribeRestResource(query.ChildDescribeSource):
 
 @resources.register('rest-vpclink')
 class RestApiVpcLink(query.QueryResourceManager):
-
     class resource_type(query.TypeInfo):
         service = 'apigateway'
         enum_spec = ('get_vpc_links', 'items', None)
@@ -488,6 +471,7 @@ class RestClientCertificate(query.QueryResourceManager):
                     value: 90
                     op: greater-than
     """
+
     class resource_type(query.TypeInfo):
         service = 'apigateway'
         enum_spec = ('get_client_certificates', 'items', None)
@@ -515,6 +499,7 @@ class StageClientCertificateFilter(RelatedResourceFilter):
                     value: 90
                     op: greater-than
     """
+
     schema = type_schema('client-certificate', rinherit=ValueFilter.schema)
     RelatedResource = "c7n.resources.apigw.RestClientCertificate"
     RelatedIdsExpression = 'clientCertificateId'
@@ -554,10 +539,10 @@ class WafEnabled(Filter):
                     state: false
                     web-acl: test
     """
+
     schema = type_schema(
-        'waf-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'waf-enabled', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
 
     permissions = ('waf:ListWebACLs', 'waf:GetWebACL')
 
@@ -572,14 +557,20 @@ class WafEnabled(Filter):
         for r in resources:
             r_web_acl_arn = r.get('webAclArn')
             if state:
-                if target_acl_arn is None and r_web_acl_arn and \
-                        r_web_acl_arn in waf_name_arn_map.values():
+                if (
+                    target_acl_arn is None
+                    and r_web_acl_arn
+                    and r_web_acl_arn in waf_name_arn_map.values()
+                ):
                     results.append(r)
                 elif target_acl_arn and r_web_acl_arn == target_acl_arn:
                     results.append(r)
             else:
-                if target_acl_arn is None and (not r_web_acl_arn or
-                     r_web_acl_arn and r_web_acl_arn not in waf_name_arn_map.values()):
+                if target_acl_arn is None and (
+                    not r_web_acl_arn
+                    or r_web_acl_arn
+                    and r_web_acl_arn not in waf_name_arn_map.values()
+                ):
                     results.append(r)
                 elif target_acl_arn and r_web_acl_arn != target_acl_arn:
                     results.append(r)
@@ -617,13 +608,18 @@ class SetWaf(BaseAction):
                     web-acl: test
 
     """
+
     permissions = ('waf-regional:AssociateWebACL', 'waf-regional:ListWebACLs')
 
     schema = type_schema(
-        'set-waf', required=['web-acl'], **{
+        'set-waf',
+        required=['web-acl'],
+        **{
             'web-acl': {'type': 'string'},
             # 'force': {'type': 'boolean'},
-            'state': {'type': 'boolean'}})
+            'state': {'type': 'boolean'},
+        },
+    )
 
     def validate(self):
         found = False
@@ -635,20 +631,21 @@ class SetWaf(BaseAction):
             # try to ensure idempotent usage
             raise PolicyValidationError(
                 "set-waf should be used in conjunction with waf-enabled or wafv2-enabled \
-                filter on %s" % (self.manager.data,))
+                filter on %s"
+                % (self.manager.data,)
+            )
         return self
 
     def process(self, resources):
         wafs = self.manager.get_resource_manager('waf-regional').resources(augment=False)
         name_id_map = {w['Name']: w['WebACLId'] for w in wafs}
-        target_acl = self.data.get('web-acl')
+        target_acl = self.data.get('web-acl', '')
         target_acl_id = name_id_map.get(target_acl, target_acl)
         state = self.data.get('state', True)
         if state and target_acl_id not in name_id_map.values():
             raise ValueError("invalid web acl: %s" % (target_acl))
 
-        client = utils.local_session(
-            self.manager.session_factory).client('waf-regional')
+        client = utils.local_session(self.manager.session_factory).client('waf-regional')
 
         for r in resources:
             r_arn = self.manager.get_arns([r])[0]
@@ -676,35 +673,29 @@ class WafV2Enabled(Filter):
     """
 
     schema = type_schema(
-        'wafv2-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'wafv2-enabled', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
 
     permissions = ('wafv2:ListWebACLs',)
 
     def process(self, resources, event=None):
-        target_acl = self.data.get('web-acl')
+        target_acl = self.data.get('web-acl', '')
         state = self.data.get('state', False)
-
         results = []
+
         wafs = self.manager.get_resource_manager('wafv2').resources(augment=False)
         waf_name_arn_map = {w['Name']: w['ARN'] for w in wafs}
-        target_acl_id = waf_name_arn_map.get(target_acl, target_acl)
+
+        target_acl_ids = [v for k, v in waf_name_arn_map.items() if re.match(target_acl, k)]
         for r in resources:
             r_web_acl_arn = r.get('webAclArn')
             if state:
-                if target_acl_id is None and r_web_acl_arn and \
-                        r_web_acl_arn in waf_name_arn_map.values():
-                    results.append(r)
-                elif target_acl_id and r_web_acl_arn == target_acl_id:
+                if r_web_acl_arn and r_web_acl_arn in target_acl_ids:
                     results.append(r)
             else:
-                if target_acl_id is None and (
-                        not r_web_acl_arn or r_web_acl_arn and r_web_acl_arn
-                        not in waf_name_arn_map.values()):
+                if not r_web_acl_arn or r_web_acl_arn not in target_acl_ids:
                     results.append(r)
-                elif target_acl_id and r_web_acl_arn != target_acl_id:
-                    results.append(r)
+
         return results
 
 
@@ -739,12 +730,25 @@ class SetWafv2(BaseAction):
                     web-acl: testv2
 
     """
+
     permissions = ('wafv2:AssociateWebACL', 'wafv2:ListWebACLs')
 
     schema = type_schema(
-        'set-wafv2', required=['web-acl'], **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'set-wafv2', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
+
+    retry = staticmethod(
+        get_retry(
+            (
+                'ThrottlingException',
+                'RequestLimitExceeded',
+                'Throttled',
+                'ThrottledException',
+                'Throttling',
+                'Client.RequestLimitExceeded',
+            )
+        )
+    )
 
     def validate(self):
         found = False
@@ -756,29 +760,44 @@ class SetWafv2(BaseAction):
             # try to ensure idempotent usage
             raise PolicyValidationError(
                 "set-wafv2 should be used in conjunction with wafv2-enabled or waf-enabled \
-                    filter on %s" % (self.manager.data,))
+                    filter on %s"
+                % (self.manager.data,)
+            )
+        if self.data.get('state'):
+            if 'web-acl' not in self.data:
+                raise PolicyValidationError(
+                    (
+                        "set-wafv2 filter parameter state is true, "
+                        "requires `web-acl` on %s" % (self.manager.data,)
+                    )
+                )
+
         return self
 
     def process(self, resources):
         wafs = self.manager.get_resource_manager('wafv2').resources(augment=False)
         name_id_map = {w['Name']: w['ARN'] for w in wafs}
-        target_acl = self.data.get('web-acl')
-        target_acl_id = name_id_map.get(target_acl, target_acl)
         state = self.data.get('state', True)
+        target_acl_arn = ''
 
-        if state and target_acl_id not in name_id_map.values():
-            raise ValueError("invalid web acl: %s" % (target_acl_id))
+        if state:
+            target_acl = self.data.get('web-acl', '')
+            target_acl_ids = [v for k, v in name_id_map.items() if re.match(target_acl, k)]
+            if len(target_acl_ids) != 1:
+                raise ValueError(f'{target_acl} matching to none or the ' f'multiple web-acls')
+            target_acl_arn = target_acl_ids[0]
+
+        if state and target_acl_arn not in name_id_map.values():
+            raise ValueError("invalid web acl: %s" % target_acl_arn)
 
         client = utils.local_session(self.manager.session_factory).client('wafv2')
 
         for r in resources:
             r_arn = self.manager.get_arns([r])[0]
             if state:
-                client.associate_web_acl(
-                    WebACLArn=target_acl_id, ResourceArn=r_arn)
+                self.retry(client.associate_web_acl, WebACLArn=target_acl_arn, ResourceArn=r_arn)
             else:
-                client.disassociate_web_acl(
-                    WebACLArn=target_acl_id, ResourceArn=r_arn)
+                self.retry(client.disassociate_web_acl, ResourceArn=r_arn)
 
 
 @RestResource.filter_registry.register('rest-integration')
@@ -800,18 +819,19 @@ class FilterRestIntegration(ValueFilter):
 
     schema = utils.type_schema(
         'rest-integration',
-        method={'type': 'string', 'enum': [
-            'all', 'ANY', 'PUT', 'GET', "POST",
-            "DELETE", "OPTIONS", "HEAD", "PATCH"]},
-        rinherit=ValueFilter.schema)
+        method={
+            'type': 'string',
+            'enum': ['all', 'ANY', 'PUT', 'GET', "POST", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+        },
+        rinherit=ValueFilter.schema,
+    )
     schema_alias = False
     permissions = ('apigateway:GET',)
 
     def process(self, resources, event=None):
         method_set = self.data.get('method', 'all')
         # 10 req/s with burst to 40
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
 
         # uniqueness constraint validity across apis?
         resource_map = {r['id']: r for r in resources}
@@ -828,8 +848,7 @@ class FilterRestIntegration(ValueFilter):
                 for m in r_method_set:
                     tasks.append((r, m))
             for task_set in utils.chunks(tasks, 20):
-                futures[w.submit(
-                    self.process_task_set, client, task_set)] = task_set
+                futures[w.submit(self.process_task_set, client, task_set)] = task_set
 
             for f in as_completed(futures):
                 task_set = futures[f]
@@ -837,15 +856,16 @@ class FilterRestIntegration(ValueFilter):
                 if f.exception():
                     self.manager.log.warning(
                         "Error retrieving integrations on resources %s",
-                        ["%s:%s" % (r['restApiId'], r['path'])
-                         for r, mt in task_set])
+                        ["%s:%s" % (r['restApiId'], r['path']) for r, mt in task_set],
+                    )
                     continue
 
                 for i in f.result():
                     if self.match(i):
                         results.add(i['resourceId'])
                         resource_map[i['resourceId']].setdefault(
-                            ANNOTATION_KEY_MATCHED_INTEGRATIONS, []).append(i)
+                            ANNOTATION_KEY_MATCHED_INTEGRATIONS, []
+                        ).append(i)
 
         return [resource_map[rid] for rid in results]
 
@@ -854,9 +874,8 @@ class FilterRestIntegration(ValueFilter):
         for r, m in task_set:
             try:
                 integration = client.get_integration(
-                    restApiId=r['restApiId'],
-                    resourceId=r['id'],
-                    httpMethod=m)
+                    restApiId=r['restApiId'], resourceId=r['id'], httpMethod=m
+                )
                 integration.pop('ResponseMetadata', None)
                 integration['restApiId'] = r['restApiId']
                 integration['resourceId'] = r['id']
@@ -893,9 +912,8 @@ class UpdateRestIntegration(BaseAction):
     """
 
     schema = utils.type_schema(
-        'update-integration',
-        patch={'type': 'array', 'items': OP_SCHEMA},
-        required=['patch'])
+        'update-integration', patch={'type': 'array', 'items': OP_SCHEMA}, required=['patch']
+    )
     permissions = ('apigateway:PATCH',)
 
     def validate(self):
@@ -906,13 +924,12 @@ class UpdateRestIntegration(BaseAction):
                 break
         if not found:
             raise ValueError(
-                ("update-integration action requires ",
-                 "rest-integration filter usage in policy"))
+                ("update-integration action requires ", "rest-integration filter usage in policy")
+            )
         return self
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         ops = self.data['patch']
         for r in resources:
             for i in r.get(ANNOTATION_KEY_MATCHED_INTEGRATIONS, []):
@@ -920,7 +937,8 @@ class UpdateRestIntegration(BaseAction):
                     restApiId=i['restApiId'],
                     resourceId=i['resourceId'],
                     httpMethod=i['resourceHttpMethod'],
-                    patchOperations=ops)
+                    patchOperations=ops,
+                )
 
 
 @RestResource.action_registry.register('delete-integration')
@@ -941,6 +959,7 @@ class DeleteRestIntegration(BaseAction):
             actions:
               - type: delete-integration
     """
+
     permissions = ('apigateway:DELETE',)
     schema = utils.type_schema('delete-integration')
 
@@ -953,7 +972,8 @@ class DeleteRestIntegration(BaseAction):
                     client.delete_integration(
                         restApiId=i['restApiId'],
                         resourceId=i['resourceId'],
-                        httpMethod=i['resourceHttpMethod'])
+                        httpMethod=i['resourceHttpMethod'],
+                    )
                 except client.exceptions.NotFoundException:
                     continue
 
@@ -977,18 +997,19 @@ class FilterRestMethod(ValueFilter):
 
     schema = utils.type_schema(
         'rest-method',
-        method={'type': 'string', 'enum': [
-            'all', 'ANY', 'PUT', 'GET', "POST",
-            "DELETE", "OPTIONS", "HEAD", "PATCH"]},
-        rinherit=ValueFilter.schema)
+        method={
+            'type': 'string',
+            'enum': ['all', 'ANY', 'PUT', 'GET', "POST", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+        },
+        rinherit=ValueFilter.schema,
+    )
     schema_alias = False
     permissions = ('apigateway:GET',)
 
     def process(self, resources, event=None):
         method_set = self.data.get('method', 'all')
         # 10 req/s with burst to 40
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
 
         # uniqueness constraint validity across apis?
         resource_map = {r['id']: r for r in resources}
@@ -1005,31 +1026,28 @@ class FilterRestMethod(ValueFilter):
                 for m in r_method_set:
                     tasks.append((r, m))
             for task_set in utils.chunks(tasks, 20):
-                futures[w.submit(
-                    self.process_task_set, client, task_set)] = task_set
+                futures[w.submit(self.process_task_set, client, task_set)] = task_set
 
             for f in as_completed(futures):
                 task_set = futures[f]
                 if f.exception():
                     self.manager.log.warning(
                         "Error retrieving methods on resources %s",
-                        ["%s:%s" % (r['restApiId'], r['path'])
-                         for r, mt in task_set])
+                        ["%s:%s" % (r['restApiId'], r['path']) for r, mt in task_set],
+                    )
                     continue
                 for m in f.result():
                     if self.match(m):
                         results.add(m['resourceId'])
                         resource_map[m['resourceId']].setdefault(
-                            ANNOTATION_KEY_MATCHED_METHODS, []).append(m)
+                            ANNOTATION_KEY_MATCHED_METHODS, []
+                        ).append(m)
         return [resource_map[rid] for rid in results]
 
     def process_task_set(self, client, task_set):
         results = []
         for r, m in task_set:
-            method = client.get_method(
-                restApiId=r['restApiId'],
-                resourceId=r['id'],
-                httpMethod=m)
+            method = client.get_method(restApiId=r['restApiId'], resourceId=r['id'], httpMethod=m)
             method.pop('ResponseMetadata', None)
             method['restApiId'] = r['restApiId']
             method['resourceId'] = r['id']
@@ -1062,9 +1080,8 @@ class UpdateRestMethod(BaseAction):
     """
 
     schema = utils.type_schema(
-        'update-method',
-        patch={'type': 'array', 'items': OP_SCHEMA},
-        required=['patch'])
+        'update-method', patch={'type': 'array', 'items': OP_SCHEMA}, required=['patch']
+    )
     permissions = ('apigateway:GET',)
 
     def validate(self):
@@ -1075,13 +1092,12 @@ class UpdateRestMethod(BaseAction):
                 break
         if not found:
             raise ValueError(
-                ("update-method action requires ",
-                 "rest-method filter usage in policy"))
+                ("update-method action requires ", "rest-method filter usage in policy")
+            )
         return self
 
     def process(self, resources):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         ops = self.data['patch']
         for r in resources:
             for m in r.get(ANNOTATION_KEY_MATCHED_METHODS, []):
@@ -1089,15 +1105,15 @@ class UpdateRestMethod(BaseAction):
                     restApiId=m['restApiId'],
                     resourceId=m['resourceId'],
                     httpMethod=m['httpMethod'],
-                    patchOperations=ops)
+                    patchOperations=ops,
+                )
 
 
 @resources.register('apigw-domain-name')
 class CustomDomainName(query.QueryResourceManager):
-
     class resource_type(query.TypeInfo):
         enum_spec = ('get_domain_names', 'items', None)
-        arn = False
+        arn_type = '/domainnames'
         id = name = 'domainName'
         service = 'apigateway'
         universal_taggable = True
@@ -1108,9 +1124,21 @@ class CustomDomainName(query.QueryResourceManager):
     def get_permissions(cls):
         return ('apigateway:GET',)
 
-    @classmethod
-    def has_arn(self):
-        return False
+    @property
+    def generate_arn(self):
+        """
+        Sample arn: arn:aws:apigateway:us-east-1::/restapis/rest-api-id
+        This method overrides c7n.utils.generate_arn and drops
+        account id from the generic arn.
+        """
+        if self._generate_arn is None:
+            self._generate_arn = functools.partial(
+                generate_arn,
+                self.resource_type.service,
+                region=self.config.region,
+                resource_type=self.resource_type.arn_type,
+            )
+        return self._generate_arn
 
 
 @CustomDomainName.action_registry.register('update-security')
@@ -1118,48 +1146,45 @@ class DomainNameRemediateTls(BaseAction):
 
     schema = type_schema(
         'update-security',
-        securityPolicy={'type': 'string', 'enum': [
-            'TLS_1_0', 'TLS_1_2']},
-        required=['securityPolicy'])
+        securityPolicy={'type': 'string', 'enum': ['TLS_1_0', 'TLS_1_2']},
+        required=['securityPolicy'],
+    )
 
     permissions = ('apigateway:PATCH',)
 
     def process(self, resources, event=None):
-        client = utils.local_session(
-            self.manager.session_factory).client('apigateway')
+        client = utils.local_session(self.manager.session_factory).client('apigateway')
         retryable = ('TooManyRequestsException', 'ConflictException')
         retry = utils.get_retry(retryable, max_attempts=8)
 
         for r in resources:
             try:
-                retry(client.update_domain_name,
-                      domainName=r['domainName'],
-                      patchOperations=[
-                          {
-                              'op': 'replace',
-                              'path': '/securityPolicy',
-                              'value': self.data.get('securityPolicy')
-                          },
-                      ]
-                      )
+                retry(
+                    client.update_domain_name,
+                    domainName=r['domainName'],
+                    patchOperations=[
+                        {
+                            'op': 'replace',
+                            'path': '/securityPolicy',
+                            'value': self.data.get('securityPolicy'),
+                        },
+                    ],
+                )
             except ClientError as e:
                 if e.response['Error']['Code'] in retryable:
                     continue
 
 
 class ApiGwV2DescribeSource(query.DescribeSource):
-
     def augment(self, resources):
         # convert tags from {'Key': 'Value'} to standard aws format
         for r in resources:
-            r['Tags'] = [
-                {'Key': k, 'Value': v} for k, v in r.pop('Tags', {}).items()]
+            r['Tags'] = [{'Key': k, 'Value': v} for k, v in r.pop('Tags', {}).items()]
         return resources
 
 
 @resources.register('apigwv2')
 class ApiGwV2(query.QueryResourceManager):
-
     class resource_type(query.TypeInfo):
         service = 'apigatewayv2'
         arn_type = '/apis'
@@ -1173,17 +1198,14 @@ class ApiGwV2(query.QueryResourceManager):
         permissions_enum = ('apigateway:GET',)
         universal_taggable = object()
 
-    source_mapping = {
-        'config': query.ConfigSource,
-        'describe': ApiGwV2DescribeSource
-    }
+    source_mapping = {'config': query.ConfigSource, 'describe': ApiGwV2DescribeSource}
 
     @property
     def generate_arn(self):
         """
-         Sample arn: arn:aws:apigateway:us-east-1::/apis/api-id
-         This method overrides c7n.utils.generate_arn and drops
-         account id from the generic arn.
+        Sample arn: arn:aws:apigateway:us-east-1::/apis/api-id
+        This method overrides c7n.utils.generate_arn and drops
+        account id from the generic arn.
         """
         if self._generate_arn is None:
             self._generate_arn = functools.partial(
