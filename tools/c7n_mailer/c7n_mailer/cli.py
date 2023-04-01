@@ -146,6 +146,7 @@ CONFIG_SCHEMA = {
         'ldap_bind_password': SECURED_STRING_SCHEMA,
         'cross_accounts': {'type': 'object'},
         'ses_region': {'type': 'string'},
+        'ses_role': {'type': 'string'},
         'redis_host': {'type': 'string'},
         'redis_port': {'type': 'integer'},
         'datadog_api_key': {'type': 'string'},  # TODO: encrypt with KMS?
@@ -164,16 +165,6 @@ CONFIG_SCHEMA = {
         'profile': {'type': 'string'},
         'http_proxy': {'type': 'string'},
         'https_proxy': {'type': 'string'},
-        # ServiceNow email address for creating tickets
-        'servicenow_address': {'type': 'string'},
-        'servicenow_dedicated_addresses': {'type': 'array'},
-        'servicenow_url': {'type': 'string'},
-        'servicenow_it_service_key': {'type': 'string'},
-        # Jira integration for creating tickets
-        'jira_url': {'type': 'string'},
-        'jira_basic_auth': SECURED_STRING_SCHEMA,
-        'jira_project_key': {'type': 'string'},
-        'jira_custom_fields': {'type': 'object'},
         # Mapping account / emails
         'account_emails': {'type': 'object'},
     },

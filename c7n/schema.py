@@ -152,6 +152,34 @@ def specific_error(error):
     return error
 
 
+def _get_attr_schema():
+    base_filters = [
+        {'$ref': '#/definitions/filters/value'},
+        {'$ref': '#/definitions/filters/valuekv'},
+    ]
+    any_of = []
+    any_of.extend(base_filters)
+
+    for op in (
+        'and',
+        'or',
+        'not',
+    ):
+        any_of.append(
+            {
+                'additional_properties': False,
+                'properties': {op: {'type': 'array', 'items': {'anyOf': base_filters}}},
+                'type': 'object',
+            }
+        )
+
+    attr_schema = {
+        'items': {'anyOf': any_of},
+        'type': 'array',
+    }
+    return attr_schema
+
+
 def generate(resource_types=()):
     resource_defs = {}
     definitions = {
@@ -223,6 +251,7 @@ def generate(resource_types=()):
             },
         },
         'filters_common': {
+            'list_item_attrs': _get_attr_schema(),
             'comparison_operators': {'enum': list(OPERATORS.keys())},
             'value_types': {'enum': VALUE_TYPES},
             'value_from': ValuesFrom.schema,
@@ -241,7 +270,7 @@ def generate(resource_types=()):
             'required': ['name', 'resource'],
             'additionalProperties': False,
             'properties': {
-                'name': {'type': 'string', 'pattern': "^[A-z][A-z0-9]*(-*[A-z0-9]+)*$"},
+                'name': {'type': 'string', 'pattern': "^[A-z][A-z0-9]*(-[A-z0-9]+)*$"},
                 'conditions': {
                     'type': 'array',
                     'items': {
@@ -299,7 +328,6 @@ def generate(resource_types=()):
                     'type': 'array',
                 },
                 'filters': {'type': 'array'},
-                'metrics': {'type': 'array'},
                 #
                 # TODO: source queries should really move under
                 # source. This was initially used for describe sources

@@ -78,6 +78,7 @@ class CognitoUserPool(QueryResourceManager):
         name = 'Name'
         arn_type = "userpool"
         cfn_type = 'AWS::Cognito::UserPool'
+        universal_taggable = object()
 
     source_mapping = {
         'describe': DescribeUserPool,

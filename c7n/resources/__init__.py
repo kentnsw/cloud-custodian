@@ -48,7 +48,7 @@ def load_available(resources=True):
     for provider in PROVIDER_NAMES:
         try:
             load_providers((provider,))
-        except ImportError as e:  # pragma: no cover
+        except ImportError:  # pragma: no cover
             continue
         else:
             found.append(provider)

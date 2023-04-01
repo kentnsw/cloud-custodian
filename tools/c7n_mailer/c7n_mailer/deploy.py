@@ -34,18 +34,6 @@ CORE_DEPS = [
     'pyasn1',
     'redis',
     'jmespath',
-    # gcp dependencies
-    'google',
-    'pyasn1_modules',
-    'rsa',
-    'cachetools',
-    'googleapiclient',
-    'httplib2',
-    'pyparsing',
-    'uritemplate',
-    'google_auth_httplib2',
-    'retrying',
-    'ratelimiter',
     # for other dependencies
     'pkg_resources',
     # transport datadog - recursive deps
@@ -60,14 +48,6 @@ CORE_DEPS = [
     # used by splunk mailer transport
     'jsonpointer',
     'jsonpatch',
-    # jira dependencies
-    'jira',
-    'oauthlib',
-    'typing_extensions',
-    'defusedxml',
-    'requests_toolbelt',
-    'requests_oauthlib',
-    'keyring',
     # sendgrid dependencies
     'sendgrid',
     'python_http_client',

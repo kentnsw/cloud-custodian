@@ -57,6 +57,7 @@ def test_sqs_config_translate(test):
     }
 
 
+@pytest.mark.audited
 @terraform('sqs_delete', teardown=terraform.TEARDOWN_IGNORE)
 def test_sqs_delete(test, sqs_delete):
     session_factory = test.replay_flight_data("test_sqs_delete", region='us-east-2')
@@ -139,6 +140,7 @@ def test_sqs_set_encryption_options(test):
     }  # noqa
 
 
+# running functionally seems to get an error on mismatched key ids
 @terraform('sqs_set_encryption')
 def test_sqs_set_encryption(test, sqs_set_encryption):
     session_factory = test.replay_flight_data("test_sqs_set_encryption", region='us-west-2')
@@ -171,6 +173,7 @@ def test_sqs_set_encryption(test, sqs_set_encryption):
     test.assertEqual(check_master_key, key_id)
 
 
+@pytest.mark.audited
 @terraform('sqs_remove_matched')
 def test_sqs_remove_matched(test, sqs_remove_matched):
     session_factory = test.replay_flight_data("test_sqs_remove_matched", region="us-east-2")

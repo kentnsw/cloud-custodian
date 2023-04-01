@@ -979,6 +979,11 @@ class PolicyLambdaProvision(Publish):
     def test_config_defaults(self):
         p = PolicyLambda(Bag({"name": "hello", "data": {"mode": {}}}))
         self.maxDiff = None
+        default_arch = platform.machine()
+        if default_arch in ('aarch64', 'arm64'):
+            default_arch = 'arm64'
+        else:
+            default_arch = 'x86_64'
         self.assertEqual(
             p.get_config(),
             {
@@ -990,7 +995,7 @@ class PolicyLambdaProvision(Publish):
                 "MemorySize": 512,
                 "Role": "",
                 "Runtime": "python3.9",
-                "Architectures": ["x86_64"],
+                "Architectures": [default_arch],
                 "Tags": {},
                 "Timeout": 900,
                 "TracingConfig": {"Mode": "PassThrough"},

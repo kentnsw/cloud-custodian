@@ -14,6 +14,7 @@ from .utils import (
     get_provider,
     get_aws_username_from_event,
     Providers,
+    unique,
 )
 from .utils_email import get_mimetext_message, is_email
 
@@ -25,12 +26,28 @@ class EmailDelivery:
         self.session = session
         self.provider = get_provider(self.config)
         if self.provider == Providers.AWS:
-            self.aws_ses = session.client('ses', region_name=config.get('ses_region'))
+            self.aws_ses = self.get_ses_session()
         self.ldap_lookup = self.get_ldap_connection()
         self.jp_key = jmespath.compile(
             config.get("servicenow_it_service_key", "custodian_it_service")
         )
         self.servicenow_url = config.get("servicenow_url")
+
+    def get_ses_session(self):
+        if self.config.get('ses_role', False):
+            creds = self.session.client('sts').assume_role(
+                RoleArn=self.config.get('ses_role'), RoleSessionName='CustodianNotification'
+            )['Credentials']
+
+            return self.session.client(
+                'ses',
+                region_name=self.config.get('ses_region'),
+                aws_access_key_id=creds['AccessKeyId'],
+                aws_secret_access_key=creds['SecretAccessKey'],
+                aws_session_token=creds['SessionToken'],
+            )
+
+        return self.session.client('ses', region_name=self.config.get('ses_region'))
 
     def get_ldap_connection(self):
         if self.config.get('ldap_uri'):
@@ -44,21 +61,20 @@ class EmailDelivery:
         for target in targets:
             if target in ('resource-owner', 'event-owner'):
                 continue
-            target = target.replace(";", ",").replace(":", ",")
-            for email in target.split(','):
+            for email in target.split(':'):
                 email = email.strip()
                 if not email:
                     continue
-                if is_email(email):
-                    emails.append(email)
+                if is_email(target):
+                    emails.append(target)
                 # gcp doesn't support the '@' character in their label values so we
                 # allow users to specify an email_base_url to append to the end of their
                 # owner contact tags
-                if not is_email(target) and self.config.get('email_base_url'):
-                    target = "%s@%s" % (target, self.config['email_base_url'])
-                    if is_email(target):
-                        emails.append(target)
-        return emails
+                if not is_email(email) and self.config.get('email_base_url'):
+                    full_email = "%s@%s" % (email, self.config['email_base_url'])
+                    if is_email(full_email):
+                        emails.append(full_email)
+        return unique(emails)
 
     def get_event_owner_email(self, targets, event):  # TODO: GCP-friendly
         if 'event-owner' in targets:
@@ -213,63 +229,6 @@ class EmailDelivery:
             to_addrs_to_mimetext_map[to_addrs] = get_mimetext_message(
                 self.config, self.logger, sqs_message, resources, list(to_addrs)
             )
-        # eg: { ('milton@initech.com', 'peter@initech.com'): mimetext_message }
-        return to_addrs_to_mimetext_map
-
-    def get_grouped_resources(self, message, attr_group=None) -> Dict[str, List]:
-        groupby_key = message['action'].get(attr_group, {}).get('resource_groupby') or message[
-            'action'
-        ].get('resource_groupby')
-        if not groupby_key:
-            return {'default': message['resources']}
-
-        grouped_resources = {}
-        jp = jmespath.compile(groupby_key)
-
-        for resource in message['resources']:
-            groupby_value = jp.search(resource) or 'default'
-            grouped_resources.setdefault(groupby_value, []).append(resource)
-        # eg: { 'CLOUDOPS': [resource1, resource2, etc] }
-        return grouped_resources
-
-    def get_group_email_messages_map(self, sqs_message):
-        servicenow_address = self.config.get('servicenow_address')
-        dedicated_addresses = self.config.get("servicenow_dedicated_addresses")
-
-        groupby_to_resources_map = self.get_grouped_resources(sqs_message, "servicenow")
-        groupby_to_mimetext_map = {}
-        for group_name, resources in groupby_to_resources_map.items():
-            # print(f"{group_name}: {[r[r['c7n_resource_type_id']] for r in resources]}")
-            # NOTE if having a dedicated address, use it regardless it_service
-            if dedicated_addresses:
-                account_id = sqs_message.get("account_id")
-                for da in dedicated_addresses:
-                    if account_id in da.get("accounts", []):
-                        products = da.get("products")
-                        if not products or group_name in products:
-                            servicenow_address = da.get("email", servicenow_address)
-                            break
-
-            snow_conf = sqs_message["action"].get("servicenow", {})
-            # FIXME should search all resources in the group until found
-            it_service = self.jp_key.search(resources[0]) or snow_conf.get("it_service")
-            # NOTE override it_service for 'default' group, which should be more desirable
-            if group_name == "default":
-                it_service = snow_conf.get("it_service")
-            if not it_service:
-                self.logger.info(
-                    f"ServiceNow: Skip {len(resources)} resources due to "
-                    f"it_service value not found for product {group_name}"
-                )
-                continue
-            groupby_to_mimetext_map[group_name] = get_mimetext_message(
-                self.config,
-                self.logger,
-                sqs_message,
-                resources,
-                [servicenow_address],
-                "servicenow_template",
-            )
         # eg: { 'Jira': mimetext_message }
         return groupby_to_mimetext_map
 
@@ -280,7 +239,6 @@ class EmailDelivery:
                 smtp_delivery = SmtpDelivery(
                     config=self.config, session=self.session, logger=self.logger
                 )
-                # TODO should use the To in mimetext_msg rather than email_to_addrs
                 smtp_delivery.send_message(message=mimetext_msg, to_addrs=email_to_addrs)
             # TODO this looks like a bug, should be push up a level to sqs_queue_processor.py
             elif 'sendgrid_api_key' in self.config:
@@ -318,10 +276,8 @@ class EmailDelivery:
                 sqs_message.get('account', ''),
                 sqs_message['policy']['name'],
                 sqs_message['policy']['resource'],
-                mimetext_msg.get('resource_count', str(len(sqs_message['resources']))),
-                mimetext_msg.get(
-                    'email_template', sqs_message['action'].get('template', 'default')
-                ),
-                mimetext_msg.get('To'),
+                str(len(sqs_message['resources'])),
+                sqs_message['action'].get('template', 'default'),
+                email_to_addrs,
             )
         )

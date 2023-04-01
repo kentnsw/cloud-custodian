@@ -176,7 +176,7 @@ class SourceLocator:
 
 
 class DirectoryLoader(PolicyLoader):
-    def load_directory(self, directory):
+    def load_directory(self, directory, validate=True, recurse=True):
         structure = StructureParser()
 
         def _validate(data):
@@ -187,13 +187,14 @@ class DirectoryLoader(PolicyLoader):
                 log.error("Configuration invalid: {}".format(data))
                 log.error("%s" % e)
                 errors.append(e)
+                return errors
             rtypes = structure.get_resource_types(data)
             load_resources(rtypes)
             schm = schema.generate(rtypes)
             errors += schema.validate(data, schm)
             return errors
 
-        def _load(path, raw_policies, errors):
+        def _load(path, raw_policies, errors, do_validate):
             for root, dirs, files in os.walk(path):
                 files = [f for f in files if not is_hidden(f)]
                 dirs[:] = [d for d in dirs if not is_hidden(d)]
@@ -206,13 +207,16 @@ class DirectoryLoader(PolicyLoader):
                         'json',
                     ):
                         data = load_file(os.path.join(root, name))
-                        errors += _validate(data)
+                        if do_validate:
+                            errors += _validate(data)
                         raw_policies.append(data)
+                if not recurse:
+                    return
                 for name in dirs:
-                    _load(os.path.abspath(name), raw_policies, errors)
+                    _load(os.path.abspath(name), raw_policies, errors, do_validate)
 
         policy_collections, all_errors = [], []
-        _load(directory, policy_collections, all_errors)
+        _load(directory, policy_collections, all_errors, validate)
 
         if all_errors:
             raise PolicyValidationError(all_errors)
@@ -232,7 +236,7 @@ class DirectoryLoader(PolicyLoader):
             else:
                 names.append(p['name'])
 
-        return self.load_data({'policies': policies}, directory)
+        return self.load_data({'policies': policies}, directory, validate=validate)
 
 
 def is_hidden(path):

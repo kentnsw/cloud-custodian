@@ -23,6 +23,12 @@ class KmsKeyRingTest(BaseTest):
 
         resources = policy.run()
         self.assertEqual(resources[0]['name'], resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:keyring/cloud-custodian',
+            ],
+        )
 
     def test_kms_keyring_query_array(self):
         project_id = 'cloud-custodian'
@@ -50,6 +56,13 @@ class KmsKeyRingTest(BaseTest):
         resources = policy.run()
         self.assertEqual(resources[0]['name'], resource_name_1)
         self.assertEqual(resources[1]['name'], resource_name_2)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:asia-east1:cloud-custodian:keyring/cloud-custodian-asia',
+                'gcp:cloudkms:us-central1:cloud-custodian:keyring/cloud-custodian',
+            ],
+        )
 
     def test_kms_keyring_query(self):
         project_id = 'cloud-custodian'
@@ -71,6 +84,12 @@ class KmsKeyRingTest(BaseTest):
 
         resources = policy.run()
         self.assertEqual(resources[0]['name'], resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:keyring/cloud-custodian',
+            ],
+        )
 
     def test_kms_keyring_get(self):
         project_id = 'cloud-custodian'
@@ -95,6 +114,12 @@ class KmsKeyRingTest(BaseTest):
         resources = exec_mode.run(event, None)
 
         self.assertEqual(resources[0]['name'], resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:keyring/cloud-custodian',
+            ],
+        )
 
 
 class KmsCryptoKeyTest(BaseTest):
@@ -134,6 +159,12 @@ class KmsCryptoKeyTest(BaseTest):
         resources = policy.run()
         self.assertEqual(resources[0]['name'], resource_name)
         self.assertEqual(resources[0][parent_annotation_key]['name'], parent_resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:cryptokey/cloud-custodian/cloud-custodian',  # noqa: E501
+            ],
+        )
 
     def test_kms_cryptokey_get(self):
         project_id = 'cloud-custodian'
@@ -162,6 +193,12 @@ class KmsCryptoKeyTest(BaseTest):
 
         self.assertEqual(resources[0]['name'], resource_name)
         self.assertEqual(resources[0][parent_annotation_key]['name'], parent_resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:cryptokey/cloud-custodian/cloud-custodian',  # noqa: E501
+            ],
+        )
 
     def test_kms_cryptokey_iam_policy_filter(self):
         factory = self.replay_flight_data('kms-cryptokey-iam-policy')
@@ -239,6 +276,13 @@ class KmsCryptoKeyVersionTest(BaseTest):
         self.assertEqual(resources[0]['name'], resource_name)
         self.assertEqual(resources[0][parent_annotation_key]['name'], parent_resource_name)
 
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:cryptokey-version/cloud-custodian/cloud-custodian/1',  # noqa: E501
+            ],
+        )
+
     def test_kms_cryptokey_version_get(self):
         project_id = 'cloud-custodian'
         location_name = 'us-central1'
@@ -271,3 +315,9 @@ class KmsCryptoKeyVersionTest(BaseTest):
 
         self.assertEqual(resources[0]['name'], resource_name)
         self.assertEqual(resources[0][parent_annotation_key]['name'], parent_resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            [
+                'gcp:cloudkms:us-central1:cloud-custodian:cryptokey-version/cloud-custodian/cloud-custodian/1',  # noqa: E501
+            ],
+        )

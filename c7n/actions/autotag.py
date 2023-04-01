@@ -58,6 +58,10 @@ class AutoTagUser(EventAction):
             'update': {'type': 'boolean'},
             'tag': {'type': 'string'},
             'principal_id_tag': {'type': 'string'},
+            'value': {
+                'type': 'string',
+                'enum': ['userName', 'arn', 'sourceIPAddress', 'principalId'],
+            },
         }
     )
 
@@ -76,6 +80,32 @@ class AutoTagUser(EventAction):
         if 'tag' not in self.data:
             raise PolicyValidationError("auto-tag action requires 'tag'")
         return self
+
+    def get_user_info_value(self, utype, event):
+        value = None
+
+        vtype = self.data.get('value', None)
+        if vtype is None:
+            return
+
+        if vtype == "userName":
+            if utype == "IAMUser":
+                value = event['userIdentity'].get('userName', '')
+            elif utype == "AssumedRole" or utype == "FederatedUser":
+                value = (
+                    event['userIdentity']
+                    .get('sessionContext', {})
+                    .get('sessionIssuer', {})
+                    .get('userName', '')
+                )
+        elif vtype == "arn":
+            value = event['userIdentity'].get('arn', '')
+        elif vtype == "sourceIPAddress":
+            value = event.get('sourceIPAddress', '')
+        elif vtype == "principalId":
+            value = event['userIdentity'].get('principalId', '')
+
+        return value
 
     def get_tag_value(self, event):
         event = event['detail']
@@ -98,8 +128,10 @@ class AutoTagUser(EventAction):
             elif user.startswith('awslambda'):
                 return
 
+        value = self.get_user_info_value(utype, event)
+
         # if the auto-tag-user policy set update to False (or it's unset) then we
-        return {'user': user, 'id': principal_id_value}
+        return {'user': user, 'id': principal_id_value, 'value': value}
 
     def process(self, resources, event):
         if event is None:
@@ -128,7 +160,9 @@ class AutoTagUser(EventAction):
             untagged_resources = resources
 
         new_tags = {}
-        if user_info['user']:
+        if user_info['value']:
+            new_tags[self.data['tag']] = user_info['value']
+        elif user_info['user']:
             new_tags[self.data['tag']] = user_info['user']
 
         # if principal_id_key is set (and value), we'll set the principalId tag.

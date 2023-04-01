@@ -29,7 +29,6 @@ class StructureParser:
         'actions',
         'source',
         'conditions',
-        'metrics',
         # legacy keys subject to deprecation.
         'region',
         'start',

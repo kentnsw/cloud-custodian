@@ -60,16 +60,15 @@ class NotifyTest(BaseTest):
                 'topic': 'projects/cloud-custodian/topics/gcptestnotifytopic',
                 'body': {
                     'messages': {
-                        # NOTE updated below due to c7n_resource_type_id added to response
                         'data': (
-                            'eJzdUztvwjAQ3v0rkOcmEJAoMHXq1l9QVZGxDzBybMs+o0aI/14/Eh4SU9Wp'
-                            'HjLc5/sed86ZUDiBRrqZ6KDUC6GMcxM0tlLEGuXBoxGS6aqZrxt6w5+DDvbS'
-                            '6IQxpVLBGiV5HwtnQjXrIEEIHittUO760uNNcDxDe25rG7Y+bCs0VvKE76RC'
-                            'cD7Cn+SOxTpzBI5+ypUJorp6meZGP41USajoFDJyIV85AUaTV0LsbSa8OULo'
-                            'rGKYqwJ2LCjMWZw0TmLfHoAJcAmdp3p0m5yM0aTeTwrXpChlSpPlaPDg3oTp'
-                            'mNQ1Nx3NhtAx7a1xWOY0GiqDKN3J/q9Dx9jkEmngG3hIjoblzoZTPfmMhz70'
-                            'eWTZZbNcNqvVYrGcRfgUtzNsfVav62ZFr0N+DPSPJ3z3jv/ipUY6/qo3Hwz5'
-                            'AcT73R9QWHOoeKMdRdsUaVhruZGX/gNvpj8R'
+                            'eJzdU8tuwjAQvPsrkM9NgCJRyqmn3voFVYWMvYArx2vZa9QI8e/1g0eo2kv'
+                            'VUy0lh5ns7Myuc2Ac9mCJL0c2GnPHuJASo6WVVgnj0mBUjYyBUGlh+fWDH1'
+                            'gPW402k8KYDDg0WvYJODBuRQeZIgjUWCS96WtNwOhlobbStS6uQ1w3hE7Lz'
+                            'G+0IfAh0a9soOI8voOkMP5iY1wKwzhJ5Ua1TxVjR/ZWIlAyeRGk3hXBqyOC'
+                            'zhlBBVWwEdFQyeI1ek39agdCgc/sfcaT2+zkHE3b7ahqjWqnIomlHY8B/JP'
+                            'CTmjbSux4MURe2ODQU53T2VAdRK3O9n8dOsVmxyQDHyBjdnRa7+R0mm9e58'
+                            'Nv6gKJ4nI6n08Xi9lsPkn0Pm3ntPVJ+9hOF/wy5NtA/3jCg3v8Fzc1yckHu'
+                            '3wRJHegngd/QFXNC83PJ1zENtA='
                         )
                     }
                 },

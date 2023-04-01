@@ -5,9 +5,17 @@ from c7n.filters.metrics import MetricsFilter
 from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter
 from c7n.filters.kms import KmsRelatedFilter
 from c7n.manager import resources
-from c7n.query import QueryResourceManager, TypeInfo
+from c7n.query import QueryResourceManager, TypeInfo, DescribeSource, ConfigSource
 from c7n.utils import local_session, type_schema
 from c7n.tags import RemoveTag, Tag, TagDelayedAction, TagActionFilter, universal_augment
+
+
+class DescribeMessageBroker(DescribeSource):
+    def augment(self, resources):
+        super().augment(resources)
+        for r in resources:
+            r['Tags'] = [{'Key': k, 'Value': v} for k, v in r.get('Tags', {}).items()]
+        return resources
 
 
 @resources.register('message-broker')
@@ -16,7 +24,7 @@ class MessageBroker(QueryResourceManager):
         service = 'mq'
         enum_spec = ('list_brokers', 'BrokerSummaries', None)
         detail_spec = ('describe_broker', 'BrokerId', 'BrokerId', None)
-        cfn_type = 'AWS::AmazonMQ::Broker'
+        config_type = cfn_type = 'AWS::AmazonMQ::Broker'
         id = 'BrokerId'
         arn = 'BrokerArn'
         name = 'BrokerName'
@@ -25,11 +33,7 @@ class MessageBroker(QueryResourceManager):
 
     permissions = ('mq:ListTags',)
 
-    def augment(self, resources):
-        super(MessageBroker, self).augment(resources)
-        for r in resources:
-            r['Tags'] = [{'Key': k, 'Value': v} for k, v in r.get('Tags', {}).items()]
-        return resources
+    source_mapping = {'describe': DescribeMessageBroker, 'config': ConfigSource}
 
 
 @MessageBroker.filter_registry.register('kms-key')

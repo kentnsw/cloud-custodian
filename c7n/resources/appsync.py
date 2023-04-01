@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 import re
 
-from c7n.actions import BaseAction
-from c7n.filters import Filter
+from c7n.actions import BaseAction, Action
+from c7n.filters import Filter, ValueFilter
 from c7n.manager import resources
 from c7n.query import QueryResourceManager, TypeInfo
 from c7n.utils import local_session, type_schema, get_retry
+from botocore.exceptions import ClientError
 
 
 @resources.register('graphql-api')
@@ -27,8 +28,11 @@ class GraphQLApi(QueryResourceManager):
 @GraphQLApi.filter_registry.register('wafv2-enabled')
 class WafV2Enabled(Filter):
     """Filter AppSync GraphQLApi by wafv2 web-acl
+
     :example:
+
     .. code-block:: yaml
+
             policies:
               - name: filter-graphql-api-wafv2
                 resource: graphql-api
@@ -71,6 +75,45 @@ class WafV2Enabled(Filter):
                     results.append(r)
                 elif target_acl and r_web_acl_id not in target_acl_ids:
                     results.append(r)
+        return results
+
+
+@GraphQLApi.filter_registry.register('api-cache')
+class ApiCache(ValueFilter):
+    """Filter AppSync GraphQLApi based on the api cache attributes
+
+    :example:
+
+    .. code-block:: yaml
+
+       policies:
+         - name: filter-graphql-api-cache
+           resource: aws.graphql-api
+           filters:
+            - type: api-cache
+              key: 'apiCachingBehavior'
+              value: 'FULL_REQUEST_CACHING'
+    """
+
+    permissions = ('appsync:GetApiCache',)
+    schema = type_schema('api-cache', rinherit=ValueFilter.schema)
+    annotation_key = 'c7n:ApiCaches'
+
+    def process(self, resources, event=None):
+        client = local_session(self.manager.session_factory).client('appsync')
+        results = []
+        for r in resources:
+            if self.annotation_key not in r:
+                try:
+                    api_cache = client.get_api_cache(apiId=r['apiId'])['apiCache']
+                except client.exceptions.NotFoundException:
+                    continue
+
+                r[self.annotation_key] = api_cache
+
+            if self.match(r[self.annotation_key]):
+                results.append(r)
+
         return results
 
 
@@ -173,3 +216,37 @@ class SetWafv2(BaseAction):
                 )
             else:
                 self.retry(client.disassociate_web_acl, ResourceArn=r[arn_key])
+
+
+@GraphQLApi.action_registry.register('delete')
+class Delete(Action):
+    """Delete an AppSync GraphQL API.
+
+    :example:
+
+    .. code-block:: yaml
+
+            policies:
+              - name: appsync-delete-unlogged-api
+                resource: graphql-api
+                filters:
+                  - type: value
+                    key: logConfig
+                    value: absent
+                actions:
+                  - delete
+
+    """
+
+    schema = type_schema('delete')
+    permissions = ("appsync:DeleteGraphqlApi",)
+
+    def process(self, apis):
+        client = local_session(self.manager.session_factory).client('appsync')
+        for api in apis:
+            try:
+                client.delete_graphql_api(apiId=api['apiId'])
+            except ClientError as e:
+                if e.response['Error']['Code'] == "ResourceNotFoundException":
+                    continue
+                raise

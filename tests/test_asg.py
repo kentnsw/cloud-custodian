@@ -4,6 +4,7 @@ from datetime import datetime
 from dateutil import tz as tzutil
 
 import jmespath
+import pytest
 from pytest_terraform import terraform
 
 from .common import BaseTest
@@ -105,6 +106,7 @@ class AutoScalingTemplateTest(BaseTest):
         )
 
 
+@pytest.mark.audited
 @terraform('aws_asg')
 def test_asg_propagate_tag_action(test, aws_asg):
 
@@ -138,6 +140,7 @@ def test_asg_propagate_tag_action(test, aws_asg):
     assert itags['Owner'] == 'Kapil'
 
 
+@pytest.mark.audited
 @terraform("aws_asg_update")
 def test_aws_asg_update(test, aws_asg_update):
     factory = test.replay_flight_data("test_aws_asg_update")
@@ -799,6 +802,31 @@ class AutoScalingTest(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
+
+    def test_asg_invalid_filter_validation(self):
+        """Validate policy execution mode
+
+        The valid/invalid filters should cause Lambda mode policies to fail, but
+        pass for other execution modes whether specified explicitly or not.
+        """
+        base_policy = {
+            "name": "asg-invalid-filter",
+            "resource": "asg",
+            "filters": ["invalid"],
+        }
+
+        # Policy should validate cleanly for pull mode, whether it's the implicit
+        # default mode or specified explicitly.
+        p = self.load_policy(base_policy)
+        p.validate()
+        p = self.load_policy({**base_policy, "mode": {"type": "pull"}})
+        p.validate()
+
+        with self.assertRaisesRegex(PolicyValidationError, "too many queries to be run in lambda"):
+            p = self.load_policy(
+                {**base_policy, "mode": {"type": "periodic", "schedule": "rate(1 day)"}}
+            )
+            p.validate()
 
     def test_asg_invalid_filter_good(self):
         factory = self.replay_flight_data("test_asg_invalid_filter_good")

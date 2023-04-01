@@ -116,14 +116,14 @@ ECR_POLICY_SCHEMA = {
         'NotPrincipal': {'anyOf': [{'type': 'object'}, {'type': 'array'}]},
         'Action': {
             'anyOf': [
-                {'type': 'string', 'pattern': '^ecr:[a-zA-Z]*$'},
-                {'type': 'array', 'items': {'type': 'string', 'pattern': '^ecr:[a-zA-Z]*$'}},
+                {'type': 'string', 'pattern': '^ecr:([a-zA-Z]*|[*])$'},
+                {'type': 'array', 'items': {'type': 'string', 'pattern': '^ecr:([a-zA-Z]*|[*])$'}},
             ]
         },
         'NotAction': {
             'anyOf': [
-                {'type': 'string', 'pattern': '^ecr:[a-zA-Z]*$'},
-                {'type': 'array', 'items': {'type': 'string', 'pattern': '^ecr:[a-zA-Z]*$'}},
+                {'type': 'string', 'pattern': '^ecr:([a-zA-Z]*|[*])$'},
+                {'type': 'array', 'items': {'type': 'string', 'pattern': '^ecr:([a-zA-Z]*|[*])$'}},
             ]
         },
         'Resource': {'anyOf': [{'type': 'string'}, {'type': 'array'}]},

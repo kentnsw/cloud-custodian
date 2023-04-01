@@ -26,7 +26,7 @@ class URIResolver:
         self.session_factory = session_factory
         self.cache = cache
 
-    def resolve(self, uri):
+    def resolve(self, uri, headers):
         contents = self.cache.get(("uri-resolver", uri))
         if contents is not None:
             return contents
@@ -34,7 +34,8 @@ class URIResolver:
         if uri.startswith('s3://'):
             contents = self.get_s3_uri(uri)
         else:
-            req = Request(uri, headers={"Accept-Encoding": "gzip"})
+            headers.update({"Accept-Encoding": "gzip"})
+            req = Request(uri, headers=headers)
             with closing(urlopen(req)) as response:  # nosec nosemgrep
                 contents = self.handle_response_encoding(response)
 
@@ -50,10 +51,11 @@ class URIResolver:
 
     def get_s3_uri(self, uri):
         parsed = urlparse(uri)
-        client = self.session_factory().client('s3')
         params = dict(Bucket=parsed.netloc, Key=parsed.path[1:])
         if parsed.query:
             params.update(dict(parse_qsl(parsed.query)))
+        region = params.pop('region', None)
+        client = self.session_factory().client('s3', region_name=region)
         result = client.get_object(**params)
         body = result['Body'].read()
         if isinstance(body, str):
@@ -86,6 +88,8 @@ class ValuesFrom:
          url: http://foobar.com/mydata
          format: json
          expr: Region."us-east-1"[].ImageId
+         headers:
+            authorization: my-token
 
       value_from:
          url: s3://bucket/abc/foo.csv
@@ -106,18 +110,18 @@ class ValuesFrom:
         'properties': {
             'url': {'type': 'string'},
             'format': {'enum': ['csv', 'json', 'txt', 'csv2dict']},
-            'default_value': {'type': 'string'},
-            'default_expr_var_value': {'type': 'string'},
             'expr': {'oneOf': [{'type': 'integer'}, {'type': 'string'}]},
+            'headers': {
+                'type': 'object',
+                'patternProperties': {
+                    '': {'type': 'string'},
+                },
+            },
         },
     }
 
     def __init__(self, data, manager):
-        config_args = {
-            'output_dir': manager.config.output_dir,
-            'account_id': manager.config.account_id,
-            'region': manager.config.region,
-        }
+        config_args = {'account_id': manager.config.account_id, 'region': manager.config.region}
         self.data = format_string_values(data, **config_args)
         self.manager = manager
         self.cache = manager._cache or NullCache({})
@@ -133,16 +137,14 @@ class ValuesFrom:
 
         if format not in self.supported_formats:
             raise ValueError("Unsupported format %s for url %s", format, self.data['url'])
-        try:
-            contents = str(self.resolver.resolve(self.data['url']))
-        except URLError as e:
-            if not self.data.get("default_value"):
-                raise e
-            contents = self.data.get("default_value")
+
+        params = dict(uri=self.data.get('url'), headers=self.data.get('headers', {}))
+
+        contents = str(self.resolver.resolve(**params))
         return contents, format
 
     def get_values(self):
-        key = [self.data.get(i) for i in ('url', 'format', 'expr')]
+        key = [self.data.get(i) for i in ('url', 'format', 'expr', 'headers')]
         with self.cache:
             # use these values as a key to cache the result so if we have
             # the same filter happening across many resources, we can reuse

@@ -23,6 +23,8 @@ class MLModel(QueryResourceManager):
         name = id = 'name'
         default_report_fields = [id, name, "description", "onlinePredictionLogging"]
         get_requires_event = True
+        urn_component = "model"
+        urn_id_segments = (-1,)  # Just use the last segment of the id in the URN
 
         @staticmethod
         def get(client, event):
@@ -48,6 +50,7 @@ class MLJob(QueryResourceManager):
         name = id = 'jobId'
         default_report_fields = ["jobId", "status", "createTime", "endTime"]
         get_requires_event = True
+        urn_component = "job"
 
         @staticmethod
         def get(client, event):

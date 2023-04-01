@@ -24,14 +24,11 @@ class Bucket(QueryResourceManager):
         asset_type = "storage.googleapis.com/Bucket"
         scc_type = "google.cloud.storage.Bucket"
         metric_key = 'resource.labels.bucket_name'
+        urn_component = "bucket"
 
         @staticmethod
         def get(client, resource_info):
             return client.execute_command('get', {'bucket': resource_info['bucket_name']})
-
-        @staticmethod
-        def get_label_params(resource, all_labels):
-            return {'bucket': resource['name'], 'fields': 'labels', 'body': {'labels': all_labels}}
 
 
 @Bucket.filter_registry.register('iam-policy')

@@ -20,6 +20,7 @@ from c7n.query import (
     TypeInfo,
     DescribeSource,
     ConfigSource,
+    DescribeWithResourceTags,
 )
 from c7n.manager import resources
 from c7n.resolver import ValuesFrom
@@ -147,10 +148,11 @@ class EventBus(QueryResourceManager):
         arn_type = 'event-bus'
         arn = 'Arn'
         enum_spec = ('list_event_buses', 'EventBuses', None)
+        config_type = cfn_type = 'AWS::Events::EventBus'
         id = name = 'Name'
         universal_taggable = object()
 
-    augment = universal_augment
+    source_mapping = {'describe': DescribeWithResourceTags, 'config': ConfigSource}
 
 
 @EventBus.filter_registry.register('cross-account')
@@ -183,6 +185,7 @@ class EventRuleMetrics(MetricsFilter):
 
 @EventRule.filter_registry.register('event-rule-target')
 class EventRuleTargetFilter(ChildResourceFilter):
+
     """
     Filter event rules by their targets
 
@@ -363,7 +366,9 @@ class SetRuleState(BaseAction):
     This action allows to enable/disable a rule
 
     :example:
+
     .. code-block:: yaml
+
         policies:
             - name: test-rule
               resource: aws.event-rule
@@ -928,6 +933,7 @@ class SubscriptionFilter(BaseAction):
                 filter_pattern: ip
                 destination_arn: arn:aws:logs:us-east-1:1234567890:destination:lambda
                 distribution: Random
+                role_arn: "arn:aws:iam::{account_id}:role/testCrossAccountRole"
     """
 
     schema = type_schema(
@@ -936,6 +942,7 @@ class SubscriptionFilter(BaseAction):
         filter_pattern={'type': 'string'},
         destination_arn={'type': 'string'},
         distribution={'enum': ['Random', 'ByLogStream']},
+        role_arn={'type': 'string'},
         required=['filter_name', 'destination_arn'],
     )
     permissions = ('logs:PutSubscriptionFilter',)
@@ -943,17 +950,15 @@ class SubscriptionFilter(BaseAction):
     def process(self, resources):
         session = local_session(self.manager.session_factory)
         client = session.client('logs')
+        params = dict(
+            filterName=self.data.get('filter_name'),
+            filterPattern=self.data.get('filter_pattern', ''),
+            destinationArn=self.data.get('destination_arn'),
+            distribution=self.data.get('distribution', 'ByLogStream'),
+        )
 
-        filter_name = self.data.get('filter_name')
-        filter_pattern = self.data.get('filter_pattern', '')
-        destination_arn = self.data.get('destination_arn')
-        distribution = self.data.get('distribution', 'ByLogStream')
+        if self.data.get('role_arn'):
+            params['roleArn'] = self.data.get('role_arn')
 
         for r in resources:
-            client.put_subscription_filter(
-                logGroupName=r['logGroupName'],
-                filterName=filter_name,
-                filterPattern=filter_pattern,
-                destinationArn=destination_arn,
-                distribution=distribution,
-            )
+            client.put_subscription_filter(logGroupName=r['logGroupName'], **params)

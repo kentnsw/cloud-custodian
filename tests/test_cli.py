@@ -277,9 +277,13 @@ class SchemaTest(CliTest):
                     'properties': {
                         'url': {'type': 'string'},
                         'format': {'enum': ['csv', 'json', 'txt', 'csv2dict']},
-                        'default_value': {'type': 'string'},
-                        'default_expr_var_value': {'type': 'string'},
                         'expr': {'oneOf': [{'type': 'integer'}, {'type': 'string'}]},
+                        'headers': {
+                            'type': 'object',
+                            'patternProperties': {
+                                '': {'type': 'string'},
+                            },
+                        },
                     },
                 },
                 'schema2': {
@@ -289,9 +293,13 @@ class SchemaTest(CliTest):
                     'properties': {
                         'url': {'type': 'string'},
                         'format': {'enum': ['csv', 'json', 'txt', 'csv2dict']},
-                        'default_value': {'type': 'string'},
-                        'default_expr_var_value': {'type': 'string'},
                         'expr': {'oneOf': [{'type': 'integer'}, {'type': 'string'}]},
+                        'headers': {
+                            'type': 'object',
+                            'patternProperties': {
+                                '': {'type': 'string'},
+                            },
+                        },
                     },
                 },
             }

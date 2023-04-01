@@ -269,8 +269,8 @@ class OrgTest(TestUtils):
 
         d = {
             'accounts': [
-                {'name': 'dev', 'tags': ['blue', 'red']},
-                {'name': 'prod', 'tags': ['green', 'red']},
+                {'name': 'dev', 'account_id': '123456789012', 'tags': ['blue', 'red']},
+                {'name': 'prod', 'account_id': '123456789013', 'tags': ['green', 'red']},
             ]
         }
 
@@ -289,3 +289,34 @@ class OrgTest(TestUtils):
         t4 = copy.deepcopy(d)
         org.filter_accounts(t4, ['red', 'blue'], [], [])
         self.assertEqual([a['name'] for a in t4['accounts']], ['dev'])
+
+        t5 = copy.deepcopy(d)
+        org.filter_accounts(t5, [], [], ['123456789013'])
+        self.assertEqual([a['name'] for a in t5['accounts']], ['dev'])
+
+        t6 = copy.deepcopy(d)
+        org.filter_accounts(t6, [], [], ['dev'])
+        self.assertEqual([a['name'] for a in t6['accounts']], ['prod'])
+
+    def test_accounts_iterator(self):
+        config = {
+            "vars": {"default_tz": "Sydney/Australia"},
+            "accounts": [
+                {
+                    'name': 'dev',
+                    'account_id': '123456789012',
+                    'tags': ["environment:dev"],
+                    "vars": {"environment": "dev"},
+                },
+                {
+                    'name': 'dev2',
+                    'account_id': '123456789013',
+                    'tags': ["environment:dev"],
+                    "vars": {"environment": "dev", "default_tz": "UTC"},
+                },
+            ],
+        }
+        accounts = [a for a in org.accounts_iterator(config)]
+        accounts[0]["vars"]["default_tz"] = "Sydney/Australia"
+        # NOTE allow override at account level
+        accounts[1]["vars"]["default_tz"] = "UTC"

@@ -748,10 +748,7 @@ class NetworkInterfaceTest(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(
-            [k for k in resources[0] if k.startswith("c7n")],
-            ["c7n:MatchedFilters", "c7n_resource_type_id"],
-        )
+        self.assertEqual([k for k in resources[0] if k.startswith("c7n")], ["c7n:MatchedFilters"])
 
     def test_interface_delete(self):
         factory = self.replay_flight_data("test_network_interface_delete")
@@ -998,6 +995,22 @@ class NetworkAddrTest(BaseTest):
         self.assertEqual(network_addrs["Addresses"][0]["AssociationId"], "eipassoc-eb20eb26")
 
         self.assert_policy_release_failed(factory, ec2, network_addrs["Addresses"][0])
+
+    def test_eip_shield(self):
+        session_factory = self.replay_flight_data("test_eip_shield")
+        p = self.load_policy(
+            {
+                "name": "eip-shield",
+                "resource": "network-addr",
+                "filters": [
+                    {"type": "shield-enabled", "state": False},
+                ],
+                "actions": ["set-shield"],
+            },
+            session_factory=session_factory,
+        )
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
 
 
 class RouteTableTest(BaseTest):
@@ -1261,6 +1274,9 @@ class SecurityGroupTest(BaseTest):
             {"sg-f9cc4d9f", "sg-13de8f75", "sg-ce548cb7", "sg-0a2cb503a229c31c1", "sg-1c8a186c"},
             {r["GroupId"] for r in resources},
         )
+        self.assertIn("amazon-aws", resources[2]["c7n:InstanceOwnerIds"])
+        self.assertIn("vpc_endpoint", resources[2]["c7n:InterfaceTypes"])
+        self.assertIn("ec2", resources[2]["c7n:InterfaceResourceTypes"])
 
     def test_unused_ecs(self):
         factory = self.replay_flight_data("test_security_group_ecs_unused")
@@ -1278,6 +1294,22 @@ class SecurityGroupTest(BaseTest):
         self.patch(unused, 'get_scanners', lambda: (('ecs-cwe', unused.get_ecs_cwe_sgs),))
         resources = p.run()
         assert resources == []
+
+    def test_unused_batch(self):
+        factory = self.replay_flight_data("test_security_group_batch_unused")
+        # 2 security groups in this flight data:
+        # * sg-0f026884bba48e351 (used by the compute environment)
+        # * sg-e2842c8b (not used -> should be returned as such)
+        p = self.load_policy(
+            {'name': 'sg-xyz', 'resource': 'security-group', 'filters': ['unused']},
+            session_factory=factory,
+        )
+        unused = p.resource_manager.filters[0]
+        self.patch(unused, 'get_scanners', lambda: (('batch', unused.get_batch_sgs),))
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
+        self.assertNotEqual(resources[0]["GroupId"], "sg-0f026884bba48e351")  # used
+        self.assertEqual(resources[0]["GroupId"], "sg-e2842c8b")  # not used
 
     def test_unused(self):
         factory = self.replay_flight_data("test_security_group_unused")
@@ -1609,7 +1641,6 @@ class SecurityGroupTest(BaseTest):
                         'GroupName': 'default',
                         'OwnerId': '644160558196',
                         'VpcId': 'vpc-d2d616b5',
-                        'c7n_resource_type_id': 'GroupId',
                         'c7n:resource-type': 'security-group',
                     }
                 },

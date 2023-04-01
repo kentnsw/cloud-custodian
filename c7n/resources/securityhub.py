@@ -8,6 +8,7 @@ import jmespath
 import json
 import hashlib
 import logging
+import sys
 
 from c7n import deprecated
 from c7n.actions import Action
@@ -31,7 +32,52 @@ log = logging.getLogger('c7n.securityhub')
 
 
 class SecurityHubFindingFilter(Filter):
-    """Check if there are Security Hub Findings related to the resources"""
+    """Check if there are Security Hub Findings related to the resources
+
+    :example:
+
+    By default, this filter checks to see if *any* findings exist for a given
+    resource.
+
+    .. code-block:: yaml
+
+        policies:
+          - name: iam-roles-with-findings
+            resource: aws.iam-role
+            filters:
+              - finding
+
+    :example:
+
+    The ``query`` parameter can look for specific findings. Consult this
+    `reference <https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_AwsSecurityFindingFilters.html>`_
+    for more information about available filters and their structure. Note that when matching
+    by finding Id, it can be helpful to combine ``PREFIX`` comparisons with parameterized
+    account and region information.
+
+    .. code-block:: yaml
+
+        policies:
+          - name: iam-roles-with-global-kms-decrypt
+            resource: aws.iam-role
+            filters:
+              - type: finding
+                query:
+                  Id:
+                    - Comparison: PREFIX
+                      Value: 'arn:aws:securityhub:{region}:{account_id}:subscription/aws-foundational-security-best-practices/v/1.0.0/KMS.2'
+                  Title:
+                    - Comparison: EQUALS
+                      Value: >-
+                        KMS.2 IAM principals should not have IAM inline policies
+                        that allow decryption actions on all KMS keys
+                  ComplianceStatus:
+                    - Comparison: EQUALS
+                      Value: 'FAILED'
+                  RecordState:
+                    - Comparison: EQUALS
+                      Value: 'ACTIVE'
+    """  # noqa: E501
 
     schema = type_schema(
         'finding',
@@ -60,23 +106,13 @@ class SecurityHubFindingFilter(Filter):
         params = dict(self.data.get('query', {}))
         idOriginValue = None
         for r_arn, resource in zip(self.manager.get_arns(resources), resources):
-            # NOTE auto fill in finding ID generated with current policy
-            if params.get("Id", [{}])[0].get("Value") == "built-in":
-                idOriginValue = "built-in"
-                finding_tag = self.get_finding_tag(resource)
-                if not finding_tag:
-                    continue
-                params["Id"][0]["Value"] = finding_tag.split(":")[0]
-            else:
-                params['ResourceId'] = [{"Value": r_arn, "Comparison": "EQUALS"}]
-                if resource.get("InstanceId"):
-                    params['ResourceId'].append(
-                        {"Value": resource["InstanceId"], "Comparison": "EQUALS"}
-                    )
-            # NOTE extract get_findings method for patching in testing
-            findings = self.get_findings(client, params)
-            if idOriginValue:
-                params["Id"][0]["Value"] = idOriginValue
+            params['ResourceId'] = [{"Value": r_arn, "Comparison": "EQUALS"}]
+            if resource.get("InstanceId"):
+                params['ResourceId'].append(
+                    {"Value": resource["InstanceId"], "Comparison": "EQUALS"}
+                )
+            retry = get_retry(('TooManyRequestsException'))
+            findings = retry(client.get_findings, Filters=params).get("Findings")
             if len(findings) > 0:
                 resource[self.annotation_key] = findings
                 found.append(resource)
@@ -442,7 +478,7 @@ class PostFinding(Action):
         tags = resource.get('Tags', [])
 
         finding_key = '{}:{}'.format(
-            'c7n:FindingId', self.data.get('title', self.manager.ctx.policy.name.split("--")[0])
+            'c7n:FindingId', self.data.get('title', self.manager.ctx.policy.name)
         )
 
         # Support Tags as dictionary
@@ -488,7 +524,6 @@ class PostFinding(Action):
                         finding_id, created_at = self.get_finding_tag(resource).split(':', 1)
                         updated_at = now
 
-                    self.log.debug(f"Existing finding_id {finding_id}")
                     finding = self.get_finding([resource], finding_id, created_at, updated_at)
                     findings.append(finding)
                     if key == self.NEW_FINDING:
@@ -501,9 +536,7 @@ class PostFinding(Action):
                             {
                                 'key': '{}:{}'.format(
                                     'c7n:FindingId',
-                                    self.data.get(
-                                        'title', self.manager.ctx.policy.name.split("--")[0]
-                                    ),
+                                    self.data.get('title', self.manager.ctx.policy.name),
                                 ),
                                 'value': '{}:{}'.format(finding['Id'], created_at),
                             },
@@ -511,9 +544,8 @@ class PostFinding(Action):
                         ).process([resource])
                     else:
                         stats['Update'] += 1
-            # NOTE extract import_findings method for patching in testing
-            import_response = self.import_findings(client, findings)
-            if import_response.get('FailedCount'):
+            import_response = self.manager.retry(client.batch_import_findings, Findings=findings)
+            if import_response['FailedCount'] > 0:
                 stats['Failed'] += import_response['FailedCount']
                 self.log.error("import_response=%s" % (import_response))
         self.log.debug(
@@ -525,9 +557,6 @@ class PostFinding(Action):
             stats['Failed'],
         )
 
-    def import_findings(self, client, findings):
-        return self.manager.retry(client.batch_import_findings, Findings=findings)
-
     def get_finding(self, resources, existing_finding_id, created_at, updated_at):
         policy = self.manager.ctx.policy
         model = self.manager.resource_type
@@ -536,15 +565,23 @@ class PostFinding(Action):
         if existing_finding_id:
             finding_id = existing_finding_id
         else:
-            finding_id = '{}/{}/{}/{}'.format(  # nosec
+            # for fips compliance we need to explicit pass the usage param but it doesn't
+            # exist on python 3.8, directly pass when we drop 3.8 support.
+            params = (
+                (sys.version_info.major > 3 and sys.version_info.minor > 8)
+                and {'usedforsecurity': False}
+                or {}
+            )
+            finding_id = '{}/{}/{}/{}'.format(
                 self.manager.config.region,
                 self.manager.config.account_id,
-                # NOTE use policy name instead of whole policy, make the finding more easy to find
-                hashlib.sha256(policy.name.split("--")[0].encode('utf8')).hexdigest(),
-                hashlib.sha256(
-                    json.dumps(list(sorted([r[model.id] for r in resources]))).encode(  # nosemgrep
-                        'utf8'
-                    )
+                # we use md5 for id, equiv to using crc32
+                hashlib.md5(  # nosec nosemgrep
+                    json.dumps(policy.data).encode('utf8'), **params
+                ).hexdigest(),
+                hashlib.md5(  # nosec nosemgrep
+                    json.dumps(list(sorted([r[model.id] for r in resources]))).encode('utf8'),
+                    **params
                 ).hexdigest(),
             )
         finding = {
@@ -560,8 +597,7 @@ class PostFinding(Action):
             "Description": self.data.get(
                 "description", policy.data.get("description", self.data.get('title', policy.name))
             ).strip(),
-            # NOTE use policy title property to DRY and have better readability
-            "Title": self.data.get("title", policy.data.get("title", policy.name)),
+            "Title": self.data.get("title", policy.name),
             'Id': finding_id,
             "GeneratorId": policy.name,
             'CreatedAt': created_at,

@@ -29,6 +29,8 @@ class Instance(QueryResourceManager):
         asset_type = "compute.googleapis.com/Instance"
         scc_type = "google.compute.Instance"
         metric_key = 'metric.labels.instance_name'
+        urn_component = "instance"
+        urn_zonal = True
 
         @staticmethod
         def get(client, resource_info):
@@ -254,6 +256,7 @@ class Image(QueryResourceManager):
             "family",
         ]
         asset_type = "compute.googleapis.com/Image"
+        urn_component = "image"
 
         @staticmethod
         def get(client, resource_info):
@@ -288,6 +291,8 @@ class Disk(QueryResourceManager):
         labels = True
         default_report_fields = ["name", "sizeGb", "status", "zone"]
         asset_type = "compute.googleapis.com/Disk"
+        urn_component = "disk"
+        urn_zonal = True
 
         @staticmethod
         def get(client, resource_info):
@@ -390,6 +395,7 @@ class Snapshot(QueryResourceManager):
         name = id = 'name'
         default_report_fields = ["name", "status", "diskSizeGb", "creationTimestamp"]
         asset_type = "compute.googleapis.com/Snapshot"
+        urn_component = "snapshot"
 
         @staticmethod
         def get(client, resource_info):
@@ -433,6 +439,7 @@ class InstanceTemplate(QueryResourceManager):
             "properties.description",
         ]
         asset_type = "compute.googleapis.com/InstanceTemplate"
+        urn_component = "instance-template"
 
         @staticmethod
         def get(client, resource_info):
@@ -489,6 +496,8 @@ class Autoscaler(QueryResourceManager):
         default_report_fields = ["name", "description", "status", "target", "recommendedSize"]
         asset_type = "compute.googleapis.com/Autoscaler"
         metric_key = "resource.labels.autoscaler_name"
+        urn_component = "autoscaler"
+        urn_zonal = True
 
         @staticmethod
         def get(client, resource_info):

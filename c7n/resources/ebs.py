@@ -1001,7 +1001,7 @@ class CopyInstanceTags(BaseAction):
         extant_tags = dict([(t['Key'], t['Value']) for t in volume.get('Tags', [])])
 
         for t in instance.get('Tags', ()):
-            if only_tags and not t['Key'] in only_tags:
+            if only_tags and t['Key'] not in only_tags:
                 continue
             if t['Key'] in extant_tags and t['Value'] == extant_tags[t['Key']]:
                 continue
@@ -1572,7 +1572,7 @@ class ModifyVolume(BaseAction):
               resource: ebs
               filters:
                - type: value
-                 key: CreateDate
+                 key: CreateTime
                  value_type: age
                  value: 7
                  op: greater-than

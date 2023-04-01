@@ -77,7 +77,7 @@ class MailerAzureQueueProcessor(MessageTargetMixin):
             )
         )
 
-        self.handle_targets(queue_message, timestamp)
+        self.handle_targets(queue_message, timestamp, email_delivery=False, sns_delivery=False)
 
         email_result = self._deliver_email(queue_message)
 

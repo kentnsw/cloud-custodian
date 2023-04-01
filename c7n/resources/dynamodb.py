@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from c7n.filters import Filter
 from c7n.filters import ValueFilter
 from c7n.query import RetryPageIterator
+from c7n.filters.backup import ConsecutiveAwsBackupsFilter
 
 
 class ConfigTable(query.ConfigSource):
@@ -49,59 +50,9 @@ class Table(query.QueryResourceManager):
         dimension = 'TableName'
         cfn_type = config_type = 'AWS::DynamoDB::Table'
         universal_taggable = object()
+        arn = 'TableArn'
 
     source_mapping = {'describe': DescribeTable, 'config': ConfigTable}
-
-
-@Table.filter_registry.register('infracost')
-class TableCost(Infracost):
-    def get_query(self):
-        # reference: https://gql.readthedocs.io/en/stable/usage/variables.html
-        return """
-            query ($region: String, $group: String) {
-            products(
-                filter: {
-                    vendorName: "aws",
-                    service: "AmazonDynamoDB",
-                    productFamily: "Provisioned IOPS",
-                    region: $region,
-                    attributeFilters: [
-                        { key: "group", value: $group }
-                    ]
-                },
-            ) {
-                prices(
-                    filter: {
-                        purchaseOption: "on_demand",
-                        description_regex: "/beyond the free tier/"
-                    }
-                ) { USD, unit, description, purchaseOption }
-            }
-            }
-        """
-
-    def get_params(self, resource):
-        params = {
-            "region": resource["TableArn"].split(":")[3],
-        }
-        return params
-
-    def get_price(self, resource, client, query):
-        price = {"USD": 0.0}
-        billingMode = resource.get("BillingModeSummary", {}).get("BillingMode")
-        rcu = resource["ProvisionedThroughput"]["ReadCapacityUnits"]
-        wcu = resource["ProvisionedThroughput"]["WriteCapacityUnits"]
-        if billingMode == "PAY_PER_REQUEST" or rcu + wcu == 0:
-            return price
-
-        params = self.get_params(resource)
-        quantity = self.get_quantity(resource)
-        params.update({"group": "DDB-ReadUnits"})
-        price["USD"] += self._get_price(client, query, params, quantity)["USD"] * rcu
-        params.update({"group": "DDB-WriteUnits"})
-        price["USD"] += self._get_price(client, query, params, quantity)["USD"] * wcu
-        price['USD'] = round(price['USD'], 4)
-        return price
 
 
 @Table.filter_registry.register('kms-key')
@@ -504,7 +455,7 @@ class DescribeDaxCluster(query.DescribeSource):
 class DynamoDbAccelerator(query.QueryResourceManager):
     class resource_type(query.TypeInfo):
         service = 'dax'
-        arn_type = 'cluster'
+        arn_type = 'cache'
         enum_spec = ('describe_clusters', 'Clusters', None)
         arn = 'ClusterArn'
         id = name = 'ClusterName'
@@ -840,3 +791,6 @@ class TableConsecutiveBackups(Filter):
             if expected_dates.issubset(backup_dates):
                 results.append(r)
         return results
+
+
+Table.filter_registry.register('consecutive-aws-backups', ConsecutiveAwsBackupsFilter)

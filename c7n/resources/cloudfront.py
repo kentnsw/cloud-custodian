@@ -332,8 +332,8 @@ class MismatchS3Origin(Filter):
                     check_custom_origins: true
     """
 
-    s3_prefix = re.compile(r'.*(?=\.s3(-.*)?\.amazonaws.com)')
-    s3_suffix = re.compile(r'^([^.]+\.)?s3(-.*)?\.amazonaws.com')
+    s3_prefix = re.compile(r'.*(?=\.s3(-.*)?(\..*-\d)?\.amazonaws.com)')
+    s3_suffix = re.compile(r'^([^.]+\.)?s3(-.*)?(\..*-\d)?\.amazonaws.com')
 
     schema = type_schema('mismatch-s3-origin', check_custom_origins={'type': 'boolean'})
 

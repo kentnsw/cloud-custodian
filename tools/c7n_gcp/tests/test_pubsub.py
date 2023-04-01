@@ -26,6 +26,11 @@ def test_pubsub_topic_query(test, pubsub_topic):
     topic_names = [r['name'] for r in resources]
     assert topic_name in topic_names
 
+    test.assertEqual(
+        policy.resource_manager.get_urns(resources),
+        ["gcp:pubsub::cloud-custodian:topic/test_topic"],
+    )
+
 
 @terraform('pubsub_subscription')
 def test_pubsub_subscription_query(test, pubsub_subscription):
@@ -43,6 +48,11 @@ def test_pubsub_subscription_query(test, pubsub_subscription):
 
     resources = policy.run()
     test.assertEqual(resources[0]['name'], subscription_name)
+
+    test.assertEqual(
+        policy.resource_manager.get_urns(resources),
+        ["gcp:pubsub::cloud-custodian:subscription/c7n-subscription"],
+    )
 
 
 class PubSubSubscriptionTest(BaseTest):
@@ -68,6 +78,10 @@ class PubSubSubscriptionTest(BaseTest):
         event = event_data('pubsub-subscription-create.json')
         resources = exec_mode.run(event, None)
         self.assertEqual(resources[0]['name'], resource_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            ["gcp:pubsub::cloud-custodian:subscription/custodian"],
+        )
 
 
 class PubSubSnapshotTest(BaseTest):
@@ -83,3 +97,7 @@ class PubSubSnapshotTest(BaseTest):
 
         pubsub_snapshot_resources = policy.run()
         self.assertEqual(pubsub_snapshot_resources[0]['name'], pubsub_snapshot_name)
+        self.assertEqual(
+            policy.resource_manager.get_urns(pubsub_snapshot_resources),
+            ["gcp:pubsub::cloud-custodian:snapshot/custodian"],
+        )

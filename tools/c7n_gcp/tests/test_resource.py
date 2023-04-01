@@ -22,6 +22,8 @@ ALLOWED_NOPERM = set(
         'marked-for-op',
         'event',
         'webhook',
+        'missing',
+        'list-item',
     )
 )
 

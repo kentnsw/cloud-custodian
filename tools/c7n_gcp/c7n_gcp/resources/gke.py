@@ -35,6 +35,8 @@ class KubernetesCluster(QueryResourceManager):
         asset_type = 'container.googleapis.com/Cluster'
         scc_type = 'google.container.Cluster'
         metric_key = 'resource.labels.cluster_name'
+        urn_component = 'cluster'
+        urn_zonal = True
 
         @staticmethod
         def get(client, resource_info):
@@ -50,6 +52,8 @@ class KubernetesCluster(QueryResourceManager):
             )
 
     def augment(self, resources):
+        if not resources:
+            return []
         for r in resources:
             if r.get('resourceLabels'):
                 r['labels'] = r['resourceLabels']
@@ -93,6 +97,8 @@ class KubernetesClusterNodePool(ChildResourceManager):
         asset_type = 'container.googleapis.com/NodePool'
         default_report_fields = ['name', 'status', 'version']
         permissions = ('container.nodes.list',)
+        urn_component = 'cluster-node-pool'
+        urn_zonal = True
 
         @staticmethod
         def get(client, resource_info):
@@ -112,6 +118,11 @@ class KubernetesClusterNodePool(ChildResourceManager):
                     )
                 },
             )
+
+        @classmethod
+        def _get_location(cls, resource):
+            "Get the region from the parent - the cluster"
+            return super()._get_location(cls.get_parent(resource))
 
 
 @KubernetesCluster.action_registry.register('delete')

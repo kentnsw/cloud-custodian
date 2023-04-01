@@ -7,7 +7,7 @@ from c7n.exceptions import PolicyValidationError
 from c7n.filters.kms import KmsRelatedFilter
 from c7n.filters import Filter
 from c7n.manager import resources
-from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter
+from c7n.filters.vpc import SecurityGroupFilter, SubnetFilter, NetworkLocation
 from c7n.filters.policystatement import HasStatementFilter
 from c7n.query import (
     QueryResourceManager,
@@ -19,6 +19,7 @@ from c7n.query import (
 from c7n.tags import universal_augment
 from c7n.utils import local_session, type_schema, get_retry
 from .aws import shape_validate
+from c7n.filters.backup import ConsecutiveAwsBackupsFilter
 
 
 class EFSDescribe(DescribeSource):
@@ -41,6 +42,7 @@ class ElasticFileSystem(QueryResourceManager):
         filter_type = 'scalar'
         universal_taggable = True
         config_type = cfn_type = 'AWS::EFS::FileSystem'
+        arn = 'FileSystemArn'
 
     source_mapping = {'describe': EFSDescribe, 'config': ConfigSource}
 
@@ -95,6 +97,7 @@ class SecurityGroup(SecurityGroupFilter):
         return list(group_ids)
 
 
+@ElasticFileSystemMountTarget.filter_registry.register('network-location', NetworkLocation)
 @ElasticFileSystem.filter_registry.register('kms-key')
 class KmsFilter(KmsRelatedFilter):
 
@@ -133,7 +136,7 @@ class ConfigureLifecycle(BaseAction):
 
     :example:
 
-      .. code-block:: yaml
+    .. code-block:: yaml
 
             policies:
               - name: efs-apply-lifecycle
@@ -190,7 +193,7 @@ class LifecyclePolicy(Filter):
 
     :example:
 
-      .. code-block:: yaml
+    .. code-block:: yaml
 
             policies:
               - name: efs-filter-lifecycle
@@ -339,3 +342,6 @@ class EFSHasStatementFilter(HasStatementFilter):
             'account_id': self.manager.config.account_id,
             'region': self.manager.config.region,
         }
+
+
+ElasticFileSystem.filter_registry.register('consecutive-aws-backups', ConsecutiveAwsBackupsFilter)

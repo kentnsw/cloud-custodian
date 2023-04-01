@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 
 from c7n.exceptions import InvalidOutputConfig
 from c7n.registry import PluginRegistry
-from c7n.utils import parse_url_config
+from c7n.utils import parse_url_config, join_output_path
 
 try:
     import psutil
@@ -495,8 +495,11 @@ class BlobOutput(DirectoryOutput):
 
     def get_output_path(self, output_url):
         if '{' not in output_url:
-            date_path = datetime.datetime.utcnow().strftime('%Y/%m/%d/%H')
-            return "/".join([s.strip('/') for s in [output_url, self.ctx.policy.name, date_path]])
+            return join_output_path(
+                output_url.strip('/'),
+                self.ctx.policy.name,
+                datetime.datetime.utcnow().strftime('%Y/%m/%d/%H'),
+            )
         return output_url.format(**self.get_output_vars()).rstrip('/')
 
     def __exit__(self, exc_type=None, exc_value=None, exc_traceback=None):

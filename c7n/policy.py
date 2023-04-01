@@ -25,6 +25,7 @@ from c7n import deprecated, utils
 from c7n.version import version
 from c7n.query import RetryPageIterator
 from c7n.varfmt import VarFormat
+from c7n.utils import get_policy_provider
 
 log = logging.getLogger('c7n.policy')
 
@@ -34,12 +35,12 @@ def load(options, path, format=None, validate=True, vars=None):
     if not os.path.exists(path):
         raise IOError("Invalid path for config %r" % path)
 
-    from c7n.schema import validate, StructureParser
+    from c7n.schema import validate as schema_validate, StructureParser
 
     if os.path.isdir(path):
         from c7n.loader import DirectoryLoader
 
-        collection = DirectoryLoader(options).load_directory(path)
+        collection = DirectoryLoader(options).load_directory(path, validate)
         if validate:
             [p.validate() for p in collection]
         return collection
@@ -57,7 +58,7 @@ def load(options, path, format=None, validate=True, vars=None):
         return None
 
     if validate:
-        errors = validate(data, resource_types=rtypes)
+        errors = schema_validate(data, resource_types=rtypes)
         if errors:
             raise PolicyValidationError(
                 "Failed to validate policy %s \n %s" % (errors[1], errors[0])
@@ -343,13 +344,6 @@ class PullMode(PolicyExecutionMode):
                 rt,
             )
             ctx.metrics.put_metric("ResourceCount", len(resources), "Count", Scope="Policy")
-            # TODO refactor the implementation of ResourceCost metrics below
-            # NOTE It feels quite odd having the policy trying to have awareness of
-            # individual filters and poking at things, we could potentially have the
-            # filter write it, but that leaves other oddities wrt to multiple filters.
-            if len(resources) and COST_ANNOTATION_KEY in resources[0]:
-                cost = sum([r.get(COST_ANNOTATION_KEY, {}).get("USD", 0) for r in resources])
-                ctx.metrics.put_metric("ResourceCost", cost, "Count", Scope="Policy")
             ctx.metrics.put_metric("ResourceTime", rt, "Seconds", Scope="Policy")
             ctx.output.write_file('resources.json', utils.dumps(resources, indent=2))
 
@@ -566,14 +560,6 @@ class LambdaMode(ServerlessExecutionMode):
                 # For cli usage by normal users, don't assume the role just use
                 # it for the lambda
                 manager = mu.LambdaManager(lambda assume=False: self.policy.session_factory(assume))
-
-            # NOTE introduce tag:custodian-policy as version to avoid massive re-deployments
-            deployed = manager.get(self.policy_lambda(self.policy).name)
-            tagCp = tags.get("custodian-policy")
-            if tagCp and deployed and tagCp == deployed.get("Tags", {}).get("custodian-policy"):
-                self.policy.log.info("Skipped due to no changes to tag:custodian-policy")
-                return
-
             return manager.publish(
                 self.policy_lambda(self.policy), role=self.policy.options.assume_role
             )
@@ -957,13 +943,15 @@ class ConfigPollRuleMode(LambdaMode, PullMode):
         token = event.get('resultToken')
         cfg_rule_name = event['configRuleName']
         ordering_ts = cfg_event['notificationCreationTime']
+        policy_data = self.policy.data.copy()
+        policy_data.pop("filters", None)
 
         matched_resources = set()
+        unmatched_resources = set()
         for r in PullMode.run(self):
             matched_resources.add(r[resource_id])
-        unmatched_resources = set()
         for r in self.policy.resource_manager.get_resource_manager(
-            self.policy.resource_type
+            self.policy.resource_type, policy_data
         ).resources():
             if r[resource_id] not in matched_resources:
                 unmatched_resources.add(r[resource_id])
@@ -1227,13 +1215,7 @@ class Policy:
 
     @property
     def provider_name(self) -> str:
-        if isinstance(self.resource_type, list):
-            provider_name, _ = self.resource_type[0].split('.', 1)
-        elif '.' in self.resource_type:
-            provider_name, resource_type = self.resource_type.split('.', 1)
-        else:
-            provider_name = 'aws'
-        return provider_name
+        return get_policy_provider(self.data)
 
     def is_runnable(self, event=None):
         return self.conditions.evaluate(event)

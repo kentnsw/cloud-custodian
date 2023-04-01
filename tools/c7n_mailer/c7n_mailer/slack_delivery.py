@@ -104,16 +104,15 @@ class SlackDelivery:
                     'slack_default',
                     self.config['templates_folders'],
                 )
-            elif target.startswith('slack://tag/'):
+            elif target.startswith('slack://tag/') and 'Tags' in resource_list[0]:
                 tag_name = target.split('tag/', 1)[1]
-                channel_resources = {}
-                for resource in resource_list:
-                    result = next(
-                        (item for item in resource.get('Tags', []) if item["Key"] == tag_name), None
-                    )
-                    if not result:
-                        self.logger.debug("No %s tag found in resource." % tag_name)
-                        continue
+                result = next(
+                    (item for item in resource_list[0].get('Tags', []) if item["Key"] == tag_name),
+                    None,
+                )
+                if not result:
+                    self.logger.debug("No %s tag found in resource." % tag_name)
+                    continue
 
                     resolved_addrs = slack_target = result['Value']
 
@@ -125,26 +124,16 @@ class SlackDelivery:
                     #     resolved_addr = "#" + resolved_addr
                     #     slack_target = resolved_addr
 
-                    if slack_target in channel_resources:
-                        channel_resources[slack_target].append(resource)
-                    else:
-                        channel_resources[slack_target] = [resource]
-
-                for ch, res in channel_resources.items():
-                    if ch in slack_messages:
-                        self.logger.warning(f"Tag {ch} on {len(res)} resources are duplicated")
-                        continue
-
-                    slack_messages[ch] = get_rendered_jinja(
-                        ch,
-                        sqs_message,
-                        res,
-                        self.logger,
-                        'slack_template',
-                        'slack_default',
-                        self.config['templates_folders'],
-                    )
-                    self.logger.debug("Generating message for specified Slack channel.")
+                slack_messages[resolved_addr] = get_rendered_jinja(
+                    slack_target,
+                    sqs_message,
+                    resource_list,
+                    self.logger,
+                    'slack_template',
+                    'slack_default',
+                    self.config['templates_folders'],
+                )
+                self.logger.debug("Generating message for specified Slack channel.")
         return slack_messages
 
     def slack_handler(self, sqs_message, slack_messages):
@@ -182,6 +171,7 @@ class SlackDelivery:
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Authorization': 'Bearer %s' % self.config.get('slack_token'),
                 },
+                timeout=60,
             ).json()
 
             if not response["ok"]:
@@ -221,6 +211,7 @@ class SlackDelivery:
                 url=key,
                 data=message_payload,
                 headers={'Content-Type': 'application/json;charset=utf-8'},
+                timeout=60,
             )
         else:
             response = requests.post(
@@ -230,6 +221,7 @@ class SlackDelivery:
                     'Content-Type': 'application/json;charset=utf-8',
                     'Authorization': 'Bearer %s' % self.config.get('slack_token'),
                 },
+                timeout=60,
             )
 
         if response.status_code == 429 and "Retry-After" in response.headers:

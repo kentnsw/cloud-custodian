@@ -80,9 +80,7 @@ class MetricsFilter(Filter):
             'statistics': {'type': 'string'},
             'days': {'type': 'number'},
             'op': {'type': 'string', 'enum': list(OPERATORS.keys())},
-            'value': {'oneOf': [{'type': 'string'}, {'type': 'number'}]},
-            'value_factor': {'type': 'number'},
-            'expr': {'type': 'boolean'},
+            'value': {'type': 'number'},
             'period': {'type': 'number'},
             'attr-multiplier': {'type': 'number'},
             'percent-attr': {'type': 'string'},
@@ -152,8 +150,8 @@ class MetricsFilter(Filter):
         Ensure that the window aligns with time segments based on CloudWatch's retention
         schedule defined here:
 
-        https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html#Metric  # noqa
-        """
+        https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html#Metric
+        """  # noqa: E501
 
         duration = timedelta(self.days)
         now = datetime.utcnow()
@@ -276,21 +274,12 @@ class MetricsFilter(Filter):
                     }
                 )
 
-            from c7n.actions.metric import METRIC_OPS
-
-            metricOp = METRIC_OPS[self.statistics.lower()]
-            collectedMetrics = metricOp([m[self.statistics] for m in collected_metrics[key]])
-
-            val = self.value
-            if self.is_expr:
-                val = self.value.search(r)
-            val *= self.value_factor
             if self.data.get('percent-attr'):
                 rvalue = r[self.data.get('percent-attr')]
                 if self.data.get('attr-multiplier'):
                     rvalue = rvalue * self.data['attr-multiplier']
-                percent = collectedMetrics / rvalue * 100
-                if self.op(percent, val):
+                percent = collected_metrics[key][0][self.statistics] / rvalue * 100
+                if self.op(percent, self.value):
                     matched.append(r)
             elif self.op(collectedMetrics, val):
                 matched.append(r)

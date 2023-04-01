@@ -5,12 +5,12 @@
 
 import csv
 from collections import Counter
+from datetime import timedelta, datetime
 import logging
 import os
 import time
 import subprocess  # nosec
 import sys
-from datetime import timedelta, datetime
 
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -23,12 +23,20 @@ import jsonschema
 
 from c7n.credentials import assumed_session, SessionFactory
 from c7n.executor import MainThreadExecutor
+from c7n.exceptions import InvalidOutputConfig
 from c7n.config import Config
 from c7n.policy import PolicyCollection
-from c7n.provider import get_resource_class
+from c7n.provider import get_resource_class, clouds as cloud_providers
 from c7n.reports.csvout import Formatter, fs_record_set, record_set, strip_output_path
 from c7n.resources import load_available
-from c7n.utils import CONN_CACHE, dumps, filter_empty, format_string_values
+from c7n.utils import (
+    CONN_CACHE,
+    dumps,
+    filter_empty,
+    format_string_values,
+    get_policy_provider,
+    join_output_path,
+)
 
 from c7n_org.utils import environ, account_tags
 
@@ -570,7 +578,10 @@ def run_script(config, output_dir, accounts, tags, region, echo, serial, worker,
 
     success = True
 
-    with executor(max_workers=worker or WORKER_COUNT) as w:
+    if "://" in output_dir:
+        raise InvalidOutputConfig('run-script only supports local directory outputs')
+
+    with executor(max_workers=WORKER_COUNT) as w:
         futures = {}
         for a in accounts_config.get('accounts', ()):
             for r in resolve_regions(region or a.get('regions', ()), a):
@@ -638,11 +649,10 @@ def accounts_iterator(config):
         yield d
 
 
-def _update(origin, new):
+def _update(old, new):
     for k in new:
-        if k not in origin:
-            origin[k] = new[k]
-    return origin
+        old.setdefault(k, new[k])
+    return old
 
 
 def run_account(
@@ -654,9 +664,7 @@ def run_account(
     CONN_CACHE.time = None
     load_available()
 
-    # allow users to specify interpolated output paths
-    if '{' not in output_path:
-        output_path = os.path.join(output_path, account['name'], region)
+    output_path = join_output_path(output_path, account['name'], region)
 
     cache_path = os.path.join(cache_path, "%s-%s.cache" % (account['account_id'], region))
 
@@ -738,7 +746,7 @@ def run_account(
                     p.name,
                     account['name'],
                     region,
-                    repr(e),
+                    e,
                 )
                 continue
             except Exception as e:
@@ -748,7 +756,7 @@ def run_account(
                     p.name,
                     account['name'],
                     region,
-                    repr(e),
+                    e,
                 )
                 if not debug:
                     continue
@@ -759,6 +767,24 @@ def run_account(
                 raise
 
     return policy_counts, success
+
+
+def initialize_provider_output(policies_config, output_dir, regions):
+    """allow the provider an opportunity to initialize the output config."""
+    # use just enough configuration to attempt to limit initialization
+    # to the output dir. we pass in dummy values for several settings
+    # that if missing would cause at least the aws or azure provider
+    # to do additional dynamic lookups that aren't meaningful in the
+    # context of c7n-org.
+    policy_config = Config.empty(
+        account_id='112233445566',
+        output_dir=output_dir,
+        region=regions and regions[0] or "us-east-1",
+    )
+    provider_name = get_policy_provider(policies_config['policies'][0])
+    provider = cloud_providers[provider_name]()
+    provider.initialize(policy_config)
+    return policy_config.output_dir
 
 
 @cli.command(name='run')
@@ -793,7 +819,6 @@ def run_account(
 @click.option("--dryrun", default=False, is_flag=True)
 @click.option('--debug', default=False, is_flag=True)
 @click.option('-v', '--verbose', default=False, help="Verbose", is_flag=True)
-@click.option('--worker', default=0, type=int)
 def run(
     config,
     use,
@@ -810,7 +835,6 @@ def run(
     dryrun,
     debug,
     verbose,
-    worker,
     metrics_uri,
 ):
     """run a custodian policy across accounts"""
@@ -835,8 +859,9 @@ def run(
         cache_path = os.path.expanduser("~/.cache/c7n-org")
         if not os.path.exists(cache_path):
             os.makedirs(cache_path)
-    if worker:
-        log.warning("--worker does not apply to the run command at the moment")
+
+    output_dir = initialize_provider_output(custodian_config, output_dir, region)
+
     with executor(max_workers=WORKER_COUNT) as w:
         futures = {}
         for a in accounts_config['accounts']:

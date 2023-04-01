@@ -37,13 +37,13 @@ def custodian_archive(packages=None, deps=()):
     requirements = set()
     requirements.update(
         (
+            'boto3',
             'jmespath',
             'retrying',
             'python-dateutil',
-            'ratelimiter',
+            'pyrate-limiter',
             'google-auth',
             'google-auth-httplib2',
-            'google-cloud-storage',
             'google-api-python-client',
         )
     )

@@ -29,6 +29,7 @@ class Network(QueryResourceManager):
         ]
         asset_type = "compute.googleapis.com/Network"
         scc_type = "google.compute.Network"
+        urn_component = "vpc"
 
         @staticmethod
         def get(client, resource_info):
@@ -59,6 +60,7 @@ class Subnet(QueryResourceManager):
         asset_type = "compute.googleapis.com/Subnetwork"
         scc_type = "google.compute.Subnetwork"
         metric_key = "resource.labels.subnetwork_name"
+        urn_component = "subnet"
 
         @staticmethod
         def get(client, resource_info):
@@ -148,6 +150,7 @@ class Firewall(QueryResourceManager):
         asset_type = "compute.googleapis.com/Firewall"
         scc_type = "google.compute.Firewall"
         metric_key = 'metric.labels.firewall_name'
+        urn_component = "firewall"
 
         @staticmethod
         def get(client, resource_info):
@@ -251,6 +254,7 @@ class Router(QueryResourceManager):
         name = id = 'name'
         default_report_fields = ["name", "description", "creationTimestamp", "region", "network"]
         asset_type = "compute.googleapis.com/Router"
+        urn_component = "router"
 
         @staticmethod
         def get(client, resource_info):
@@ -312,6 +316,7 @@ class Route(QueryResourceManager):
             "destRange",
         ]
         asset_type = "compute.googleapis.com/Route"
+        urn_component = "route"
 
         @staticmethod
         def get(client, resource_info):

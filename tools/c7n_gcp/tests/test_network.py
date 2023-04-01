@@ -18,6 +18,10 @@ class FirewallTest(BaseTest):
             }
         )
         self.assertEqual(fw['name'], 'allow-inbound-xyz')
+        self.assertEqual(
+            p.resource_manager.get_urns([fw]),
+            ["gcp:compute::cloud-custodian:firewall/allow-inbound-xyz"],
+        )
 
     def test_firewall_modify(self):
         project_id = 'cloud-custodian'
@@ -76,6 +80,12 @@ class NetworkTest(BaseTest):
         )
         self.assertEqual(network['name'], 'default')
         self.assertEqual(network['autoCreateSubnetworks'], True)
+        self.assertEqual(
+            p.resource_manager.get_urns([network]),
+            [
+                'gcp:compute::cloud-custodian:vpc/default',
+            ],
+        )
 
 
 class SubnetTest(BaseTest):
@@ -92,6 +102,11 @@ class SubnetTest(BaseTest):
         )
         self.assertEqual(subnet['name'], 'default')
         self.assertEqual(subnet['privateIpGoogleAccess'], True)
+
+        self.assertEqual(
+            p.resource_manager.get_urns([subnet]),
+            ["gcp:compute:us-central1:cloud-custodian:subnet/default"],
+        )
 
     def test_subnet_set_flow(self):
         project_id = 'cloud-custodian'
@@ -153,6 +168,10 @@ class RouterTest(BaseTest):
 
         resources = policy.run()
         self.assertEqual(resources[0]['name'], 'test-router')
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            ["gcp:compute:us-central1:cloud-custodian:router/test-router"],
+        )
 
     def test_router_get(self):
         project_id = 'cloud-custodian'
@@ -173,6 +192,10 @@ class RouterTest(BaseTest):
 
         self.assertEqual(len(routers), 1)
         self.assertEqual(routers[0]['bgp']['asn'], 65001)
+        self.assertEqual(
+            p.resource_manager.get_urns(routers),
+            ["gcp:compute:us-central1:cloud-custodian:router/test-router-2"],
+        )
 
     def test_router_delete(self):
         project_id = 'cloud-custodian'
@@ -213,6 +236,10 @@ class RouteTest(BaseTest):
 
         resources = policy.run()
         self.assertEqual(resources[0]['destRange'], '10.160.0.0/20')
+        self.assertEqual(
+            policy.resource_manager.get_urns(resources),
+            ["gcp:compute::cloud-custodian:route/default-route-f414047c633f96ab"],
+        )
 
     def test_route_get(self):
         project_id = 'cloud-custodian'
@@ -233,3 +260,7 @@ class RouteTest(BaseTest):
 
         self.assertEqual(len(routes), 1)
         self.assertEqual(routes[0]['destRange'], '10.0.0.0/24')
+        self.assertEqual(
+            p.resource_manager.get_urns(routes),
+            ["gcp:compute::cloud-custodian:route/test-route-2"],
+        )

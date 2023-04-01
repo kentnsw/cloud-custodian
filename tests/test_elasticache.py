@@ -39,34 +39,6 @@ class TestElastiCacheCluster(BaseTest):
             ["myec-001", "myec-002", "myec-003"],
         )
 
-    def test_elasticache_cost(self):
-        aws_region = 'ap-southeast-2'
-        session_factory = self.replay_flight_data('elasticache_cost', region=aws_region)
-        policy = self.load_policy(
-            {
-                "name": "elasticache-cost",
-                "resource": "cache-cluster",
-                "filters": [
-                    {
-                        "type": "infracost",
-                        "quantity": 730,
-                    }
-                ],
-            },
-            session_factory=session_factory,
-            config={'region': aws_region},
-        )
-        with patch("c7n.filters.cost.Infracost.invoke_infracost") as infracost:
-            infracost.return_value = {
-                'USD': '0.120000',
-                'description': '$0.12 per  Enhanced Medium Cache node-hour'
-                ' (or partial hour) running Redis',
-                'purchaseOption': 'on_demand',
-            }
-            resources = policy.run()
-        self.assertEqual(len(resources), 2)
-        assert resources[0]["c7n:Cost"].items() >= {'USD': 87.6}.items()
-
     def test_elasticache_subnet_filter(self):
         session_factory = self.replay_flight_data("test_elasticache_subnet_group_filter")
         p = self.load_policy(
@@ -220,6 +192,7 @@ class TestElastiCacheCluster(BaseTest):
 
     def test_elasticache_cluster_delete(self):
         session_factory = self.replay_flight_data("test_elasticache_cluster_delete")
+        log_output = self.capture_logging('custodian.actions')
         p = self.load_policy(
             {
                 "name": "elasticache-cluster-delete",
@@ -231,6 +204,24 @@ class TestElastiCacheCluster(BaseTest):
         )
         resources = p.run()
         self.assertEqual(len(resources), 3)
+        assert "Deleted ElastiCache replication group: myec" in log_output.getvalue()
+
+    def test_elasticache_cluster_skip_delete_if_not_empty(self):
+        session_factory = self.replay_flight_data("test_elasticache_cluster_skip_delete")
+        log_output = self.capture_logging('custodian.actions')
+        p = self.load_policy(
+            {
+                "name": "elasticache-cluster-skip-delete",
+                "resource": "cache-cluster",
+                "filters": [{"type": "value", "key": "CacheClusterId", "value": "myec-001"}],
+                "actions": [{"type": "delete"}],
+            },
+            session_factory=session_factory,
+        )
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
+        assert "Deleted ElastiCache replication group: myec" not in log_output.getvalue()
+        assert "myec is not empty" in log_output.getvalue()
 
     def test_elasticache_cluster_snapshot(self):
         session_factory = self.replay_flight_data("test_elasticache_cluster_snapshot")
