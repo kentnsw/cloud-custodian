@@ -39,8 +39,9 @@ class CrossAccountAccessFilter(iamaccess.CrossAccountAccessFilter):
     def get_resource_policy(self, r):
         if self.policy_annotation in r:
             return r[self.policy_annotation]
-        r[self.policy_annotation] = p = self.client.get_resource_policy(
-            SecretId=r['Name']).get('ResourcePolicy', None)
+        r[self.policy_annotation] = p = self.client.get_resource_policy(SecretId=r['Name']).get(
+            'ResourcePolicy', None
+        )
         return p
 
 
@@ -51,12 +52,11 @@ class KmsFilter(KmsRelatedFilter):
 
 @SecretsManager.filter_registry.register('has-statement')
 class HasStatementFilter(HasStatementFilter):
-
     def get_std_format_args(self, secret):
         return {
             'secret_arn': secret['ARN'],
             'account_id': self.manager.config.account_id,
-            'region': self.manager.config.region
+            'region': self.manager.config.region,
         }
 
     def process(self, resources, event=None):

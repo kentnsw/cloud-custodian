@@ -86,9 +86,7 @@ class RichCli(Output):
         self.matches = 0
 
     def on_execution_started(self, policies, graph):
-        self.console.print(
-            "Running %d policies on %d resources" % (len(policies), len(graph))
-        )
+        self.console.print("Running %d policies on %d resources" % (len(policies), len(graph)))
         self.started = time.time()
 
     def on_execution_ended(self):
@@ -96,8 +94,7 @@ class RichCli(Output):
         if self.matches:
             message = "[red]%d Failures[/red]" % len(self.matches)
         self.console.print(
-            "Evaluation complete %0.2f seconds -> %s"
-            % (time.time() - self.started, message)
+            "Evaluation complete %0.2f seconds -> %s" % (time.time() - self.started, message)
         )
 
     def on_results(self, results):
@@ -194,9 +191,7 @@ class Json(Output):
     def on_execution_ended(self):
         formatted_results = [self.format_result(r) for r in self.results]
         if self.config.output_query:
-            formatted_results = jmespath.search(
-                self.config.output_query, formatted_results
-            )
+            formatted_results = jmespath.search(self.config.output_query, formatted_results)
         self.config.output_file.write(
             json.dumps({"results": formatted_results}, cls=JSONEncoder, indent=2)
         )

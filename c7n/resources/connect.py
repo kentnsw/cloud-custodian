@@ -8,7 +8,6 @@ from c7n.utils import local_session, type_schema
 
 @resources.register('connect-instance')
 class Connect(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'connect'
         enum_spec = ('list_instances', 'InstanceSummaryList', None)
@@ -38,8 +37,12 @@ class ConnectInstanceAttributeFilter(ValueFilter):
 
     """
 
-    schema = type_schema('instance-attribute', rinherit=ValueFilter.schema,
-        required=['attribute_type'], **{'attribute_type': {'type': 'string'}})
+    schema = type_schema(
+        'instance-attribute',
+        rinherit=ValueFilter.schema,
+        required=['attribute_type'],
+        **{'attribute_type': {'type': 'string'}}
+    )
     permissions = ('connect:DescribeInstanceAttribute',)
     annotation_key = 'c7n:InstanceAttribute'
 
@@ -50,8 +53,9 @@ class ConnectInstanceAttributeFilter(ValueFilter):
 
         for r in resources:
             if self.annotation_key not in r:
-                instance_attribute = client.describe_instance_attribute(InstanceId=r['Id'],
-                                AttributeType=str.upper(self.data.get('attribute_type')))
+                instance_attribute = client.describe_instance_attribute(
+                    InstanceId=r['Id'], AttributeType=str.upper(self.data.get('attribute_type'))
+                )
                 r[self.annotation_key] = instance_attribute
 
             if self.match(r[self.annotation_key]):

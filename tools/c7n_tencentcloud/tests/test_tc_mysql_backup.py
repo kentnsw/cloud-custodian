@@ -5,7 +5,6 @@ from tc_common import BaseTest
 
 
 class TestMySQLBackUp(BaseTest):
-
     @pytest.mark.vcr
     def test_mysql_backup_create_time(self):
         policy = self.load_policy(
@@ -18,9 +17,9 @@ class TestMySQLBackUp(BaseTest):
                         "key": "Date",
                         "value": 0,
                         "value_type": "age",
-                        "op": "greater-than"
+                        "op": "greater-than",
                     }
-                ]
+                ],
             }
         )
         resources = policy.run()

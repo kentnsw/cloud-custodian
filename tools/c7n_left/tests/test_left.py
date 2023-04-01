@@ -48,9 +48,7 @@ class ResultsReporter:
 
 
 def run_policy(policy, terraform_dir, tmp_path):
-    (tmp_path / "policies.json").write_text(
-        json.dumps({"policies": [policy]}, indent=2)
-    )
+    (tmp_path / "policies.json").write_text(json.dumps({"policies": [policy]}, indent=2))
     config = Config.empty(policy_dir=tmp_path, source_dir=terraform_dir)
     policies = utils.load_policies(tmp_path, config)
     reporter = ResultsReporter()
@@ -59,12 +57,8 @@ def run_policy(policy, terraform_dir, tmp_path):
 
 
 def test_load_policy(test):
-    test.load_policy(
-        {"name": "check1", "resource": "terraform.aws_s3_bucket"}, validate=True
-    )
-    test.load_policy(
-        {"name": "check2", "resource": ["terraform.aws_s3_bucket"]}, validate=True
-    )
+    test.load_policy({"name": "check1", "resource": "terraform.aws_s3_bucket"}, validate=True)
+    test.load_policy({"name": "check2", "resource": ["terraform.aws_s3_bucket"]}, validate=True)
     test.load_policy({"name": "check3", "resource": ["terraform.aws_*"]}, validate=True)
 
 

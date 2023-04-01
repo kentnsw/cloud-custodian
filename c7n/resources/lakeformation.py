@@ -8,7 +8,6 @@ from c7n.filters import Filter, ValueFilter
 
 @resources.register('datalake-location')
 class LakeFormationRegisteredLocation(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'lakeformation'
         enum_spec = ('list_resources', 'ResourceInfoList', None)
@@ -61,7 +60,7 @@ class DataLakeLocationsCrossAccount(Filter):
     def process_account(self, r):
         lake_bucket = {Arn.parse(r.get('ResourceArn')).resource}
         buckets = {
-            b['Name'] for b in
-            self.manager.get_resource_manager('s3').resources(augment=False)}
+            b['Name'] for b in self.manager.get_resource_manager('s3').resources(augment=False)
+        }
         cross_account = lake_bucket.difference(buckets)
         return cross_account

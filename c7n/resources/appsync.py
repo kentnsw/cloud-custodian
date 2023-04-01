@@ -11,8 +11,8 @@ from c7n.utils import local_session, type_schema, get_retry
 
 @resources.register('graphql-api')
 class GraphQLApi(QueryResourceManager):
-    """Resource Manager for AppSync GraphQLApi
-    """
+    """Resource Manager for AppSync GraphQLApi"""
+
     class resource_type(TypeInfo):
         service = 'appsync'
         enum_spec = ('list_graphql_apis', 'graphqlApis', {'maxResults': 25})
@@ -45,9 +45,8 @@ class WafV2Enabled(Filter):
     """
 
     schema = type_schema(
-        'wafv2-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'wafv2-enabled', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
 
     permissions = ('wafv2:ListWebACLs',)
 
@@ -57,8 +56,7 @@ class WafV2Enabled(Filter):
 
         target_acl = self.data.get('web-acl', '')
         state = self.data.get('state', False)
-        target_acl_ids = [v for k, v in waf_name_id_map.items() if
-                          re.match(target_acl, k)]
+        target_acl_ids = [v for k, v in waf_name_id_map.items() if re.match(target_acl, k)]
 
         results = []
         for r in resources:
@@ -121,23 +119,30 @@ class SetWafv2(BaseAction):
                     force: true
                     web-acl: FMManagedWebACLV2-?FMS-TestWebACL
     """
-    permissions = ('wafv2:AssociateWebACL',
-                   'wafv2:DisassociateWebACL',
-                   'wafv2:ListWebACLs')
+
+    permissions = ('wafv2:AssociateWebACL', 'wafv2:DisassociateWebACL', 'wafv2:ListWebACLs')
 
     schema = type_schema(
-        'set-wafv2', **{
+        'set-wafv2',
+        **{
             'web-acl': {'type': 'string'},
             'force': {'type': 'boolean'},
-            'state': {'type': 'boolean'}})
+            'state': {'type': 'boolean'},
+        },
+    )
 
-    retry = staticmethod(get_retry((
-        'ThrottlingException',
-        'RequestLimitExceeded',
-        'Throttled',
-        'ThrottledException',
-        'Throttling',
-        'Client.RequestLimitExceeded')))
+    retry = staticmethod(
+        get_retry(
+            (
+                'ThrottlingException',
+                'RequestLimitExceeded',
+                'Throttled',
+                'ThrottledException',
+                'Throttling',
+                'Client.RequestLimitExceeded',
+            )
+        )
+    )
 
     def process(self, resources):
         wafs = self.manager.get_resource_manager('wafv2').resources(augment=False)
@@ -147,11 +152,9 @@ class SetWafv2(BaseAction):
         target_acl_id = ''
         if state:
             target_acl = self.data.get('web-acl', '')
-            target_acl_ids = [v for k, v in waf_name_id_map.items() if
-                              re.match(target_acl, k)]
+            target_acl_ids = [v for k, v in waf_name_id_map.items() if re.match(target_acl, k)]
             if len(target_acl_ids) != 1:
-                raise ValueError(f'{target_acl} matching to none or '
-                                 f'multiple webacls')
+                raise ValueError(f'{target_acl} matching to none or ' f'multiple webacls')
             target_acl_id = target_acl_ids[0]
 
         client = local_session(self.manager.session_factory).client('wafv2')
@@ -165,9 +168,8 @@ class SetWafv2(BaseAction):
             if r.get('wafWebAclArn') == target_acl_id:
                 continue
             if state:
-                self.retry(client.associate_web_acl,
-                           WebACLArn=target_acl_id,
-                           ResourceArn=r[arn_key])
+                self.retry(
+                    client.associate_web_acl, WebACLArn=target_acl_id, ResourceArn=r[arn_key]
+                )
             else:
-                self.retry(client.disassociate_web_acl,
-                           ResourceArn=r[arn_key])
+                self.retry(client.disassociate_web_acl, ResourceArn=r[arn_key])

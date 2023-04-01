@@ -57,17 +57,13 @@ def cli():
     # If there is a global installation of poetry, prefer that.
     cur_poetry_python_lib = Path(os.path.expanduser('~/.local/share/pypoetry/venv/lib'))
     if cur_poetry_python_lib.exists():
-        sys.path.insert(
-            0, str(list(cur_poetry_python_lib.glob('*'))[0] / "site-packages")
-        )
+        sys.path.insert(0, str(list(cur_poetry_python_lib.glob('*'))[0] / "site-packages"))
 
     osx_poetry_python_lib = Path(
         os.path.expanduser('~/Library/Application Support/pypoetry/venv/lib')
     )
     if osx_poetry_python_lib.exists():
-        sys.path.insert(
-            0, str(list(osx_poetry_python_lib.glob('*'))[0] / "site-packages")
-        )
+        sys.path.insert(0, str(list(osx_poetry_python_lib.glob('*'))[0] / "site-packages"))
 
 
 # Override the poetry base template as all our readmes files
@@ -232,7 +228,8 @@ def locked_deps(package, poetry, exclude=(), remove=()):
         locker=poetry._locker,
         project_requires=package.requires,
         project_python_marker=package.python_marker,
-        extras=package.extras)
+        extras=package.extras,
+    )
 
     project_deps = {r.name: r for r in poetry.package.requires}
     extra_reqs = defaultdict(list)
@@ -253,7 +250,7 @@ def locked_deps(package, poetry, exclude=(), remove=()):
             line += "; {}".format(requirement.split(";")[1].strip())
         if not p.optional:
             reqs.append(line)
-        for extra in (p.name in project_deps and project_deps[p.name].in_extras or []):
+        for extra in p.name in project_deps and project_deps[p.name].in_extras or []:
             extra_reqs[extra].append(line)
 
     return reqs, dict(extra_reqs)

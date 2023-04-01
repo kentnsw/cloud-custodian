@@ -30,8 +30,13 @@ from c7n.query import ConfigSource, QueryResourceManager, DescribeSource, TypeIn
 from c7n.resolver import ValuesFrom
 from c7n.tags import TagActionFilter, TagDelayedAction, Tag, RemoveTag, universal_augment
 from c7n.utils import (
-    get_partition, local_session, type_schema, chunks, filter_empty, QueryParser,
-    select_keys
+    get_partition,
+    local_session,
+    type_schema,
+    chunks,
+    filter_empty,
+    QueryParser,
+    select_keys,
 )
 
 from c7n.resources.aws import Arn
@@ -39,7 +44,6 @@ from c7n.resources.securityhub import OtherResourcePostFinding
 
 
 class DescribeGroup(DescribeSource):
-
     def get_resources(self, resource_ids, cache=True):
         """For IAM Groups on events, resource ids are Group Names."""
         client = local_session(self.manager.session_factory).client('iam')
@@ -57,7 +61,6 @@ class DescribeGroup(DescribeSource):
 
 @resources.register('iam-group')
 class Group(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'group'
@@ -69,14 +72,10 @@ class Group(QueryResourceManager):
         global_resource = True
         arn = 'Arn'
 
-    source_mapping = {
-        'describe': DescribeGroup,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeGroup, 'config': ConfigSource}
 
 
 class DescribeRole(DescribeSource):
-
     def get_resources(self, resource_ids, cache=True):
         client = local_session(self.manager.session_factory).client('iam')
         resources = []
@@ -93,7 +92,6 @@ class DescribeRole(DescribeSource):
 
 @resources.register('iam-role')
 class Role(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'role'
@@ -106,10 +104,7 @@ class Role(QueryResourceManager):
         global_resource = True
         arn = 'Arn'
 
-    source_mapping = {
-        'describe': DescribeRole,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeRole, 'config': ConfigSource}
 
 
 Role.action_registry.register('mark-for-op', TagDelayedAction)
@@ -123,12 +118,22 @@ class RolePostFinding(OtherResourcePostFinding):
 
     def format_resource(self, r):
         envelope, payload = self.format_envelope(r)
-        payload.update(self.filter_empty(
-            select_keys(r, ['AssumeRolePolicyDocument', 'CreateDate',
-                            'MaxSessionDuration', 'Path', 'RoleId',
-                            'RoleName'])))
-        payload['AssumeRolePolicyDocument'] = json.dumps(
-            payload['AssumeRolePolicyDocument'])
+        payload.update(
+            self.filter_empty(
+                select_keys(
+                    r,
+                    [
+                        'AssumeRolePolicyDocument',
+                        'CreateDate',
+                        'MaxSessionDuration',
+                        'Path',
+                        'RoleId',
+                        'RoleName',
+                    ],
+                )
+            )
+        )
+        payload['AssumeRolePolicyDocument'] = json.dumps(payload['AssumeRolePolicyDocument'])
         payload['CreateDate'] = payload['CreateDate'].isoformat()
         return envelope
 
@@ -142,8 +147,7 @@ class RoleTag(Tag):
     def process_resource_set(self, client, roles, tags):
         for role in roles:
             try:
-                self.manager.retry(
-                    client.tag_role, RoleName=role['RoleName'], Tags=tags)
+                self.manager.retry(client.tag_role, RoleName=role['RoleName'], Tags=tags)
             except client.exceptions.NoSuchEntityException:
                 continue
 
@@ -157,8 +161,7 @@ class RoleRemoveTag(RemoveTag):
     def process_resource_set(self, client, roles, tags):
         for role in roles:
             try:
-                self.manager.retry(
-                    client.untag_role, RoleName=role['RoleName'], TagKeys=tags)
+                self.manager.retry(client.untag_role, RoleName=role['RoleName'], TagKeys=tags)
             except client.exceptions.NoSuchEntityException:
                 continue
 
@@ -170,9 +173,8 @@ class SetBoundary(BaseAction):
     """
 
     schema = type_schema(
-        'set-boundary',
-        state={'enum': ['present', 'absent']},
-        policy={'type': 'string'})
+        'set-boundary', state={'enum': ['present', 'absent']}, policy={'type': 'string'}
+    )
 
     def validate(self):
         state = self.data.get('state', 'present') == 'present'
@@ -185,8 +187,8 @@ class SetBoundary(BaseAction):
         policy = self.data.get('policy')
         if policy and not policy.startswith('arn'):
             policy = 'arn:{}:iam::{}:policy/{}'.format(
-                get_partition(self.manager.config.region),
-                self.manager.account_id, policy)
+                get_partition(self.manager.config.region), self.manager.account_id, policy
+            )
         for r in resources:
             method, params = self.get_method(client, state, policy, r)
             try:
@@ -200,7 +202,6 @@ class SetBoundary(BaseAction):
 
 @Role.action_registry.register('set-boundary')
 class RoleSetBoundary(SetBoundary):
-
     def get_permissions(self):
         if self.data.get('state', True):
             return ('iam:PutRolePermissionsBoundary',)
@@ -210,14 +211,13 @@ class RoleSetBoundary(SetBoundary):
         if state:
             return client.put_role_permissions_boundary, {
                 'RoleName': resource['RoleName'],
-                'PermissionsBoundary': policy}
+                'PermissionsBoundary': policy,
+            }
         else:
-            return client.delete_role_permissions_boundary, {
-                'RoleName': resource['RoleName']}
+            return client.delete_role_permissions_boundary, {'RoleName': resource['RoleName']}
 
 
 class DescribeUser(DescribeSource):
-
     def augment(self, resources):
         # iam has a race condition, where listing will potentially return a
         # new user prior it to its availability to get user
@@ -225,8 +225,10 @@ class DescribeUser(DescribeSource):
         results = []
         for r in resources:
             ru = self.manager.retry(
-                client.get_user, UserName=r['UserName'],
-                ignore_err_codes=client.exceptions.NoSuchEntityException)
+                client.get_user,
+                UserName=r['UserName'],
+                ignore_err_codes=client.exceptions.NoSuchEntityException,
+            )
             if ru:
                 results.append(ru['User'])
         return list(filter(None, results))
@@ -245,7 +247,6 @@ class DescribeUser(DescribeSource):
 
 @resources.register('iam-user')
 class User(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'user'
@@ -259,10 +260,7 @@ class User(QueryResourceManager):
         arn = 'Arn'
         config_id = 'UserId'
 
-    source_mapping = {
-        'describe': DescribeUser,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeUser, 'config': ConfigSource}
 
 
 @User.action_registry.register('tag')
@@ -274,8 +272,7 @@ class UserTag(Tag):
     def process_resource_set(self, client, users, tags):
         for u in users:
             try:
-                self.manager.retry(
-                    client.tag_user, UserName=u['UserName'], Tags=tags)
+                self.manager.retry(client.tag_user, UserName=u['UserName'], Tags=tags)
             except client.exceptions.NoSuchEntityException:
                 continue
 
@@ -289,8 +286,7 @@ class UserRemoveTag(RemoveTag):
     def process_resource_set(self, client, users, tags):
         for u in users:
             try:
-                self.manager.retry(
-                    client.untag_user, UserName=u['UserName'], TagKeys=tags)
+                self.manager.retry(client.untag_user, UserName=u['UserName'], TagKeys=tags)
             except client.exceptions.NoSuchEntityException:
                 continue
 
@@ -323,28 +319,28 @@ class SetGroups(BaseAction):
               group: Admin
 
     """
+
     schema = type_schema(
         'set-groups',
         state={'enum': ['add', 'remove']},
         group={'type': 'string'},
-        required=['state', 'group']
+        required=['state', 'group'],
     )
 
-    permissions = ('iam:AddUserToGroup', 'iam:RemoveUserFromGroup',)
+    permissions = (
+        'iam:AddUserToGroup',
+        'iam:RemoveUserFromGroup',
+    )
 
     def validate(self):
         if self.data.get('group') == '':
-            raise PolicyValidationError('group cannot be empty on %s'
-                % (self.manager.data))
+            raise PolicyValidationError('group cannot be empty on %s' % (self.manager.data))
 
     def process(self, resources):
         group_name = self.data['group']
         state = self.data['state']
         client = local_session(self.manager.session_factory).client('iam')
-        op_map = {
-            'add': client.add_user_to_group,
-            'remove': client.remove_user_from_group
-        }
+        op_map = {'add': client.add_user_to_group, 'remove': client.remove_user_from_group}
         for r in resources:
             try:
                 op_map[state](GroupName=group_name, UserName=r['UserName'])
@@ -354,7 +350,6 @@ class SetGroups(BaseAction):
 
 @User.action_registry.register('set-boundary')
 class UserSetBoundary(SetBoundary):
-
     def get_permissions(self):
         if self.data.get('state', True):
             return ('iam:PutUserPermissionsBoundary',)
@@ -364,14 +359,13 @@ class UserSetBoundary(SetBoundary):
         if state:
             return client.put_user_permissions_boundary, {
                 'UserName': resource['UserName'],
-                'PermissionsBoundary': policy}
+                'PermissionsBoundary': policy,
+            }
         else:
-            return client.delete_user_permissions_boundary, {
-                'UserName': resource['UserName']}
+            return client.delete_user_permissions_boundary, {'UserName': resource['UserName']}
 
 
 class DescribePolicy(DescribeSource):
-
     def resources(self, query=None):
         qfilters = PolicyQueryParser.parse(self.manager.data.get('query', []))
         query = query or {}
@@ -397,7 +391,6 @@ class DescribePolicy(DescribeSource):
 
 @resources.register('iam-policy')
 class Policy(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'policy'
@@ -411,10 +404,7 @@ class Policy(QueryResourceManager):
         arn = 'Arn'
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribePolicy,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribePolicy, 'config': ConfigSource}
 
 
 class PolicyQueryParser(QueryParser):
@@ -423,7 +413,7 @@ class PolicyQueryParser(QueryParser):
         'Scope': ('All', 'AWS', 'Local'),
         'PolicyUsageFilter': ('PermissionsPolicy', 'PermissionsBoundary'),
         'PathPrefix': str,
-        'OnlyAttached': bool
+        'OnlyAttached': bool,
     }
     multi_value = False
     value_key = 'Value'
@@ -431,7 +421,6 @@ class PolicyQueryParser(QueryParser):
 
 @resources.register('iam-profile')
 class InstanceProfile(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'instance-profile'
@@ -446,13 +435,10 @@ class InstanceProfile(QueryResourceManager):
 
 @resources.register('iam-certificate')
 class ServerCertificate(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'iam'
         arn_type = 'server-certificate'
-        enum_spec = ('list_server_certificates',
-                     'ServerCertificateMetadataList',
-                     None)
+        enum_spec = ('list_server_certificates', 'ServerCertificateMetadataList', None)
         name = id = 'ServerCertificateName'
         name = 'ServerCertificateName'
         date = 'Expiration'
@@ -482,6 +468,7 @@ class CertificateDelete(BaseAction):
             - type: delete
 
     """
+
     schema = type_schema('delete')
     permissions = ('iam:DeleteServerCertificate',)
 
@@ -556,26 +543,30 @@ class ServiceUsage(Filter):
 
     JOB_COMPLETE = 'COMPLETED'
     SERVICE_ATTR = {
-        'ServiceName', 'ServiceNamespace', 'TotalAuthenticatedEntities',
-        'LastAuthenticated', 'LastAuthenticatedEntity'}
+        'ServiceName',
+        'ServiceNamespace',
+        'TotalAuthenticatedEntities',
+        'LastAuthenticated',
+        'LastAuthenticatedEntity',
+    }
 
     schema_alias = True
     schema_attr = {
-        sa: {'oneOf': [
-            {'type': 'string'},
-            {'type': 'boolean'},
-            {'type': 'number'},
-            {'type': 'null'},
-            {'$ref': '#/definitions/filters/value'}]}
-        for sa in sorted(SERVICE_ATTR)}
+        sa: {
+            'oneOf': [
+                {'type': 'string'},
+                {'type': 'boolean'},
+                {'type': 'number'},
+                {'type': 'null'},
+                {'$ref': '#/definitions/filters/value'},
+            ]
+        }
+        for sa in sorted(SERVICE_ATTR)
+    }
     schema_attr['match-operator'] = {'enum': ['all', 'any']}
     schema_attr['poll-delay'] = {'type': 'number'}
-    schema = type_schema(
-        'usage',
-        required=('match-operator',),
-        **schema_attr)
-    permissions = ('iam:GenerateServiceLastAccessedDetails',
-                   'iam:GetServiceLastAccessedDetails')
+    schema = type_schema('usage', required=('match-operator',), **schema_attr)
+    permissions = ('iam:GenerateServiceLastAccessedDetails', 'iam:GetServiceLastAccessedDetails')
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
@@ -583,9 +574,9 @@ class ServiceUsage(Filter):
         job_resource_map = {}
         for arn, r in zip(self.manager.get_arns(resources), resources):
             try:
-                jid = self.manager.retry(
-                    client.generate_service_last_accessed_details,
-                    Arn=arn)['JobId']
+                jid = self.manager.retry(client.generate_service_last_accessed_details, Arn=arn)[
+                    'JobId'
+                ]
                 job_resource_map[jid] = r
             except client.exceptions.NoSuchEntityException:
                 continue
@@ -601,8 +592,7 @@ class ServiceUsage(Filter):
         while job_resource_map:
             job_results_map = {}
             for jid, r in job_resource_map.items():
-                result = self.manager.retry(
-                    client.get_service_last_accessed_details, JobId=jid)
+                result = self.manager.retry(client.get_service_last_accessed_details, JobId=jid)
                 if result['JobStatus'] != self.JOB_COMPLETE:
                     continue
                 job_results_map[jid] = result['ServicesLastAccessed']
@@ -661,15 +651,21 @@ class CheckPermissions(Filter):
     """
 
     schema = type_schema(
-        'check-permissions', **{
-            'match': {'oneOf': [
-                {'enum': ['allowed', 'denied']},
-                {'$ref': '#/definitions/filters/valuekv'},
-                {'$ref': '#/definitions/filters/value'}]},
+        'check-permissions',
+        **{
+            'match': {
+                'oneOf': [
+                    {'enum': ['allowed', 'denied']},
+                    {'$ref': '#/definitions/filters/valuekv'},
+                    {'$ref': '#/definitions/filters/value'},
+                ]
+            },
             'boundaries': {'type': 'boolean'},
             'match-operator': {'enum': ['and', 'or']},
             'actions': {'type': 'array', 'items': {'type': 'string'}},
-            'required': ('actions', 'match')})
+            'required': ('actions', 'match'),
+        }
+    )
     schema_alias = True
     policy_annotation = 'c7n:policy'
     eval_annotation = 'c7n:perm-matches'
@@ -686,14 +682,18 @@ class CheckPermissions(Filter):
             if ':' not in action[1:-1]:
                 raise PolicyValidationError(
                     "invalid check-permissions action: '%s' must be in the form <service>:<action>"
-                    % (action,))
+                    % (action,)
+                )
         return self
 
     def get_permissions(self):
         if self.manager.type == 'iam-policy':
             return ('iam:SimulateCustomPolicy', 'iam:GetPolicyVersion')
         perms = ('iam:SimulatePrincipalPolicy', 'iam:GetPolicy', 'iam:GetPolicyVersion')
-        if self.manager.type not in ('iam-user', 'iam-role',):
+        if self.manager.type not in (
+            'iam-user',
+            'iam-role',
+        ):
             # for simulating w/ permission boundaries
             perms += ('iam:GetRole',)
         return perms
@@ -706,7 +706,8 @@ class CheckPermissions(Filter):
         arn_resources = list(zip(self.get_iam_arns(resources), resources))
 
         # To ignore permission boundaries, override with an allow-all policy
-        self.simulation_boundary_override = '''
+        self.simulation_boundary_override = (
+            '''
             {
                 "Version": "2012-10-17",
                 "Statement": [{
@@ -715,7 +716,10 @@ class CheckPermissions(Filter):
                     "Resource": "*"
                 }]
             }
-        ''' if not self.data.get('boundaries', True) else None
+        '''
+            if not self.data.get('boundaries', True)
+            else None
+        )
         results = []
         eval_cache = {}
         for arn, r in arn_resources:
@@ -746,18 +750,16 @@ class CheckPermissions(Filter):
             policy = r.get(self.policy_annotation)
             if policy is None:
                 r['c7n:policy'] = policy = client.get_policy_version(
-                    PolicyArn=r['Arn'],
-                    VersionId=r['DefaultVersionId']).get('PolicyVersion', {})
+                    PolicyArn=r['Arn'], VersionId=r['DefaultVersionId']
+                ).get('PolicyVersion', {})
             evaluations = self.manager.retry(
                 client.simulate_custom_policy,
                 PolicyInputList=[json.dumps(policy['Document'])],
-                ActionNames=actions).get('EvaluationResults', ())
+                ActionNames=actions,
+            ).get('EvaluationResults', ())
             return evaluations
 
-        params = dict(
-            PolicySourceArn=arn,
-            ActionNames=actions,
-            ignore_err_codes=('NoSuchEntity',))
+        params = dict(PolicySourceArn=arn, ActionNames=actions, ignore_err_codes=('NoSuchEntity',))
 
         # simulate_principal_policy() respects permission boundaries by default. To opt out of
         # considering boundaries for this filter, we can provide an allow-all policy
@@ -769,9 +771,9 @@ class CheckPermissions(Filter):
         if self.simulation_boundary_override:
             params['PermissionsBoundaryPolicyInputList'] = [self.simulation_boundary_override]
 
-        evaluations = (self.manager.retry(
-            client.simulate_principal_policy,
-            **params) or {}).get('EvaluationResults', ())
+        evaluations = (self.manager.retry(client.simulate_principal_policy, **params) or {}).get(
+            'EvaluationResults', ()
+        )
         return evaluations
 
     def get_eval_matcher(self):
@@ -780,9 +782,7 @@ class CheckPermissions(Filter):
                 values = ['explicitDeny', 'implicitDeny']
             else:
                 values = ['allowed']
-            vf = ValueFilter({'type': 'value', 'key':
-                              'EvalDecision', 'value': values,
-                              'op': 'in'})
+            vf = ValueFilter({'type': 'value', 'key': 'EvalDecision', 'value': values, 'op': 'in'})
         else:
             vf = ValueFilter(self.data['match'])
         vf.annotate = False
@@ -790,11 +790,15 @@ class CheckPermissions(Filter):
 
 
 class IamRoleUsage(Filter):
-
     def get_permissions(self):
-        perms = list(itertools.chain(*[
-            self.manager.get_resource_manager(m).get_permissions()
-            for m in ['lambda', 'launch-config', 'ec2']]))
+        perms = list(
+            itertools.chain(
+                *[
+                    self.manager.get_resource_manager(m).get_permissions()
+                    for m in ['lambda', 'launch-config', 'ec2']
+                ]
+            )
+        )
         perms.extend(['ecs:DescribeClusters', 'ecs:DescribeServices'])
         return perms
 
@@ -819,12 +823,11 @@ class IamRoleUsage(Filter):
         results = []
         client = local_session(self.manager.session_factory).client('ecs')
         for cluster in client.describe_clusters()['clusters']:
-            services = client.list_services(
-                cluster=cluster['clusterName'])['serviceArns']
+            services = client.list_services(cluster=cluster['clusterName'])['serviceArns']
             if services:
                 for service in client.describe_services(
-                        cluster=cluster['clusterName'],
-                        services=services)['services']:
+                    cluster=cluster['clusterName'], services=services
+                )['services']:
                     if 'roleArn' in service:
                         results.append(service['roleArn'])
         return results
@@ -847,8 +850,7 @@ class IamRoleUsage(Filter):
 
     def scan_asg_roles(self):
         manager = self.manager.get_resource_manager('launch-config')
-        return [r['IamInstanceProfile'] for r in manager.resources() if (
-            'IamInstanceProfile' in r)]
+        return [r['IamInstanceProfile'] for r in manager.resources() if ('IamInstanceProfile' in r)]
 
     def scan_ec2_roles(self):
         manager = self.manager.get_resource_manager('ec2')
@@ -869,6 +871,7 @@ class IamRoleUsage(Filter):
 #    IAM Roles    #
 ###################
 
+
 @Role.filter_registry.register('used')
 class UsedIamRole(IamRoleUsage):
     """Filter IAM roles that are either being used or not
@@ -887,18 +890,14 @@ class UsedIamRole(IamRoleUsage):
                 state: true
     """
 
-    schema = type_schema(
-        'used',
-        state={'type': 'boolean'})
+    schema = type_schema('used', state={'type': 'boolean'})
 
     def process(self, resources, event=None):
         roles = self.service_role_usage()
         if self.data.get('state', True):
-            return [r for r in resources if (
-                r['Arn'] in roles or r['RoleName'] in roles)]
+            return [r for r in resources if (r['Arn'] in roles or r['RoleName'] in roles)]
 
-        return [r for r in resources if (
-            r['Arn'] not in roles and r['RoleName'] not in roles)]
+        return [r for r in resources if (r['Arn'] not in roles and r['RoleName'] not in roles)]
 
 
 @Role.filter_registry.register('unused')
@@ -921,9 +920,8 @@ class UnusedIamRole(IamRoleUsage):
               - type: used
                 state: false
     """
-    deprecations = (
-        deprecated.filter("use the 'used' filter with 'state' attribute"),
-    )
+
+    deprecations = (deprecated.filter("use the 'used' filter with 'state' attribute"),)
 
     schema = type_schema('unused')
 
@@ -941,7 +939,8 @@ class RoleCrossAccountAccess(CrossAccountAccessFilter):
         'cross-account',
         # white list accounts
         whitelist_from=ValuesFrom.schema,
-        whitelist={'type': 'array', 'items': {'type': 'string'}})
+        whitelist={'type': 'array', 'items': {'type': 'string'}},
+    )
 
 
 @Role.filter_registry.register('has-inline-policy')
@@ -966,8 +965,7 @@ class IamRoleInlinePolicy(Filter):
     permissions = ('iam:ListRolePolicies',)
 
     def _inline_policies(self, client, resource):
-        policies = client.list_role_policies(
-            RoleName=resource['RoleName'])['PolicyNames']
+        policies = client.list_role_policies(RoleName=resource['RoleName'])['PolicyNames']
         resource['c7n:InlinePolicies'] = policies
         return resource
 
@@ -1006,8 +1004,12 @@ class SpecificIamRoleManagedPolicy(Filter):
     permissions = ('iam:ListAttachedRolePolicies',)
 
     def _managed_policies(self, client, resource):
-        return [r['PolicyName'] for r in client.list_attached_role_policies(
-            RoleName=resource['RoleName'])['AttachedPolicies']]
+        return [
+            r['PolicyName']
+            for r in client.list_attached_role_policies(RoleName=resource['RoleName'])[
+                'AttachedPolicies'
+            ]
+        ]
 
     def process(self, resources, event=None):
         c = local_session(self.manager.session_factory).client('iam')
@@ -1038,14 +1040,19 @@ class NoSpecificIamRoleManagedPolicy(Filter):
     permissions = ('iam:ListAttachedRolePolicies',)
 
     def _managed_policies(self, client, resource):
-        return [r['PolicyName'] for r in client.list_attached_role_policies(
-            RoleName=resource['RoleName'])['AttachedPolicies']]
+        return [
+            r['PolicyName']
+            for r in client.list_attached_role_policies(RoleName=resource['RoleName'])[
+                'AttachedPolicies'
+            ]
+        ]
 
     def process(self, resources, event=None):
         c = local_session(self.manager.session_factory).client('iam')
         if self.data.get('value'):
-            return [r for r in resources if not self.data.get('value') in
-            self._managed_policies(c, r)]
+            return [
+                r for r in resources if not self.data.get('value') in self._managed_policies(c, r)
+            ]
         return []
 
 
@@ -1077,31 +1084,32 @@ class SetPolicy(BaseAction):
               arn: arn:aws:iam::123456789012:policy/my-iam-policy
 
     """
+
     schema = type_schema(
         'set-policy',
         state={'enum': ['attached', 'detached']},
         arn={'type': 'string'},
-        required=['state', 'arn'])
+        required=['state', 'arn'],
+    )
 
-    permissions = ('iam:AttachRolePolicy', 'iam:DetachRolePolicy', "iam:ListAttachedRolePolicies",)
+    permissions = (
+        'iam:AttachRolePolicy',
+        'iam:DetachRolePolicy',
+        "iam:ListAttachedRolePolicies",
+    )
 
     def validate(self):
         if self.data.get('state') == 'attached' and self.data.get('arn') == "*":
             raise PolicyValidationError(
-                '* operator is not supported for state: attached on %s' % (self.manager.data))
+                '* operator is not supported for state: attached on %s' % (self.manager.data)
+            )
 
     def attach_policy(self, client, resource, policy_arn):
-        client.attach_role_policy(
-            RoleName=resource['RoleName'],
-            PolicyArn=policy_arn
-        )
+        client.attach_role_policy(RoleName=resource['RoleName'], PolicyArn=policy_arn)
 
     def detach_policy(self, client, resource, policy_arn):
         try:
-            client.detach_role_policy(
-                RoleName=resource['RoleName'],
-                PolicyArn=policy_arn
-            )
+            client.detach_role_policy(RoleName=resource['RoleName'], PolicyArn=policy_arn)
         except client.exceptions.NoSuchEntityException:
             return
 
@@ -1115,8 +1123,8 @@ class SetPolicy(BaseAction):
         policy_arn = self.data['arn']
         if policy_arn != "*" and not policy_arn.startswith('arn'):
             policy_arn = 'arn:{}:iam::{}:policy/{}'.format(
-                get_partition(self.manager.config.region),
-                self.manager.account_id, policy_arn)
+                get_partition(self.manager.config.region), self.manager.account_id, policy_arn
+            )
         state = self.data['state']
         for r in resources:
             if state == 'attached':
@@ -1163,23 +1171,22 @@ class SetGroupPolicy(SetPolicy):
     """
 
     permissions = (
-        "iam:AttachGroupPolicy", "iam:DetachGroupPolicy", "iam:ListAttachedGroupPolicies",)
+        "iam:AttachGroupPolicy",
+        "iam:DetachGroupPolicy",
+        "iam:ListAttachedGroupPolicies",
+    )
 
     def attach_policy(self, client, resource, policy_arn):
-        client.attach_group_policy(
-            GroupName=resource["GroupName"], PolicyArn=policy_arn)
+        client.attach_group_policy(GroupName=resource["GroupName"], PolicyArn=policy_arn)
 
     def detach_policy(self, client, resource, policy_arn):
         try:
-            client.detach_group_policy(
-                GroupName=resource["GroupName"], PolicyArn=policy_arn)
+            client.detach_group_policy(GroupName=resource["GroupName"], PolicyArn=policy_arn)
         except client.exceptions.NoSuchEntityException:
             return
 
     def list_attached_policies(self, client, resource):
-        attached_policies = client.list_attached_group_policies(
-            GroupName=resource["GroupName"]
-        )
+        attached_policies = client.list_attached_group_policies(GroupName=resource["GroupName"])
         policy_arns = [p.get('PolicyArn') for p in attached_policies['AttachedPolicies']]
         return policy_arns
 
@@ -1216,18 +1223,29 @@ class RoleDelete(BaseAction):
               force: true
 
     """
+
     schema = type_schema('delete', force={'type': 'boolean'})
-    permissions = ('iam:DeleteRole', 'iam:DeleteInstanceProfile',)
+    permissions = (
+        'iam:DeleteRole',
+        'iam:DeleteInstanceProfile',
+    )
 
     def detach_inline_policies(self, client, r):
-        policies = (self.manager.retry(
-            client.list_role_policies, RoleName=r['RoleName'],
-            ignore_err_codes=('NoSuchEntityException',)) or {}).get('PolicyNames', ())
+        policies = (
+            self.manager.retry(
+                client.list_role_policies,
+                RoleName=r['RoleName'],
+                ignore_err_codes=('NoSuchEntityException',),
+            )
+            or {}
+        ).get('PolicyNames', ())
         for p in policies:
             self.manager.retry(
                 client.delete_role_policy,
-                RoleName=r['RoleName'], PolicyName=p,
-                ignore_err_codes=('NoSuchEntityException',))
+                RoleName=r['RoleName'],
+                PolicyName=p,
+                ignore_err_codes=('NoSuchEntityException',),
+            )
 
     def delete_instance_profiles(self, client, r):
         # An instance profile can contain only one IAM role,
@@ -1236,25 +1254,30 @@ class RoleDelete(BaseAction):
         profiles = self.manager.retry(
             client.list_instance_profiles_for_role,
             RoleName=r['RoleName'],
-            ignore_err_codes=('NoSuchEntityException',))
+            ignore_err_codes=('NoSuchEntityException',),
+        )
         if profiles:
             profile_names = [p.get('InstanceProfileName') for p in profiles['InstanceProfiles']]
         for p in profile_names:
             self.manager.retry(
                 client.remove_role_from_instance_profile,
-                RoleName=r['RoleName'], InstanceProfileName=p,
-                ignore_err_codes=('NoSuchEntityException',))
+                RoleName=r['RoleName'],
+                InstanceProfileName=p,
+                ignore_err_codes=('NoSuchEntityException',),
+            )
             self.manager.retry(
                 client.delete_instance_profile,
                 InstanceProfileName=p,
-                ignore_err_codes=('NoSuchEntityException',))
+                ignore_err_codes=('NoSuchEntityException',),
+            )
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('iam')
         error = None
         if self.data.get('force', False):
             policy_setter = self.manager.action_registry['set-policy'](
-                {'state': 'detached', 'arn': '*'}, self.manager)
+                {'state': 'detached', 'arn': '*'}, self.manager
+            )
             policy_setter.process(resources)
 
         for r in resources:
@@ -1265,12 +1288,17 @@ class RoleDelete(BaseAction):
                 client.delete_role(RoleName=r['RoleName'])
             except client.exceptions.DeleteConflictException as e:
                 self.log.warning(
-                    ("Role:%s cannot be deleted, set force "
-                     "to detach policy, instance profile and delete, error: %s") % (
-                         r['Arn'], str(e)))
+                    (
+                        "Role:%s cannot be deleted, set force "
+                        "to detach policy, instance profile and delete, error: %s"
+                    )
+                    % (r['Arn'], str(e))
+                )
                 error = e
-            except (client.exceptions.NoSuchEntityException,
-                    client.exceptions.UnmodifiableEntityException):
+            except (
+                client.exceptions.NoSuchEntityException,
+                client.exceptions.UnmodifiableEntityException,
+            ):
                 continue
         if error:
             raise error
@@ -1301,8 +1329,11 @@ class UsedIamPolicies(Filter):
     permissions = ('iam:ListPolicies',)
 
     def process(self, resources, event=None):
-        return [r for r in resources if
-                r['AttachmentCount'] > 0 or r.get('PermissionsBoundaryUsageCount', 0) > 0]
+        return [
+            r
+            for r in resources
+            if r['AttachmentCount'] > 0 or r.get('PermissionsBoundaryUsageCount', 0) > 0
+        ]
 
 
 @Policy.filter_registry.register('unused')
@@ -1325,8 +1356,11 @@ class UnusedIamPolicies(Filter):
     permissions = ('iam:ListPolicies',)
 
     def process(self, resources, event=None):
-        return [r for r in resources if
-                r['AttachmentCount'] == 0 and r.get('PermissionsBoundaryUsageCount', 0) == 0]
+        return [
+            r
+            for r in resources
+            if r['AttachmentCount'] == 0 and r.get('PermissionsBoundaryUsageCount', 0) == 0
+        ]
 
 
 @Policy.filter_registry.register('has-allow-all')
@@ -1371,35 +1405,35 @@ class AllowAllIamPolicies(Filter):
     above.
 
     """
+
     schema = type_schema('has-allow-all')
     permissions = ('iam:ListPolicies', 'iam:ListPolicyVersions')
 
     def has_allow_all_policy(self, client, resource):
         statements = client.get_policy_version(
-            PolicyArn=resource['Arn'],
-            VersionId=resource['DefaultVersionId']
+            PolicyArn=resource['Arn'], VersionId=resource['DefaultVersionId']
         )['PolicyVersion']['Document']['Statement']
         if isinstance(statements, dict):
             statements = [statements]
 
         for s in statements:
-            if ('Condition' not in s and
-                    'Action' in s and
-                    isinstance(s['Action'], str) and
-                    s['Action'] == "*" and
-                    'Resource' in s and
-                    isinstance(s['Resource'], str) and
-                    s['Resource'] == "*" and
-                    s['Effect'] == "Allow"):
+            if (
+                'Condition' not in s
+                and 'Action' in s
+                and isinstance(s['Action'], str)
+                and s['Action'] == "*"
+                and 'Resource' in s
+                and isinstance(s['Resource'], str)
+                and s['Resource'] == "*"
+                and s['Effect'] == "Allow"
+            ):
                 return True
         return False
 
     def process(self, resources, event=None):
         c = local_session(self.manager.session_factory).client('iam')
         results = [r for r in resources if self.has_allow_all_policy(c, r)]
-        self.log.info(
-            "%d of %d iam policies have allow all.",
-            len(results), len(resources))
+        self.log.info("%d of %d iam policies have allow all.", len(results), len(resources))
         return results
 
 
@@ -1421,6 +1455,7 @@ class PolicyDelete(BaseAction):
             - delete
 
     """
+
     schema = type_schema('delete')
     permissions = ('iam:DeletePolicy',)
 
@@ -1430,13 +1465,17 @@ class PolicyDelete(BaseAction):
         rcount = len(resources)
         resources = [r for r in resources if Arn.parse(r['Arn']).account_id != 'aws']
         if len(resources) != rcount:
-            self.log.warning("Implicitly filtering AWS managed policies: %d -> %d",
-                             rcount, len(resources))
+            self.log.warning(
+                "Implicitly filtering AWS managed policies: %d -> %d", rcount, len(resources)
+            )
 
         for r in resources:
             if r.get('DefaultVersionId', '') != 'v1':
-                versions = [v['VersionId'] for v in client.list_policy_versions(
-                    PolicyArn=r['Arn']).get('Versions') if not v.get('IsDefaultVersion')]
+                versions = [
+                    v['VersionId']
+                    for v in client.list_policy_versions(PolicyArn=r['Arn']).get('Versions')
+                    if not v.get('IsDefaultVersion')
+                ]
                 for v in versions:
                     client.delete_policy_version(PolicyArn=r['Arn'], VersionId=v)
             client.delete_policy(PolicyArn=r['Arn'])
@@ -1471,8 +1510,8 @@ class UsedInstanceProfiles(IamRoleUsage):
             if r['Arn'] in profiles or r['InstanceProfileName'] in profiles:
                 results.append(r)
         self.log.info(
-            "%d of %d instance profiles currently in use." % (
-                len(results), len(resources)))
+            "%d of %d instance profiles currently in use." % (len(results), len(resources))
+        )
         return results
 
 
@@ -1497,11 +1536,11 @@ class UnusedInstanceProfiles(IamRoleUsage):
         results = []
         profiles = self.instance_profile_usage()
         for r in resources:
-            if (r['Arn'] not in profiles and r['InstanceProfileName'] not in profiles):
+            if r['Arn'] not in profiles and r['InstanceProfileName'] not in profiles:
                 results.append(r)
         self.log.info(
-            "%d of %d instance profiles currently not in use." % (
-                len(results), len(resources)))
+            "%d of %d instance profiles currently not in use." % (len(results), len(resources))
+        )
         return results
 
 
@@ -1522,15 +1561,17 @@ class InstanceProfileSetRole(BaseAction):
                   role: my-test-role
     """
 
-    schema = type_schema('set-role',
-    role={'type': 'string'})
-    permissions = ('iam:AddRoleToInstanceProfile', 'iam:RemoveRoleFromInstanceProfile',)
+    schema = type_schema('set-role', role={'type': 'string'})
+    permissions = (
+        'iam:AddRoleToInstanceProfile',
+        'iam:RemoveRoleFromInstanceProfile',
+    )
 
     def add_role(self, client, resource, role):
         self.manager.retry(
             client.add_role_to_instance_profile,
             InstanceProfileName=resource['InstanceProfileName'],
-            RoleName=role
+            RoleName=role,
         )
         return
 
@@ -1538,7 +1579,7 @@ class InstanceProfileSetRole(BaseAction):
         self.manager.retry(
             client.remove_role_from_instance_profile,
             InstanceProfileName=resource['InstanceProfileName'],
-            RoleName=resource['Roles'][0]['RoleName']
+            RoleName=resource['Roles'][0]['RoleName'],
         )
         return
 
@@ -1564,6 +1605,7 @@ class InstanceProfileSetRole(BaseAction):
 ###################
 #    IAM Users    #
 ###################
+
 
 class CredentialReport(Filter):
     """Use IAM Credential report to filter users.
@@ -1606,56 +1648,63 @@ class CredentialReport(Filter):
     into boolean values.
 
     """
+
     schema = type_schema(
         'credential',
         value_type={'$ref': '#/definitions/filters_common/value_types'},
-        key={'type': 'string',
-             'title': 'report key to search',
-             'enum': [
-                 'user',
-                 'arn',
-                 'user_creation_time',
-                 'password_enabled',
-                 'password_last_used',
-                 'password_last_changed',
-                 'password_next_rotation',
-                 'mfa_active',
-                 'access_keys',
-                 'access_keys.active',
-                 'access_keys.last_used_date',
-                 'access_keys.last_used_region',
-                 'access_keys.last_used_service',
-                 'access_keys.last_rotated',
-                 'certs',
-                 'certs.active',
-                 'certs.last_rotated',
-             ]},
+        key={
+            'type': 'string',
+            'title': 'report key to search',
+            'enum': [
+                'user',
+                'arn',
+                'user_creation_time',
+                'password_enabled',
+                'password_last_used',
+                'password_last_changed',
+                'password_next_rotation',
+                'mfa_active',
+                'access_keys',
+                'access_keys.active',
+                'access_keys.last_used_date',
+                'access_keys.last_used_region',
+                'access_keys.last_used_service',
+                'access_keys.last_rotated',
+                'certs',
+                'certs.active',
+                'certs.last_rotated',
+            ],
+        },
         value={'$ref': '#/definitions/filters_common/value'},
         op={'$ref': '#/definitions/filters_common/comparison_operators'},
         report_generate={
             'title': 'Generate a report if none is present.',
             'default': True,
-            'type': 'boolean'},
+            'type': 'boolean',
+        },
         report_delay={
             'title': 'Number of seconds to wait for report generation.',
             'default': 10,
-            'type': 'number'},
+            'type': 'number',
+        },
         report_max_age={
             'title': 'Number of seconds to consider a report valid.',
             'default': 60 * 60 * 24,
-            'type': 'number'})
+            'type': 'number',
+        },
+    )
 
     list_sub_objects = (
         ('access_key_1_', 'access_keys'),
         ('access_key_2_', 'access_keys'),
         ('cert_1_', 'certs'),
-        ('cert_2_', 'certs'))
+        ('cert_2_', 'certs'),
+    )
 
     # for access keys only
     matched_annotation_key = 'c7n:matched-keys'
 
-    permissions = ('iam:GenerateCredentialReport',
-                   'iam:GetCredentialReport')
+    permissions = ('iam:GenerateCredentialReport', 'iam:GetCredentialReport')
 
     def get_value_or_schema_default(self, k):
         if k in self.data:
@@ -1699,8 +1748,7 @@ class CredentialReport(Filter):
                 info[k] = True
         # Object conversion
         for p, t in cls.list_sub_objects:
-            obj = dict([(k[len(p):], info.pop(k))
-                        for k in keys if k.startswith(p)])
+            obj = dict([(k[len(p) :], info.pop(k)) for k in keys if k.startswith(p)])
             if obj.get('active', False) or obj.get('last_rotated', False):
                 info.setdefault(t, []).append(obj)
         return info
@@ -1721,8 +1769,8 @@ class CredentialReport(Filter):
                 raise
         if report:
             threshold = datetime.datetime.now(tz=tzutc()) - timedelta(
-                seconds=self.get_value_or_schema_default(
-                    'report_max_age'))
+                seconds=self.get_value_or_schema_default('report_max_age')
+            )
             if not report['GeneratedTime'].tzinfo:
                 threshold = threshold.replace(tzinfo=None)
             if report['GeneratedTime'] < threshold:
@@ -1770,7 +1818,6 @@ class CredentialReport(Filter):
 
 @User.filter_registry.register('credential')
 class UserCredentialReport(CredentialReport):
-
     def process(self, resources, event=None):
         super(UserCredentialReport, self).process(resources, event)
         report = self.get_credential_report()
@@ -1788,18 +1835,19 @@ class UserCredentialReport(CredentialReport):
 @User.filter_registry.register('has-inline-policy')
 class IamUserInlinePolicy(Filter):
     """
-        Filter IAM users that have an inline-policy attached
+    Filter IAM users that have an inline-policy attached
 
-        True: Filter users that have an inline-policy
-        False: Filter users that do not have an inline-policy
+    True: Filter users that have an inline-policy
+    False: Filter users that do not have an inline-policy
     """
 
     schema = type_schema('has-inline-policy', value={'type': 'boolean'})
     permissions = ('iam:ListUserPolicies',)
 
     def _inline_policies(self, client, resource):
-        resource['c7n:InlinePolicies'] = client.list_user_policies(
-            UserName=resource['UserName'])['PolicyNames']
+        resource['c7n:InlinePolicies'] = client.list_user_policies(UserName=resource['UserName'])[
+            'PolicyNames'
+        ]
         return resource
 
     def process(self, resources, event=None):
@@ -1841,17 +1889,14 @@ class UserPolicy(ValueFilter):
         for u in user_set:
             if 'c7n:Policies' not in u:
                 u['c7n:Policies'] = []
-            aps = client.list_attached_user_policies(
-                UserName=u['UserName'])['AttachedPolicies']
+            aps = client.list_attached_user_policies(UserName=u['UserName'])['AttachedPolicies']
             for ap in aps:
-                u['c7n:Policies'].append(
-                    client.get_policy(PolicyArn=ap['PolicyArn'])['Policy'])
+                u['c7n:Policies'].append(client.get_policy(PolicyArn=ap['PolicyArn'])['Policy'])
 
     def process(self, resources, event=None):
         user_set = chunks(resources, size=50)
         with self.executor_factory(max_workers=2) as w:
-            self.log.debug(
-                "Querying %d users policies" % len(resources))
+            self.log.debug("Querying %d users policies" % len(resources))
             list(w.map(self.user_policies, user_set))
 
         matched = []
@@ -1885,17 +1930,14 @@ class GroupMembership(ValueFilter):
 
     def get_user_groups(self, client, user_set):
         for u in user_set:
-            u['c7n:Groups'] = client.list_groups_for_user(
-                UserName=u['UserName'])['Groups']
+            u['c7n:Groups'] = client.list_groups_for_user(UserName=u['UserName'])['Groups']
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
         with self.executor_factory(max_workers=2) as w:
             futures = []
-            for user_set in chunks(
-                    [r for r in resources if 'c7n:Groups' not in r], size=50):
-                futures.append(
-                    w.submit(self.get_user_groups, client, user_set))
+            for user_set in chunks([r for r in resources if 'c7n:Groups' not in r], size=50):
+                futures.append(w.submit(self.get_user_groups, client, user_set))
             for f in as_completed(futures):
                 pass
 
@@ -1935,9 +1977,8 @@ class UserAccessKey(ValueFilter):
     """
 
     schema = type_schema(
-        'access-key',
-        rinherit=ValueFilter.schema,
-        **{'match-operator': {'enum': ['and', 'or']}})
+        'access-key', rinherit=ValueFilter.schema, **{'match-operator': {'enum': ['and', 'or']}}
+    )
     schema_alias = False
     permissions = ('iam:ListAccessKeys',)
     annotation_key = 'c7n:AccessKeys'
@@ -1947,18 +1988,15 @@ class UserAccessKey(ValueFilter):
     def get_user_keys(self, client, user_set):
         for u in user_set:
             u[self.annotation_key] = self.manager.retry(
-                client.list_access_keys,
-                UserName=u['UserName'])['AccessKeyMetadata']
+                client.list_access_keys, UserName=u['UserName']
+            )['AccessKeyMetadata']
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
         with self.executor_factory(max_workers=2) as w:
             augment_set = [r for r in resources if self.annotation_key not in r]
-            self.log.debug(
-                "Querying %d users' api keys" % len(augment_set))
-            list(w.map(
-                functools.partial(self.get_user_keys, client),
-                chunks(augment_set, 50)))
+            self.log.debug("Querying %d users' api keys" % len(augment_set))
+            list(w.map(functools.partial(self.get_user_keys, client), chunks(augment_set, 50)))
 
         matched = []
         match_op = self.data.get('match-operator', 'or')
@@ -1999,9 +2037,7 @@ class UserSSHKeyFilter(ValueFilter):
                 value: 90
     """
 
-    schema = type_schema(
-        'ssh-key',
-        rinherit=ValueFilter.schema)
+    schema = type_schema('ssh-key', rinherit=ValueFilter.schema)
     schema_alias = False
     permissions = ('iam:ListSSHPublicKeys',)
     annotation_key = 'c7n:SSHKeys'
@@ -2011,18 +2047,15 @@ class UserSSHKeyFilter(ValueFilter):
     def get_user_ssh_keys(self, client, user_set):
         for u in user_set:
             u[self.annotation_key] = self.manager.retry(
-                client.list_ssh_public_keys,
-                UserName=u['UserName'])['SSHPublicKeys']
+                client.list_ssh_public_keys, UserName=u['UserName']
+            )['SSHPublicKeys']
 
     def process(self, resources, event=None):
         client = local_session(self.manager.session_factory).client('iam')
         with self.executor_factory(max_workers=2) as w:
             augment_set = [r for r in resources if self.annotation_key not in r]
-            self.log.debug(
-                "Querying %d users' SSH keys" % len(augment_set))
-            list(w.map(
-                functools.partial(self.get_user_ssh_keys, client),
-                chunks(augment_set, 50)))
+            self.log.debug("Querying %d users' SSH keys" % len(augment_set))
+            list(w.map(functools.partial(self.get_user_ssh_keys, client), chunks(augment_set, 50)))
 
         matched = []
         for r in resources:
@@ -2073,8 +2106,7 @@ class UserLoginProfile(ValueFilter):
     def process(self, resources, event=None):
         user_set = chunks(resources, size=50)
         with self.executor_factory(max_workers=2) as w:
-            self.log.debug(
-                "Querying %d users for login profile" % len(resources))
+            self.log.debug("Querying %d users for login profile" % len(resources))
             list(w.map(self.user_login_profiles, user_set))
 
         matched = []
@@ -2111,17 +2143,15 @@ class UserMfaDevice(ValueFilter):
         self.data['key'] = 'MFADevices'
 
     def process(self, resources, event=None):
-
         def _user_mfa_devices(resource):
             client = local_session(self.manager.session_factory).client('iam')
-            resource['MFADevices'] = client.list_mfa_devices(
-                UserName=resource['UserName'])['MFADevices']
+            resource['MFADevices'] = client.list_mfa_devices(UserName=resource['UserName'])[
+                'MFADevices'
+            ]
 
         with self.executor_factory(max_workers=2) as w:
-            query_resources = [
-                r for r in resources if 'MFADevices' not in r]
-            self.log.debug(
-                "Querying %d users' mfa devices" % len(query_resources))
+            query_resources = [r for r in resources if 'MFADevices' not in r]
+            self.log.debug("Querying %d users' mfa devices" % len(query_resources))
             list(w.map(_user_mfa_devices, query_resources))
 
         matched = []
@@ -2134,7 +2164,6 @@ class UserMfaDevice(ValueFilter):
 
 @User.action_registry.register('post-finding')
 class UserFinding(OtherResourcePostFinding):
-
     def format_resource(self, r):
         if any(filter(lambda x: isinstance(x, UserAccessKey), self.manager.iter_filters())):
             details = {
@@ -2258,17 +2287,19 @@ class UserDelete(BaseAction):
                     - ssh-keys
     """
 
-    ORDERED_OPTIONS = OrderedDict([
-        ('console-access', 'delete_console_access'),
-        ('access-keys', 'delete_access_keys'),
-        ('attached-user-policies', 'delete_attached_user_policies'),
-        ('inline-user-policies', 'delete_inline_user_policies'),
-        ('mfa-devices', 'delete_hw_mfa_devices'),
-        ('groups', 'delete_groups'),
-        ('ssh-keys', 'delete_ssh_keys'),
-        ('signing-certificates', 'delete_signing_certificates'),
-        ('service-specific-credentials', 'delete_service_specific_credentials'),
-    ])
+    ORDERED_OPTIONS = OrderedDict(
+        [
+            ('console-access', 'delete_console_access'),
+            ('access-keys', 'delete_access_keys'),
+            ('attached-user-policies', 'delete_attached_user_policies'),
+            ('inline-user-policies', 'delete_inline_user_policies'),
+            ('mfa-devices', 'delete_hw_mfa_devices'),
+            ('groups', 'delete_groups'),
+            ('ssh-keys', 'delete_ssh_keys'),
+            ('signing-certificates', 'delete_signing_certificates'),
+            ('service-specific-credentials', 'delete_service_specific_credentials'),
+        ]
+    )
     COMPOUND_OPTIONS = {
         'user-policies': ['attached-user-policies', 'inline-user-policies'],
     }
@@ -2280,8 +2311,9 @@ class UserDelete(BaseAction):
             'items': {
                 'type': 'string',
                 'enum': list(ORDERED_OPTIONS.keys()) + list(COMPOUND_OPTIONS.keys()),
-            }
-        })
+            },
+        },
+    )
 
     permissions = (
         'iam:ListAttachedUserPolicies',
@@ -2299,13 +2331,13 @@ class UserDelete(BaseAction):
         'iam:DeleteUser',
         'iam:DeleteUserPolicy',
         'iam:DetachUserPolicy',
-        'iam:RemoveUserFromGroup')
+        'iam:RemoveUserFromGroup',
+    )
 
     @staticmethod
     def delete_console_access(client, r):
         try:
-            client.delete_login_profile(
-                UserName=r['UserName'])
+            client.delete_login_profile(UserName=r['UserName'])
         except ClientError as e:
             if e.response['Error']['Code'] not in ('NoSuchEntity',):
                 raise
@@ -2314,50 +2346,49 @@ class UserDelete(BaseAction):
     def delete_access_keys(client, r):
         response = client.list_access_keys(UserName=r['UserName'])
         for access_key in response['AccessKeyMetadata']:
-            client.delete_access_key(UserName=r['UserName'],
-                                     AccessKeyId=access_key['AccessKeyId'])
+            client.delete_access_key(UserName=r['UserName'], AccessKeyId=access_key['AccessKeyId'])
 
     @staticmethod
     def delete_attached_user_policies(client, r):
         response = client.list_attached_user_policies(UserName=r['UserName'])
         for user_policy in response['AttachedPolicies']:
-            client.detach_user_policy(
-                UserName=r['UserName'], PolicyArn=user_policy['PolicyArn'])
+            client.detach_user_policy(UserName=r['UserName'], PolicyArn=user_policy['PolicyArn'])
 
     @staticmethod
     def delete_inline_user_policies(client, r):
         response = client.list_user_policies(UserName=r['UserName'])
         for user_policy_name in response['PolicyNames']:
-            client.delete_user_policy(
-                UserName=r['UserName'], PolicyName=user_policy_name)
+            client.delete_user_policy(UserName=r['UserName'], PolicyName=user_policy_name)
 
     @staticmethod
     def delete_hw_mfa_devices(client, r):
         response = client.list_mfa_devices(UserName=r['UserName'])
         for mfa_device in response['MFADevices']:
             client.deactivate_mfa_device(
-                UserName=r['UserName'], SerialNumber=mfa_device['SerialNumber'])
+                UserName=r['UserName'], SerialNumber=mfa_device['SerialNumber']
+            )
 
     @staticmethod
     def delete_groups(client, r):
         response = client.list_groups_for_user(UserName=r['UserName'])
         for user_group in response['Groups']:
-            client.remove_user_from_group(
-                UserName=r['UserName'], GroupName=user_group['GroupName'])
+            client.remove_user_from_group(UserName=r['UserName'], GroupName=user_group['GroupName'])
 
     @staticmethod
     def delete_ssh_keys(client, r):
         response = client.list_ssh_public_keys(UserName=r['UserName'])
         for key in response.get('SSHPublicKeys', ()):
             client.delete_ssh_public_key(
-                UserName=r['UserName'], SSHPublicKeyId=key['SSHPublicKeyId'])
+                UserName=r['UserName'], SSHPublicKeyId=key['SSHPublicKeyId']
+            )
 
     @staticmethod
     def delete_signing_certificates(client, r):
         response = client.list_signing_certificates(UserName=r['UserName'])
         for cert in response.get('Certificates', ()):
             client.delete_signing_certificate(
-                UserName=r['UserName'], CertificateId=cert['CertificateId'])
+                UserName=r['UserName'], CertificateId=cert['CertificateId']
+            )
 
     @staticmethod
     def delete_service_specific_credentials(client, r):
@@ -2366,7 +2397,8 @@ class UserDelete(BaseAction):
         for screds in response.get('ServiceSpecificCredentials', ()):
             client.delete_service_specific_credential(
                 UserName=r['UserName'],
-                ServiceSpecificCredentialId=screds['ServiceSpecificCredentialId'])
+                ServiceSpecificCredentialId=screds['ServiceSpecificCredentialId'],
+            )
 
     @staticmethod
     def delete_user(client, r):
@@ -2374,8 +2406,9 @@ class UserDelete(BaseAction):
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('iam')
-        self.log.debug('Deleting user %s options: %s' %
-            (len(resources), self.data.get('options', 'all')))
+        self.log.debug(
+            'Deleting user %s options: %s' % (len(resources), self.data.get('options', 'all'))
+        )
         for r in resources:
             self.process_user(client, r)
 
@@ -2419,18 +2452,18 @@ class UserRemoveAccessKey(BaseAction):
         'remove-keys',
         matched={'type': 'boolean'},
         age={'type': 'number'},
-        disable={'type': 'boolean'})
-    permissions = ('iam:ListAccessKeys', 'iam:UpdateAccessKey',
-                   'iam:DeleteAccessKey')
+        disable={'type': 'boolean'},
+    )
+    permissions = ('iam:ListAccessKeys', 'iam:UpdateAccessKey', 'iam:DeleteAccessKey')
 
     def validate(self):
         if self.data.get('matched') and self.data.get('age'):
-            raise PolicyValidationError(
-                "policy:%s cant mix matched and age parameters")
+            raise PolicyValidationError("policy:%s cant mix matched and age parameters")
         ftypes = {f.type for f in self.manager.iter_filters()}
         if 'credential' in ftypes and 'access-key' in ftypes:
             raise PolicyValidationError(
-                "policy:%s cant mix credential and access-key filters w/ delete action")
+                "policy:%s cant mix credential and access-key filters w/ delete action"
+            )
         return self
 
     def process(self, resources):
@@ -2445,14 +2478,15 @@ class UserRemoveAccessKey(BaseAction):
 
         for r in resources:
             if 'c7n:AccessKeys' not in r:
-                r['c7n:AccessKeys'] = client.list_access_keys(
-                    UserName=r['UserName'])['AccessKeyMetadata']
+                r['c7n:AccessKeys'] = client.list_access_keys(UserName=r['UserName'])[
+                    'AccessKeyMetadata'
+                ]
 
             keys = r['c7n:AccessKeys']
             if matched:
                 m_keys = resolve_credential_keys(
-                    r.get(CredentialReport.matched_annotation_key),
-                    keys)
+                    r.get(CredentialReport.matched_annotation_key), keys
+                )
                 # It is possible for a _user_ to match multiple credential filters
                 # without having any single key match them all.
                 if not m_keys:
@@ -2465,13 +2499,10 @@ class UserRemoveAccessKey(BaseAction):
                         continue
                 if disable:
                     client.update_access_key(
-                        UserName=r['UserName'],
-                        AccessKeyId=k['AccessKeyId'],
-                        Status='Inactive')
+                        UserName=r['UserName'], AccessKeyId=k['AccessKeyId'], Status='Inactive'
+                    )
                 else:
-                    client.delete_access_key(
-                        UserName=r['UserName'],
-                        AccessKeyId=k['AccessKeyId'])
+                    client.delete_access_key(UserName=r['UserName'], AccessKeyId=k['AccessKeyId'])
 
 
 @User.action_registry.register('delete-ssh-keys')
@@ -2491,34 +2522,37 @@ class UserDeleteSSHKey(BaseAction):
     """
 
     schema = type_schema(
-        'delete-ssh-keys',
-        matched={'type': 'boolean'},
-        disable={'type': 'boolean'})
+        'delete-ssh-keys', matched={'type': 'boolean'}, disable={'type': 'boolean'}
+    )
     annotation_key = 'c7n:SSHKeys'
-    permissions = ('iam:ListSSHPublicKeys', 'iam:UpdateSSHPublicKey',
-                   'iam:DeleteSSHPublicKey')
+    permissions = ('iam:ListSSHPublicKeys', 'iam:UpdateSSHPublicKey', 'iam:DeleteSSHPublicKey')
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('iam')
 
         for r in resources:
             if self.annotation_key not in r:
-                r[self.annotation_key] = client.list_ssh_public_keys(
-                    UserName=r['UserName'])['SSHPublicKeys']
+                r[self.annotation_key] = client.list_ssh_public_keys(UserName=r['UserName'])[
+                    'SSHPublicKeys'
+                ]
 
-            keys = (r.get(UserSSHKeyFilter.matched_annotation_key, [])
-                    if self.data.get('matched') else r[self.annotation_key])
+            keys = (
+                r.get(UserSSHKeyFilter.matched_annotation_key, [])
+                if self.data.get('matched')
+                else r[self.annotation_key]
+            )
 
             for k in keys:
                 if self.data.get('disable'):
                     client.update_ssh_public_key(
                         UserName=r['UserName'],
                         SSHPublicKeyId=k['SSHPublicKeyId'],
-                        Status='Inactive')
+                        Status='Inactive',
+                    )
                 else:
                     client.delete_ssh_public_key(
-                        UserName=r['UserName'],
-                        SSHPublicKeyId=k['SSHPublicKeyId'])
+                        UserName=r['UserName'], SSHPublicKeyId=k['SSHPublicKeyId']
+                    )
 
 
 def resolve_credential_keys(m_keys, keys):
@@ -2564,8 +2598,12 @@ class SpecificIamGroupManagedPolicy(Filter):
     permissions = ('iam:ListAttachedGroupPolicies',)
 
     def _managed_policies(self, client, resource):
-        return [r['PolicyName'] for r in client.list_attached_group_policies(
-            GroupName=resource['GroupName'])['AttachedPolicies']]
+        return [
+            r['PolicyName']
+            for r in client.list_attached_group_policies(GroupName=resource['GroupName'])[
+                'AttachedPolicies'
+            ]
+        ]
 
     def process(self, resources, event=None):
         c = local_session(self.manager.session_factory).client('iam')
@@ -2595,6 +2633,7 @@ class IamGroupUsers(Filter):
           - type: has-users
             value: False
     """
+
     schema = type_schema('has-users', value={'type': 'boolean'})
     permissions = ('iam:GetGroup',)
 
@@ -2624,12 +2663,14 @@ class IamGroupInlinePolicy(Filter):
           - type: has-inline-policy
             value: True
     """
+
     schema = type_schema('has-inline-policy', value={'type': 'boolean'})
     permissions = ('iam:ListGroupPolicies',)
 
     def _inline_policies(self, client, resource):
         resource['c7n:InlinePolicies'] = client.list_group_policies(
-            GroupName=resource['GroupName'])['PolicyNames']
+            GroupName=resource['GroupName']
+        )['PolicyNames']
         return resource
 
     def process(self, resources, events=None):
@@ -2662,8 +2703,12 @@ class GroupInlinePolicyDelete(BaseAction):
           actions:
             - type: delete-inline-policies
     """
+
     schema = type_schema('delete-inline-policies')
-    permissions = ('iam:ListGroupPolicies', 'iam:DeleteGroupPolicy',)
+    permissions = (
+        'iam:ListGroupPolicies',
+        'iam:DeleteGroupPolicy',
+    )
 
     def process(self, resources):
         client = local_session(self.manager.session_factory).client('iam')
@@ -2672,12 +2717,14 @@ class GroupInlinePolicyDelete(BaseAction):
 
     def process_group(self, client, r):
         if 'c7n:InlinePolicies' not in r:
-            r['c7n:InlinePolicies'] = client.list_group_policies(
-                GroupName=r['GroupName'])['PolicyNames']
+            r['c7n:InlinePolicies'] = client.list_group_policies(GroupName=r['GroupName'])[
+                'PolicyNames'
+            ]
         for policy in r.get('c7n:InlinePolicies', []):
             try:
-                self.manager.retry(client.delete_group_policy,
-                    GroupName=r['GroupName'], PolicyName=policy)
+                self.manager.retry(
+                    client.delete_group_policy, GroupName=r['GroupName'], PolicyName=policy
+                )
             except client.exceptions.NoSuchEntityException:
                 continue
 
@@ -2702,6 +2749,7 @@ class UserGroupDelete(BaseAction):
             - type: delete
               force: True
     """
+
     schema = type_schema('delete', force={'type': 'boolean'})
     permissions = ('iam:DeleteGroup', 'iam:RemoveUserFromGroup')
 
@@ -2716,26 +2764,26 @@ class UserGroupDelete(BaseAction):
         if force:
             users = client.get_group(GroupName=r['GroupName']).get('Users', [])
             for user in users:
-                client.remove_user_from_group(
-                    UserName=user['UserName'], GroupName=r['GroupName'])
+                client.remove_user_from_group(UserName=user['UserName'], GroupName=r['GroupName'])
 
         try:
             client.delete_group(GroupName=r['GroupName'])
         except client.exceptions.DeleteConflictException as e:
             self.log.warning(
-                ("Group:%s cannot be deleted, "
-                 "set force to remove all users from group")
-                % r['Arn'])
+                ("Group:%s cannot be deleted, " "set force to remove all users from group")
+                % r['Arn']
+            )
             error = e
-        except (client.exceptions.NoSuchEntityException,
-                client.exceptions.UnmodifiableEntityException):
+        except (
+            client.exceptions.NoSuchEntityException,
+            client.exceptions.UnmodifiableEntityException,
+        ):
             pass
         if error:
             raise error
 
 
 class SamlProviderDescribe(DescribeSource):
-
     def augment(self, resources):
         super().augment(resources)
         for r in resources:
@@ -2795,14 +2843,12 @@ class SamlProvider(QueryResourceManager):
 
 
 class OpenIdDescribe(DescribeSource):
-
     def get_permissions(self):
         return ('iam:GetOpenIDConnectProvider', 'iam:ListOpenIDConnectProviders')
 
 
 @resources.register('iam-oidc-provider')
 class OpenIdProvider(QueryResourceManager):
-
     class resource_type(TypeInfo):
 
         service = 'iam'
@@ -2838,8 +2884,9 @@ class SpecificIamProfileManagedPolicy(Filter):
     permissions = ('iam:ListAttachedRolePolicies',)
 
     def _managed_policies(self, client, role_name):
-        attached_policies = client.list_attached_role_policies(
-            RoleName=role_name)['AttachedPolicies']
+        attached_policies = client.list_attached_role_policies(RoleName=role_name)[
+            'AttachedPolicies'
+        ]
         return [p['PolicyName'] for p in attached_policies]
 
     def has_managed_policy(self, client, resource):

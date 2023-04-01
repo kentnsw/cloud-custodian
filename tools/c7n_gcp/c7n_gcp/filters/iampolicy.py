@@ -25,8 +25,8 @@ class IamPolicyFilter(Filter):
             'user': {'type': 'string'},
             'role': {'type': 'string'},
             'roles': {'type': 'array'},
-            'has': {'type': 'boolean'}
-        }
+            'has': {'type': 'boolean'},
+        },
     }
 
     extract_schema = {
@@ -38,18 +38,16 @@ class IamPolicyFilter(Filter):
             'expr': {'type': 'string'},
             'regex': {'type': 'string'},
             'value_type': {'enum': ['gcp_label']},
-        }
+        },
     }
 
     schema = type_schema(
         'iam-policy',
-        **{'doc': value_filter_schema,
-        'user-role': user_role_schema,
-        'extract': extract_schema})
+        **{'doc': value_filter_schema, 'user-role': user_role_schema, 'extract': extract_schema},
+    )
 
     def get_client(self, session, model):
-        return session.client(
-            model.service, model.version, model.component)
+        return session.client(model.service, model.version, model.component)
 
     def process(self, resources, event=None):
         if 'doc' in self.data:
@@ -61,8 +59,9 @@ class IamPolicyFilter(Filter):
             val = user_role.get('role') or user_role['roles']
             op = 'in' if user_role.get('has', True) else 'not-in'
             value_type = 'swap'
-            userRolePairFilter = IamPolicyUserRolePairFilter(self, {'key': key, 'value': val,
-            'op': op, 'value_type': value_type}, self.manager)
+            userRolePairFilter = IamPolicyUserRolePairFilter(
+                self, {'key': key, 'value': val, 'op': op, 'value_type': value_type}, self.manager
+            )
             resources = userRolePairFilter.process(resources)
 
         # NOTE news corp customisation to extract values from binding iam policies
@@ -121,16 +120,18 @@ class IamPolicyValueFilter(ValueFilter):
                 value: ["allUsers", "allAuthenticatedUsers"]
     """
 
-    schema = type_schema('iam-policy', rinherit=ValueFilter.schema,)
-#     permissions = 'GCP_SERVICE.GCP_RESOURCE.getIamPolicy',)
+    schema = type_schema(
+        'iam-policy',
+        rinherit=ValueFilter.schema,
+    )
+    #     permissions = 'GCP_SERVICE.GCP_RESOURCE.getIamPolicy',)
 
     def __init__(self, filter: IamPolicyFilter, data, manager=None):
         super(IamPolicyValueFilter, self).__init__(data, manager)
         self.filter = filter
 
     def get_client(self, session, model):
-        return session.client(
-            model.service, model.version, model.component)
+        return session.client(model.service, model.version, model.component)
 
     def process(self, resources, event=None):
         model = self.manager.get_model()
@@ -168,15 +169,14 @@ class IamPolicyUserRolePairFilter(ValueFilter):
     """
 
     schema = type_schema('iam-user-roles', rinherit=ValueFilter.schema)
-#     permissions = ('resourcemanager.projects.getIamPolicy',)
+    #     permissions = ('resourcemanager.projects.getIamPolicy',)
 
     def __init__(self, filter: IamPolicyFilter, data, manager=None):
         super(IamPolicyUserRolePairFilter, self).__init__(data, manager)
         self.filter = filter
 
     def get_client(self, session, model):
-        return session.client(
-            model.service, model.version, model.component)
+        return session.client(model.service, model.version, model.component)
 
     def process(self, resources, event=None):
         model = self.manager.get_model()

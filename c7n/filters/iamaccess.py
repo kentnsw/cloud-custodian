@@ -54,6 +54,7 @@ class PolicyChecker:
       - whitelist_conditions: a list of conditions that are considered
             sufficient enough to whitelist the statement.
     """
+
     def __init__(self, checker_config):
         self.checker_config = checker_config
 
@@ -100,9 +101,9 @@ class PolicyChecker:
         return violations
 
     def handle_statement(self, s):
-        if (all((self.handle_principal(s),
-                 self.handle_effect(s),
-                 self.handle_action(s))) and not self.handle_conditions(s)):
+        if all(
+            (self.handle_principal(s), self.handle_effect(s), self.handle_action(s))
+        ) and not self.handle_conditions(s):
             return s
 
     def handle_action(self, s):
@@ -171,8 +172,10 @@ class PolicyChecker:
         handler_name = "handle_%s" % c['key'].replace('-', '_').replace(':', '_')
         handler = getattr(self, handler_name, None)
         if handler is None:
-            log.warning("no handler:%s op:%s key:%s values:%s" % (
-                handler_name, c['op'], c['key'], c['values']))
+            log.warning(
+                "no handler:%s op:%s key:%s values:%s"
+                % (handler_name, c['op'], c['key'], c['values'])
+            )
             return
         return not handler(s, c)
 
@@ -188,7 +191,8 @@ class PolicyChecker:
             'ArnEquals',
             'ArnLike',
             'IpAddress',
-            'NotIpAddress')
+            'NotIpAddress',
+        )
         set_conditions = ('ForAllValues', 'ForAnyValues')
 
         for s_cond_op in list(s['Condition'].keys()):
@@ -200,9 +204,7 @@ class PolicyChecker:
 
             cond['key'] = list(s['Condition'][s_cond_op].keys())[0]
             cond['values'] = s['Condition'][s_cond_op][cond['key']]
-            cond['values'] = (
-                isinstance(cond['values'],
-                           str) and (cond['values'],) or cond['values'])
+            cond['values'] = isinstance(cond['values'], str) and (cond['values'],) or cond['values']
             cond['key'] = cond['key'].lower()
             s_cond.append(cond)
 
@@ -242,8 +244,7 @@ class PolicyChecker:
 
 
 class CrossAccountAccessFilter(Filter):
-    """Check a resource's embedded iam policy for cross account access.
-    """
+    """Check a resource's embedded iam policy for cross account access."""
 
     schema = type_schema(
         'cross-account',
@@ -261,7 +262,8 @@ class CrossAccountAccessFilter(Filter):
         whitelist_vpce_from={'$ref': '#/definitions/filters_common/value_from'},
         whitelist_vpce={'type': 'array', 'items': {'type': 'string'}},
         whitelist_vpc_from={'$ref': '#/definitions/filters_common/value_from'},
-        whitelist_vpc={'type': 'array', 'items': {'type': 'string'}})
+        whitelist_vpc={'type': 'array', 'items': {'type': 'string'}},
+    )
 
     policy_attribute = 'Policy'
     annotation_key = 'CrossAccountViolations'
@@ -270,9 +272,7 @@ class CrossAccountAccessFilter(Filter):
 
     def process(self, resources, event=None):
         self.everyone_only = self.data.get('everyone_only', False)
-        self.conditions = set(self.data.get(
-            'whitelist_conditions',
-            ("aws:userid", "aws:username")))
+        self.conditions = set(self.data.get('whitelist_conditions', ("aws:userid", "aws:username")))
         self.actions = self.data.get('actions', ())
         self.accounts = self.get_accounts()
         self.vpcs = self.get_vpcs()
@@ -280,13 +280,16 @@ class CrossAccountAccessFilter(Filter):
         self.orgid = self.get_orgids()
         self.checker_config = getattr(self, 'checker_config', None) or {}
         self.checker_config.update(
-            {'allowed_accounts': self.accounts,
-             'allowed_vpc': self.vpcs,
-             'allowed_vpce': self.vpces,
-             'allowed_orgid': self.orgid,
-             'check_actions': self.actions,
-             'everyone_only': self.everyone_only,
-             'whitelist_conditions': self.conditions})
+            {
+                'allowed_accounts': self.accounts,
+                'allowed_vpc': self.vpcs,
+                'allowed_vpce': self.vpces,
+                'allowed_orgid': self.orgid,
+                'check_actions': self.actions,
+                'everyone_only': self.everyone_only,
+                'whitelist_conditions': self.conditions,
+            }
+        )
         self.checker = self.checker_factory(self.checker_config)
         return super(CrossAccountAccessFilter, self).process(resources, event)
 

@@ -30,8 +30,7 @@ PKG_SET = (
 
 
 def _assert_pkg_ok(
-    runner, pkg, command='gen-frozensetup', check_file='setup.py',
-    cached=False, check_diff=True
+    runner, pkg, command='gen-frozensetup', check_file='setup.py', cached=False, check_diff=True
 ):
     base = Path(__file__).parent.parent.parent.parent / pkg
 
@@ -90,6 +89,10 @@ def test_generate_setup():
 
     for pkg in PKG_SET:
         _assert_pkg_ok(
-            runner, pkg, check_file='poetry.lock',
-            command='gen-setup', cached=True, check_diff=False
+            runner,
+            pkg,
+            check_file='poetry.lock',
+            command='gen-setup',
+            cached=True,
+            check_diff=False,
         )

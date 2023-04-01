@@ -37,9 +37,7 @@ from .common import (
 def test_s3_tag(test, s3_tag):
     test.patch(s3.S3, "executor_factory", MainThreadExecutor)
     test.patch(s3.EncryptExtantKeys, "executor_factory", MainThreadExecutor)
-    test.patch(
-        s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")]
-    )
+    test.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")])
     session_factory = test.replay_flight_data("test_s3_tag")
     session = session_factory()
     client = session.client("s3")
@@ -62,25 +60,16 @@ def test_s3_tag(test, s3_tag):
 
     resources = p.run()
     test.assertEqual(len(resources), 1)
-    tags = {
-        t["Key"]: t["Value"]
-        for t in client.get_bucket_tagging(Bucket=bucket_name)["TagSet"]
-    }
-    test.assertEqual(
-        {"original-tag": "original-value", "new-tag": "new-value"}, tags
-    )
+    tags = {t["Key"]: t["Value"] for t in client.get_bucket_tagging(Bucket=bucket_name)["TagSet"]}
+    test.assertEqual({"original-tag": "original-value", "new-tag": "new-value"}, tags)
 
 
 class RestoreCompletionTest(TestCase):
-
     def test_restore_complete(self):
 
         self.assertTrue(
             s3.restore_complete(
-                (
-                    'ongoing-request="false", '
-                    'expiry-date="Fri, 23 Dec 2012 00:00:00 GMT"'
-                )
+                ('ongoing-request="false", ' 'expiry-date="Fri, 23 Dec 2012 00:00:00 GMT"')
             )
         )
 
@@ -88,7 +77,6 @@ class RestoreCompletionTest(TestCase):
 
 
 class BucketScanLogTests(TestCase):
-
     def setUp(self):
         self.log_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.log_dir)
@@ -125,7 +113,9 @@ def destroyBucketIfPresent(client, bucket):
 
 def generateBucketContents(s3, bucket, contents=None):
     default_contents = {
-        "home.txt": "hello", "AWSLogs/2015/10/10": "out", "AWSLogs/2015/10/11": "spot"
+        "home.txt": "hello",
+        "AWSLogs/2015/10/10": "out",
+        "AWSLogs/2015/10/11": "spot",
     }
     if contents is None:
         contents = default_contents
@@ -136,25 +126,28 @@ def generateBucketContents(s3, bucket, contents=None):
 
 
 class BucketMetrics(BaseTest):
-
     def test_metrics_dims(self):
         factory = self.replay_flight_data('test_s3_metrics_user_dims')
-        p = self.load_policy({
-            'name': 's3',
-            'resource': 's3',
-            'source': 'config',
-            'query': [
-                {'clause': "resourceId = 'c7n-ssm-build'"}],
-            'filters': [{
-                'type': 'metrics',
-                'name': 'BucketSizeBytes',
-                'dimensions': {
-                    'StorageType': 'StandardStorage'},
-                'days': 7,
-                'value': 100,
-                'op': 'gte'}]},
+        p = self.load_policy(
+            {
+                'name': 's3',
+                'resource': 's3',
+                'source': 'config',
+                'query': [{'clause': "resourceId = 'c7n-ssm-build'"}],
+                'filters': [
+                    {
+                        'type': 'metrics',
+                        'name': 'BucketSizeBytes',
+                        'dimensions': {'StorageType': 'StandardStorage'},
+                        'days': 7,
+                        'value': 100,
+                        'op': 'gte',
+                    }
+                ],
+            },
             session_factory=factory,
-            config={'region': 'us-east-2'})
+            config={'region': 'us-east-2'},
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         self.assertIn('c7n.metrics', resources[0])
@@ -186,7 +179,6 @@ class BucketMetrics(BaseTest):
 
 
 class BucketEncryption(BaseTest):
-
     def test_s3_bucket_encryption_filter(self):
         bname = "c7n-bucket-with-encryption"
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
@@ -198,15 +190,9 @@ class BucketEncryption(BaseTest):
         client.create_bucket(Bucket=bname)
         self.addCleanup(client.delete_bucket, Bucket=bname)
 
-        enc = {
-            "Rules": [
-                {"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
-            ]
-        }
+        enc = {"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}
 
-        client.put_bucket_encryption(
-            Bucket=bname, ServerSideEncryptionConfiguration=enc
-        )
+        client.put_bucket_encryption(Bucket=bname, ServerSideEncryptionConfiguration=enc)
 
         p = self.load_policy(
             {
@@ -222,24 +208,16 @@ class BucketEncryption(BaseTest):
 
     def test_s3_bucket_encryption_filter_kms(self):
         def _get_encryption_config(key_id):
-            default_encryption = {
-                "SSEAlgorithm": "aws:kms"
-            }
+            default_encryption = {"SSEAlgorithm": "aws:kms"}
             if key_id:
                 default_encryption["KMSMasterKeyID"] = key_id
-            return {
-                "Rules": [{
-                    "ApplyServerSideEncryptionByDefault": default_encryption
-                }]
-            }
+            return {"Rules": [{"ApplyServerSideEncryptionByDefault": default_encryption}]}
 
         bname_base = "c7n-bucket-with-encryption"
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
 
-        session_factory = self.replay_flight_data(
-            "test_s3_bucket_encryption_filter_kms"
-        )
+        session_factory = self.replay_flight_data("test_s3_bucket_encryption_filter_kms")
 
         client = session_factory().client("s3")
 
@@ -255,7 +233,7 @@ class BucketEncryption(BaseTest):
             'aliasname': key_alias,
             'aliasarn': alias_arn,
             'keyid': key_meta.get('KeyId'),
-            'keyarn': key_arn
+            'keyarn': key_arn,
         }
 
         for attr, value in key_attrs.items():
@@ -264,8 +242,7 @@ class BucketEncryption(BaseTest):
             bname = f'{bname_base}-by-{attr}'
             client.create_bucket(Bucket=bname)
             client.put_bucket_encryption(
-                Bucket=bname,
-                ServerSideEncryptionConfiguration=_get_encryption_config(value)
+                Bucket=bname, ServerSideEncryptionConfiguration=_get_encryption_config(value)
             )
             self.addCleanup(client.delete_bucket, Bucket=bname)
 
@@ -284,7 +261,7 @@ class BucketEncryption(BaseTest):
                         "type": "bucket-encryption",
                         "crypto": "aws:kms",
                         "key": key_alias,
-                    }
+                    },
                 ],
             },
             session_factory=session_factory,
@@ -307,9 +284,7 @@ class BucketEncryption(BaseTest):
             {
                 "name": "s3-disabled-encryption",
                 "resource": "s3",
-                "filters": [
-                    {"Name": bname}, {"type": "bucket-encryption", "state": False}
-                ],
+                "filters": [{"Name": bname}, {"type": "bucket-encryption", "state": False}],
             },
             session_factory=session_factory,
         )
@@ -320,9 +295,7 @@ class BucketEncryption(BaseTest):
         client.put_bucket_encryption(
             Bucket=bname,
             ServerSideEncryptionConfiguration={
-                "Rules": [
-                    {"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
-                ]
+                "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]
             },
         )
 
@@ -353,9 +326,7 @@ class BucketEncryption(BaseTest):
             {
                 "name": "s3-disabled-encryption-malformed-statement",
                 "resource": "s3",
-                "filters": [
-                    {"Name": bname}, {"type": "bucket-encryption", "state": False}
-                ],
+                "filters": [{"Name": bname}, {"type": "bucket-encryption", "state": False}],
             },
             session_factory=session_factory,
         )
@@ -373,21 +344,10 @@ class BucketEncryption(BaseTest):
             {
                 "name": "test_s3_bucket_encryption_bucket_key",
                 "resource": "s3",
-                "filters": [
-                    {
-                        "Name": bname
-                    },
-                    {
-                        "type": "bucket-encryption",
-                        "state": False
-                    }
-                ],
-                "actions": [
-                    {
-                        "type": "set-bucket-encryption"
-                    }
-                ]
-            }, session_factory=session_factory
+                "filters": [{"Name": bname}, {"type": "bucket-encryption", "state": False}],
+                "actions": [{"type": "set-bucket-encryption"}],
+            },
+            session_factory=session_factory,
         )
         resources = policy.run()
         self.assertEqual(len(resources), 1)
@@ -397,15 +357,12 @@ class BucketEncryption(BaseTest):
 
 
 class BucketInventory(BaseTest):
-
     def test_s3_set_encrypted_inventory_sses3(self):
         bname = "custodian-inventory-test"
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
 
-        session_factory = self.replay_flight_data(
-            "test_s3_set_encrypted_inventory_sses3"
-        )
+        session_factory = self.replay_flight_data("test_s3_set_encrypted_inventory_sses3")
 
         client = session_factory().client("s3")
         client.create_bucket(Bucket=bname)
@@ -436,9 +393,7 @@ class BucketInventory(BaseTest):
             "InventoryConfigurationList"
         )
         self.assertTrue(invs)
-        self.assertTrue(
-            "SSES3" in invs[0]["Destination"]["S3BucketDestination"]["Encryption"]
-        )
+        self.assertTrue("SSES3" in invs[0]["Destination"]["S3BucketDestination"]["Encryption"])
         self.assertTrue("EncryptionStatus" in invs[0]["OptionalFields"])
 
     def test_s3_set_encrypted_inventory_ssekms(self):
@@ -446,9 +401,7 @@ class BucketInventory(BaseTest):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
 
-        session_factory = self.replay_flight_data(
-            "test_s3_set_encrypted_inventory_ssekms"
-        )
+        session_factory = self.replay_flight_data("test_s3_set_encrypted_inventory_ssekms")
 
         client = session_factory().client("s3")
         client.create_bucket(Bucket=bname)
@@ -480,9 +433,7 @@ class BucketInventory(BaseTest):
             "InventoryConfigurationList"
         )
         self.assertTrue(invs)
-        self.assertTrue(
-            "SSEKMS" in invs[0]["Destination"]["S3BucketDestination"]["Encryption"]
-        )
+        self.assertTrue("SSEKMS" in invs[0]["Destination"]["S3BucketDestination"]["Encryption"])
         self.assertTrue("EncryptionStatus" in invs[0]["OptionalFields"])
 
     def test_s3_delete_inventory_inventory_not_set(self):
@@ -490,9 +441,7 @@ class BucketInventory(BaseTest):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
 
-        session_factory = self.replay_flight_data(
-            "test_s3_delete_inventory_inventory_not_set"
-        )
+        session_factory = self.replay_flight_data("test_s3_delete_inventory_inventory_not_set")
 
         client = session_factory().client("s3")
         client.create_bucket(Bucket=bname)
@@ -517,9 +466,7 @@ class BucketInventory(BaseTest):
 
         resources = p.run()
         self.assertEqual(len(resources), 1)
-        inventoryConfigList = client.list_bucket_inventory_configurations(
-            Bucket=bname
-        ).get(
+        inventoryConfigList = client.list_bucket_inventory_configurations(Bucket=bname).get(
             "InventoryConfigurationList"
         )
         self.assertFalse(inventoryConfigList)
@@ -589,9 +536,7 @@ class BucketInventory(BaseTest):
             "InventoryConfigurationList"
         )
         self.assertTrue(invs)
-        self.assertEqual(
-            sorted(invs[0]["OptionalFields"]), ["LastModifiedDate", "Size"]
-        )
+        self.assertEqual(sorted(invs[0]["OptionalFields"]), ["LastModifiedDate", "Size"])
 
         p = self.load_policy(
             {
@@ -619,7 +564,6 @@ class BucketInventory(BaseTest):
 
 
 class BucketDelete(BaseTest):
-
     def test_delete_replicated_bucket(self):
         # the iam setup is a little for replication to duplicate in a test
         # preconditions - custodian-replicated and custodian-replicated-west
@@ -671,9 +615,7 @@ class BucketDelete(BaseTest):
         client.create_bucket(
             Bucket=bname, CreateBucketConfiguration={"LocationConstraint": "us-east-2"}
         )
-        client.put_bucket_versioning(
-            Bucket=bname, VersioningConfiguration={"Status": "Enabled"}
-        )
+        client.put_bucket_versioning(Bucket=bname, VersioningConfiguration={"Status": "Enabled"})
         generateBucketContents(s3_resource, bname)
         # Generate some versions
         generateBucketContents(s3_resource, bname)
@@ -799,8 +741,7 @@ class S3ConfigSource(ConfigTest):
 
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         augments = list(s3.S3_AUGMENT_TABLE)
-        augments.remove((
-            "get_bucket_location", "Location", {}, None, 's3:GetBucketLocation'))
+        augments.remove(("get_bucket_location", "Location", {}, None, 's3:GetBucketLocation'))
         self.patch(s3, "S3_AUGMENT_TABLE", augments)
 
         bname = "custodian-test-s3confignormalize"
@@ -836,8 +777,7 @@ class S3ConfigSource(ConfigTest):
     def test_normalize(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         augments = list(s3.S3_AUGMENT_TABLE)
-        augments.remove((
-            "get_bucket_location", "Location", {}, None, 's3:GetBucketLocation'))
+        augments.remove(("get_bucket_location", "Location", {}, None, 's3:GetBucketLocation'))
         self.patch(s3, "S3_AUGMENT_TABLE", augments)
 
         bname = "custodian-test-data-23"
@@ -915,9 +855,7 @@ class S3ConfigSource(ConfigTest):
                 "LoggingEnabled": {"TargetBucket": bname, "TargetPrefix": "s3-logs/"}
             },
         )
-        client.put_bucket_versioning(
-            Bucket=bname, VersioningConfiguration={"Status": "Enabled"}
-        )
+        client.put_bucket_versioning(Bucket=bname, VersioningConfiguration={"Status": "Enabled"})
         client.put_bucket_accelerate_configuration(
             Bucket=bname, AccelerateConfiguration={"Status": "Enabled"}
         )
@@ -939,9 +877,7 @@ class S3ConfigSource(ConfigTest):
                             "Resource": "arn:aws:s3:::%s/*" % bname,
                             "Condition": {
                                 "StringNotEquals": {
-                                    "s3:x-amz-server-side-encryption": [
-                                        "AES256", "aws:kms"
-                                    ]
+                                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
                                 }
                             },
                         }
@@ -958,9 +894,7 @@ class S3ConfigSource(ConfigTest):
                         "TopicArn": notify_topic,
                         "Events": ["s3:ObjectCreated:*"],
                         "Filter": {
-                            "Key": {
-                                "FilterRules": [{"Name": "prefix", "Value": "s3-logs/"}]
-                            }
+                            "Key": {"FilterRules": [{"Name": "prefix", "Value": "s3-logs/"}]}
                         },
                     }
                 ]
@@ -998,9 +932,7 @@ class S3ConfigSource(ConfigTest):
                 u"TopicConfigurations": [
                     {
                         u"Filter": {
-                            u"Key": {
-                                u"FilterRules": [{u"Name": "Prefix", u"Value": "oids/"}]
-                            }
+                            u"Key": {u"FilterRules": [{u"Name": "Prefix", u"Value": "oids/"}]}
                         },
                         u"Id": "rabbit",
                         u"TopicArn": "arn:aws:sns:us-east-1:644160558196:custodian-test-data-22",
@@ -1013,9 +945,7 @@ class S3ConfigSource(ConfigTest):
                 u"LambdaFunctionConfigurations": [
                     {
                         u"Filter": {
-                            u"Key": {
-                                u"FilterRules": [{u"Name": "Prefix", u"Value": "void/"}]
-                            }
+                            u"Key": {u"FilterRules": [{u"Name": "Prefix", u"Value": "void/"}]}
                         },
                         u"LambdaFunctionArn": (
                             "arn:aws:lambda:us-east-1:644160558196:function:lambdaenv"
@@ -1027,11 +957,7 @@ class S3ConfigSource(ConfigTest):
                 u"QueueConfigurations": [
                     {
                         u"Filter": {
-                            u"Key": {
-                                u"FilterRules": [
-                                    {u"Name": "Prefix", u"Value": "images/"}
-                                ]
-                            }
+                            u"Key": {u"FilterRules": [{u"Name": "Prefix", u"Value": "images/"}]}
                         },
                         u"Id": "OGQ5OTAyNjYtYjBmNy00ZTkwLWFiMjUtZjE4ODBmYTgwNTE0",
                         u"QueueArn": "arn:aws:sqs:us-east-1:644160558196:test-queue",
@@ -1124,7 +1050,8 @@ class S3ConfigSource(ConfigTest):
                             u"Prefix": "",
                             u"Destination": {
                                 u"Account": "000111222333",
-                                u"Bucket": "arn:aws:s3:::testing-west"},
+                                u"Bucket": "arn:aws:s3:::testing-west",
+                            },
                             u"ID": "testing-99",
                         }
                     ],
@@ -1145,11 +1072,7 @@ class S3ConfigSource(ConfigTest):
         resource = source.load_resource(event)
         self.assertEqual(
             resource["Website"],
-            {
-                "RedirectAllRequestsTo": {
-                    "HostName": "www.google.com/", "Protocol": "https"
-                }
-            },
+            {"RedirectAllRequestsTo": {"HostName": "www.google.com/", "Protocol": "https"}},
         )
 
     def test_config_normalize_website(self):
@@ -1247,9 +1170,7 @@ class S3ConfigSource(ConfigTest):
                         u"ID": u"e7c8bb65a5fc49cf906715eae09de9e4bb7861a96361ba79b833aa45f6833b15",
                     },
                 },
-                u"CreationDate": datetime.datetime(
-                    2017, 9, 15, 2, 5, 40, tzinfo=tzutc()
-                ),
+                u"CreationDate": datetime.datetime(2017, 9, 15, 2, 5, 40, tzinfo=tzutc()),
                 u"Lifecycle": None,
                 u"Location": {},
                 u"Logging": {},
@@ -1265,16 +1186,13 @@ class S3ConfigSource(ConfigTest):
 
 
 class BucketPolicyStatements(BaseTest):
-
     @functional
     def test_policy(self):
         bname = "custodian-test-data"
         sid = "CustodianTest"
 
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
 
         session_factory = self.replay_flight_data("test_s3_policy_statements")
 
@@ -1317,8 +1235,14 @@ class BucketPolicyStatements(BaseTest):
 
         self.assertTrue(len(policy["Statement"]) > 0)
         self.assertTrue(
-            len([s for s in policy["Statement"] if s["Sid"] == sid and
-                s["Resource"] == "arn:aws:s3:::%s/*" % (bname)]) == 1
+            len(
+                [
+                    s
+                    for s in policy["Statement"]
+                    if s["Sid"] == sid and s["Resource"] == "arn:aws:s3:::%s/*" % (bname)
+                ]
+            )
+            == 1
         )
 
     @functional
@@ -1326,9 +1250,7 @@ class BucketPolicyStatements(BaseTest):
         bname = "custodian-test-data"
 
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
 
         session_factory = self.replay_flight_data("test_s3_policy_statements_no_change")
 
@@ -1354,22 +1276,27 @@ class BucketPolicyStatements(BaseTest):
 
 
 class S3Test(BaseTest):
-
     def test_bucket_get_resources(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(s3, "S3_AUGMENT_TABLE", [
-            ('get_bucket_tagging', 'Tags', [], 'TagSet')])
+        self.patch(s3, "S3_AUGMENT_TABLE", [('get_bucket_tagging', 'Tags', [], 'TagSet')])
         session_factory = self.replay_flight_data("test_s3_get_resources")
         p = self.load_policy(
-            {"name": "bucket-fetch", "resource": "s3"},
-            session_factory=session_factory)
+            {"name": "bucket-fetch", "resource": "s3"}, session_factory=session_factory
+        )
         resources = p.resource_manager.get_resources(['c7n-codebuild'])
         self.assertEqual(len(resources), 1)
         tags = {t['Key']: t['Value'] for t in resources[0].get('Tags')}
         self.assertEqual(
-            tags, {
-                'Application': 'test', 'Env': 'Dev', 'Owner': 'nicholase',
-                'Retention': '2', 'Retention2': '3', 'test': 'test'})
+            tags,
+            {
+                'Application': 'test',
+                'Env': 'Dev',
+                'Owner': 'nicholase',
+                'Retention': '2',
+                'Retention2': '3',
+                'test': 'test',
+            },
+        )
         self.assertTrue("CreationDate" in resources[0])
 
     def test_multipart_large_file(self):
@@ -1386,7 +1313,6 @@ class S3Test(BaseTest):
         self.addCleanup(destroyBucket, client, bname)
 
         class wrapper:
-
             def __init__(self, d, length):
                 self.d = d
                 self.len = length
@@ -1549,12 +1475,8 @@ class S3Test(BaseTest):
 
     def test_has_statement(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_has_statement")
         bname = "custodian-policy-test"
         session = session_factory()
@@ -1575,9 +1497,7 @@ class S3Test(BaseTest):
                             "Resource": "arn:aws:s3:::%s/*" % bname,
                             "Condition": {
                                 "StringNotEquals": {
-                                    "s3:x-amz-server-side-encryption": [
-                                        "AES256", "aws:kms"
-                                    ]
+                                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
                                 }
                             },
                         },
@@ -1608,12 +1528,8 @@ class S3Test(BaseTest):
 
     def test_has_statement_policy(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_has_statement")
         bname = "custodian-policy-test"
         p = self.load_policy(
@@ -1629,7 +1545,7 @@ class S3Test(BaseTest):
                                 "Effect": "Deny",
                                 "Action": "s3:PutObject",
                                 "Principal": "*",
-                                "Resource": "arn:aws:s3:::{bucket_name}/*"
+                                "Resource": "arn:aws:s3:::{bucket_name}/*",
                             }
                         ],
                     },
@@ -1642,12 +1558,8 @@ class S3Test(BaseTest):
 
     def test_has_statement_policy_action_star(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_has_statement")
         bname = "custodian-policy-test1"
         p = self.load_policy(
@@ -1663,7 +1575,7 @@ class S3Test(BaseTest):
                                 "Effect": "Deny",
                                 "Action": "*",
                                 "Principal": "*",
-                                "Resource": "arn:aws:s3:::{bucket_name}/*"
+                                "Resource": "arn:aws:s3:::{bucket_name}/*",
                             }
                         ],
                     },
@@ -1683,8 +1595,15 @@ class S3Test(BaseTest):
         self.patch(
             s3,
             "S3_AUGMENT_TABLE",
-            [("get_bucket_replication", 'Replication',
-            None, None, 's3:GetReplicationConfiguration')],
+            [
+                (
+                    "get_bucket_replication",
+                    'Replication',
+                    None,
+                    None,
+                    's3:GetReplicationConfiguration',
+                )
+            ],
         )
 
         # and ignore any other buckets we might have in this test account
@@ -1693,7 +1612,7 @@ class S3Test(BaseTest):
         self.patch(
             s3.S3.resource_type,
             "enum_spec",
-            ('list_buckets', "Buckets[?Name=='{}']".format(replicated_from_name), None)
+            ('list_buckets', "Buckets[?Name=='{}']".format(replicated_from_name), None),
         )
         session_factory = self.replay_flight_data("test_s3_replication_policy_remove")
         session = session_factory()
@@ -1707,21 +1626,16 @@ class S3Test(BaseTest):
                     {
                         "type": "value",
                         "key": "Replication.ReplicationConfiguration.Rules[].Destination",
-                        "value": "present"
+                        "value": "present",
                     },
                     {
                         "type": "value",
                         "key": "Replication.ReplicationConfiguration.Rules[].Status",
                         "value": "Enabled",
-                        "op": "contains"
-                    }
+                        "op": "contains",
+                    },
                 ],
-                "actions": [
-                    {
-                        "type": "set-replication",
-                        "state": "remove"
-                    }
-                ]
+                "actions": [{"type": "set-replication", "state": "remove"}],
             },
             session_factory=session_factory,
         )
@@ -1739,13 +1653,20 @@ class S3Test(BaseTest):
         self.patch(
             s3,
             "S3_AUGMENT_TABLE",
-            [("get_bucket_replication", 'Replication',
-            None, None, 's3:GetReplicationConfiguration')],
+            [
+                (
+                    "get_bucket_replication",
+                    'Replication',
+                    None,
+                    None,
+                    's3:GetReplicationConfiguration',
+                )
+            ],
         )
         self.patch(
             s3.S3.resource_type,
             "enum_spec",
-            ('list_buckets', "Buckets[?Name=='{}']".format(bname), None)
+            ('list_buckets', "Buckets[?Name=='{}']".format(bname), None),
         )
         session_factory = self.replay_flight_data("test_s3_replication_policy_disable")
         session = session_factory()
@@ -1759,21 +1680,16 @@ class S3Test(BaseTest):
                     {
                         "type": "value",
                         "key": "Replication.ReplicationConfiguration.Rules[].Destination",
-                        "value": "present"
+                        "value": "present",
                     },
                     {
                         "type": "value",
                         "key": "Replication.ReplicationConfiguration.Rules[].Status",
                         "value": "Enabled",
-                        "op": "contains"
-                    }
+                        "op": "contains",
+                    },
                 ],
-                "actions": [
-                    {
-                        "type": "set-replication",
-                        "state": "disable"
-                    }
-                ]
+                "actions": [{"type": "set-replication", "state": "disable"}],
             },
             session_factory=session_factory,
         )
@@ -1805,13 +1721,9 @@ class S3Test(BaseTest):
                     {"Name": bname},
                     {
                         "type": "check-public-block",
-                    }
+                    },
                 ],
-                "actions": [
-                    {
-                        "type": "set-public-block"
-                    }
-                ]
+                "actions": [{"type": "set-public-block"}],
             },
             session_factory=session_factory,
         )
@@ -1822,8 +1734,7 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["Name"], bname)
 
         # Make sure that all blocks are set to on/enabled now
-        response = client.get_public_access_block(
-            Bucket=bname)['PublicAccessBlockConfiguration']
+        response = client.get_public_access_block(Bucket=bname)['PublicAccessBlockConfiguration']
         for key in response.keys():
             self.assertEqual(response[key], True)
 
@@ -1843,10 +1754,7 @@ class S3Test(BaseTest):
                 "resource": "s3",
                 "filters": [
                     {"Name": bname},
-                    {
-                        "type": "check-public-block",
-                        "BlockPublicAcls": True
-                    }
+                    {"type": "check-public-block", "BlockPublicAcls": True},
                 ],
                 "actions": [
                     {
@@ -1854,9 +1762,9 @@ class S3Test(BaseTest):
                         "BlockPublicAcls": False,
                         "IgnorePublicAcls": False,
                         "BlockPublicPolicy": False,
-                        "RestrictPublicBuckets": False
+                        "RestrictPublicBuckets": False,
                     }
-                ]
+                ],
             },
             session_factory=session_factory,
         )
@@ -1867,8 +1775,7 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["Name"], bname)
 
         # Make sure that the public blocks are disabled on the buckets
-        response = client.get_public_access_block(
-            Bucket=bname)['PublicAccessBlockConfiguration']
+        response = client.get_public_access_block(Bucket=bname)['PublicAccessBlockConfiguration']
         for key in response.keys():
             self.assertEqual(response[key], False)
 
@@ -1888,17 +1795,9 @@ class S3Test(BaseTest):
                 "resource": "s3",
                 "filters": [
                     {"Name": bname},
-                    {
-                        "type": "check-public-block",
-                        "BlockPublicAcls": True
-                    }
+                    {"type": "check-public-block", "BlockPublicAcls": True},
                 ],
-                "actions": [
-                    {
-                        "type": "set-public-block",
-                        "state": False
-                    }
-                ]
+                "actions": [{"type": "set-public-block", "state": False}],
             },
             session_factory=session_factory,
         )
@@ -1909,8 +1808,7 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["Name"], bname)
 
         # Make sure that the public blocks are disabled on the buckets
-        response = client.get_public_access_block(
-            Bucket=bname)['PublicAccessBlockConfiguration']
+        response = client.get_public_access_block(Bucket=bname)['PublicAccessBlockConfiguration']
         for key in response.keys():
             self.assertEqual(response[key], False)
 
@@ -1930,17 +1828,9 @@ class S3Test(BaseTest):
                 "resource": "s3",
                 "filters": [
                     {"Name": bname},
-                    {
-                        "type": "check-public-block",
-                        "BlockPublicPolicy": False
-                    }
+                    {"type": "check-public-block", "BlockPublicPolicy": False},
                 ],
-                "actions": [
-                    {
-                        "type": "set-public-block",
-                        "BlockPublicPolicy": True
-                    }
-                ]
+                "actions": [{"type": "set-public-block", "BlockPublicPolicy": True}],
             },
             session_factory=session_factory,
         )
@@ -1952,12 +1842,12 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["c7n:PublicAccessBlock"]["BlockPublicPolicy"], False)
 
         # Make sure that BlockPublicAcls public block turned on now
-        assert client.get_public_access_block(
-            Bucket=bname)['PublicAccessBlockConfiguration'] == {
-                "BlockPublicAcls": False,
-                "IgnorePublicAcls": False,
-                "BlockPublicPolicy": True,
-                "RestrictPublicBuckets": False}
+        assert client.get_public_access_block(Bucket=bname)['PublicAccessBlockConfiguration'] == {
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
+            "BlockPublicPolicy": True,
+            "RestrictPublicBuckets": False,
+        }
 
     def test_set_public_block_disable_one(self):
         bname = 'mypublicblock'
@@ -1975,17 +1865,9 @@ class S3Test(BaseTest):
                 "resource": "s3",
                 "filters": [
                     {"Name": bname},
-                    {
-                        "type": "check-public-block",
-                        "IgnorePublicAcls": True
-                    }
+                    {"type": "check-public-block", "IgnorePublicAcls": True},
                 ],
-                "actions": [
-                    {
-                        "type": "set-public-block",
-                        "IgnorePublicAcls": False
-                    }
-                ]
+                "actions": [{"type": "set-public-block", "IgnorePublicAcls": False}],
             },
             session_factory=session_factory,
         )
@@ -1997,12 +1879,12 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["c7n:PublicAccessBlock"]["IgnorePublicAcls"], True)
 
         # Make sure that the IgnorePublicAcls public block set to off
-        assert client.get_public_access_block(
-            Bucket=bname)['PublicAccessBlockConfiguration'] == {
-                'BlockPublicAcls': False,
-                'BlockPublicPolicy': True,
-                'IgnorePublicAcls': False,
-                'RestrictPublicBuckets': False}
+        assert client.get_public_access_block(Bucket=bname)['PublicAccessBlockConfiguration'] == {
+            'BlockPublicAcls': False,
+            'BlockPublicPolicy': True,
+            'IgnorePublicAcls': False,
+            'RestrictPublicBuckets': False,
+        }
 
     def test_set_public_block_throws_errors(self):
         bname = 'mypublicblock'
@@ -2025,12 +1907,10 @@ class S3Test(BaseTest):
                         "BlockPublicAcls": False,
                         "IgnorePublicAcls": False,
                         "BlockPublicPolicy": False,
-                        "RestrictPublicBuckets": False
-                    }
+                        "RestrictPublicBuckets": False,
+                    },
                 ],
-                "actions": [
-                    {"type": "set-public-block"}
-                ]
+                "actions": [{"type": "set-public-block"}],
             },
             session_factory=session_factory,
         )
@@ -2050,12 +1930,8 @@ class S3Test(BaseTest):
 
     def test_has_statement_similar_policies(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_has_statement")
         bname = "custodian-policy-test"
 
@@ -2078,12 +1954,8 @@ class S3Test(BaseTest):
 
     def test_no_encryption_statement(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_no_encryption_statement")
         bname = "custodian-encryption-test"
         session = session_factory()
@@ -2104,9 +1976,7 @@ class S3Test(BaseTest):
                             "Resource": "arn:aws:s3:::%s/*" % bname,
                             "Condition": {
                                 "StringNotEquals": {
-                                    "s3:x-amz-server-side-encryption": [
-                                        "AES256", "aws:kms"
-                                    ]
+                                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
                                 }
                             },
                         }
@@ -2127,12 +1997,8 @@ class S3Test(BaseTest):
 
     def test_missing_policy_statement(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        self.patch(
-            s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor
-        )
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3.MissingPolicyStatementFilter, "executor_factory", MainThreadExecutor)
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_missing_policy")
         bname = "custodian-encrypt-test"
         session = session_factory()
@@ -2153,9 +2019,7 @@ class S3Test(BaseTest):
                             "Resource": "arn:aws:s3:::%s/*" % bname,
                             "Condition": {
                                 "StringNotEquals": {
-                                    "s3:x-amz-server-side-encryption": [
-                                        "AES256", "aws:kms"
-                                    ]
+                                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
                                 }
                             },
                         }
@@ -2250,7 +2114,7 @@ class S3Test(BaseTest):
         self.patch(
             s3.S3.resource_type,
             "enum_spec",
-            ('list_buckets', "Buckets[?Name=='{}']".format(bname), None)
+            ('list_buckets', "Buckets[?Name=='{}']".format(bname), None),
         )
         session_factory = self.replay_flight_data("test_s3_enable_logging")
 
@@ -2286,16 +2150,14 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["Name"], bname)
         self.assertEqual(
             resources[0]["Logging"]["TargetPrefix"],
-            "{}/{}/{}/".format(account_name, client.meta.region_name, bname)
+            "{}/{}/{}/".format(account_name, client.meta.region_name, bname),
         )
 
         if self.recording:
             time.sleep(5)
 
         logging = client.get_bucket_logging(Bucket=bname).get("LoggingEnabled")
-        self.assertEqual(
-            logging["TargetPrefix"], "{}/{}".format(account_name, bname)
-        )
+        self.assertEqual(logging["TargetPrefix"], "{}/{}".format(account_name, bname))
 
         # now override existing setting
         p = self.load_policy(
@@ -2309,7 +2171,7 @@ class S3Test(BaseTest):
                         "op": "not-equal",
                         "target_bucket": bname,
                         "target_prefix": "{account_id}/{source_bucket_name}/",
-                    }
+                    },
                 ],
                 "actions": [
                     {
@@ -2334,9 +2196,7 @@ class S3Test(BaseTest):
 
         logging = client.get_bucket_logging(Bucket=bname).get("LoggingEnabled")
         self.assertTrue(logging)
-        self.assertEqual(
-            logging["TargetPrefix"], "{}/{}/".format(self.account_id, bname)
-        )
+        self.assertEqual(logging["TargetPrefix"], "{}/{}/".format(self.account_id, bname))
 
         # Flip the switch
         p = self.load_policy(
@@ -2360,9 +2220,7 @@ class S3Test(BaseTest):
         self.assertFalse(logging)
 
     def test_encrypt_policy(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         session_factory = self.replay_flight_data("test_s3_encrypt_policy")
         bname = "custodian-encrypt-test"
 
@@ -2391,9 +2249,7 @@ class S3Test(BaseTest):
             self.fail("Encryption required policy")
 
     def test_remove_policy_none_extant(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         session_factory = self.replay_flight_data("test_s3_remove_empty_policy")
         bname = "custodian-policy-test"
@@ -2406,9 +2262,7 @@ class S3Test(BaseTest):
                 "name": "remove-policy",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "remove-statements", "statement_ids": ["Zebra", "Moon"]}
-                ],
+                "actions": [{"type": "remove-statements", "statement_ids": ["Zebra", "Moon"]}],
             },
             session_factory=session_factory,
         )
@@ -2417,9 +2271,7 @@ class S3Test(BaseTest):
         self.assertRaises(ClientError, client.get_bucket_policy, Bucket=bname)
 
     def test_remove_policy(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3.RemovePolicyStatement, "executor_factory", MainThreadExecutor)
 
@@ -2442,9 +2294,7 @@ class S3Test(BaseTest):
                             "Resource": "arn:aws:s3:::%s/*" % bname,
                             "Condition": {
                                 "StringNotEquals": {
-                                    "s3:x-amz-server-side-encryption": [
-                                        "AES256", "aws:kms"
-                                    ]
+                                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
                                 }
                             },
                         }
@@ -2458,9 +2308,7 @@ class S3Test(BaseTest):
                 "name": "remove-policy",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "remove-statements", "statement_ids": ["Zebra", "Moon"]}
-                ],
+                "actions": [{"type": "remove-statements", "statement_ids": ["Zebra", "Moon"]}],
             },
             session_factory=session_factory,
         )
@@ -2469,9 +2317,7 @@ class S3Test(BaseTest):
         self.assertRaises(ClientError, client.get_bucket_policy, Bucket=bname)
 
     def test_remove_policy_matched(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3.RemovePolicyStatement, "executor_factory", MainThreadExecutor)
         self.patch(MainThreadExecutor, "c7n_async", False)
@@ -2484,9 +2330,7 @@ class S3Test(BaseTest):
             "Action": "s3:PutObject",
             "Resource": "arn:aws:s3:::%s/*" % bname,
             "Condition": {
-                "StringNotEquals": {
-                    "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
-                }
+                "StringNotEquals": {"s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]}
             },
         }
 
@@ -2537,17 +2381,13 @@ class S3Test(BaseTest):
             {
                 "name": "attach-encrypt",
                 "resource": "s3",
-                "actions": [
-                    {"type": "attach-encrypt", "role": "-", "topic": "default"}
-                ],
+                "actions": [{"type": "attach-encrypt", "role": "-", "topic": "default"}],
             }
         )
         self.assertEqual(p.data["actions"][0]["topic"], "default")
 
     def test_create_bucket_event(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_policy", "Policy", None, "Policy")])
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         session_factory = self.replay_flight_data("test_s3_create")
         bname = "custodian-create-bucket-v4"
@@ -2587,9 +2427,7 @@ class S3Test(BaseTest):
                         u"Action": u"s3:PutObject",
                         u"Condition": {
                             u"StringNotEquals": {
-                                u"s3:x-amz-server-side-encryption": [
-                                    u"AES256", u"aws:kms"
-                                ]
+                                u"s3:x-amz-server-side-encryption": [u"AES256", u"aws:kms"]
                             }
                         },
                         u"Effect": u"Deny",
@@ -2603,13 +2441,9 @@ class S3Test(BaseTest):
         )
 
     def test_attach_encrypt_via_bucket_notification(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_location", "Location", None, None)]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_location", "Location", None, None)])
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        session_factory = self.replay_flight_data(
-            "test_s3_attach_encrypt_via_bucket_notification"
-        )
+        session_factory = self.replay_flight_data("test_s3_attach_encrypt_via_bucket_notification")
         bname = "custodian-attach-encrypt-test"
         role = "arn:aws:iam::644160558196:role/custodian-mu"
         self.maxDiff = None
@@ -2632,9 +2466,7 @@ class S3Test(BaseTest):
         )
 
         self.addCleanup(
-            LambdaManager(
-                functools.partial(session_factory, region="us-west-2")
-            ).remove,
+            LambdaManager(functools.partial(session_factory, region="us-west-2")).remove,
             s3crypt.get_function(None, role),
         )
 
@@ -2674,9 +2506,7 @@ class S3Test(BaseTest):
             [("get_bucket_notification_configuration", "Notification", None, None)],
         )
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
-        session_factory = self.replay_flight_data(
-            "test_s3_attach_encrypt_via_new_topic"
-        )
+        session_factory = self.replay_flight_data("test_s3_attach_encrypt_via_new_topic")
         bname = "custodian-attach-encrypt-test"
         role = "arn:aws:iam::644160558196:role/custodian-mu"
         self.maxDiff = None
@@ -2690,17 +2520,13 @@ class S3Test(BaseTest):
                 "name": "attach-encrypt",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "attach-encrypt", "role": role, "topic": "default"}
-                ],
+                "actions": [{"type": "attach-encrypt", "role": role, "topic": "default"}],
             },
             session_factory=session_factory,
         )
 
         self.addCleanup(
-            LambdaManager(
-                functools.partial(session_factory, region="us-east-1")
-            ).remove,
+            LambdaManager(functools.partial(session_factory, region="us-east-1")).remove,
             s3crypt.get_function(None, role),
         )
         arn = "arn:aws:sns:us-east-1:644160558196:custodian-attach-encrypt-test"
@@ -2714,9 +2540,7 @@ class S3Test(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         # time.sleep(10)
-        topic_notifications = client.get_bucket_notification_configuration(
-            Bucket=bname
-        ).get(
+        topic_notifications = client.get_bucket_notification_configuration(Bucket=bname).get(
             "TopicConfigurations", []
         )
         us = [t for t in topic_notifications if t.get("TopicArn") == arn]
@@ -2755,9 +2579,7 @@ class S3Test(BaseTest):
         topic_configs = []
         for suffix in (".jpg", ".txt"):
             sns = session.client("sns")
-            existing_topic_arn = sns.create_topic(
-                Name="existing-{}-{}".format(bname, suffix[1:])
-            )[
+            existing_topic_arn = sns.create_topic(Name="existing-{}-{}".format(bname, suffix[1:]))[
                 "TopicArn"
             ]
             policy = {
@@ -2775,16 +2597,12 @@ class S3Test(BaseTest):
                 AttributeName="Policy",
                 AttributeValue=json.dumps(policy),
             )
-            self.addCleanup(
-                session.client("sns").delete_topic, TopicArn=existing_topic_arn
-            )
+            self.addCleanup(session.client("sns").delete_topic, TopicArn=existing_topic_arn)
             topic_configs.append(
                 {
                     "TopicArn": existing_topic_arn,
                     "Events": ["s3:ObjectCreated:*"],
-                    "Filter": {
-                        "Key": {"FilterRules": [{"Name": "suffix", "Value": suffix}]}
-                    },
+                    "Filter": {"Key": {"FilterRules": [{"Name": "suffix", "Value": suffix}]}},
                 }
             )
         session.resource("s3").BucketNotification(bname).put(
@@ -2797,16 +2615,12 @@ class S3Test(BaseTest):
                 "name": "attach-encrypt",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "attach-encrypt", "role": role, "topic": "default"}
-                ],
+                "actions": [{"type": "attach-encrypt", "role": role, "topic": "default"}],
             },
             session_factory=session_factory,
         )
         self.addCleanup(
-            LambdaManager(
-                functools.partial(session_factory, region="us-east-1")
-            ).remove,
+            LambdaManager(functools.partial(session_factory, region="us-east-1")).remove,
             s3crypt.get_function(None, role),
         )
         self.addCleanup(
@@ -2856,9 +2670,7 @@ class S3Test(BaseTest):
         # Create an sns topic
         topic_configs = []
         sns = session.client("sns")
-        existing_topic_arn = sns.create_topic(Name="preexisting-{}".format(bname))[
-            "TopicArn"
-        ]
+        existing_topic_arn = sns.create_topic(Name="preexisting-{}".format(bname))["TopicArn"]
         policy = {
             "Statement": [
                 {
@@ -2875,9 +2687,7 @@ class S3Test(BaseTest):
             AttributeValue=json.dumps(policy),
         )
         self.addCleanup(session.client("sns").delete_topic, TopicArn=existing_topic_arn)
-        topic_configs.append(
-            {"TopicArn": existing_topic_arn, "Events": ["s3:ObjectCreated:*"]}
-        )
+        topic_configs.append({"TopicArn": existing_topic_arn, "Events": ["s3:ObjectCreated:*"]})
         session.resource("s3").BucketNotification(bname).put(
             NotificationConfiguration={"TopicConfigurations": topic_configs}
         )
@@ -2899,9 +2709,7 @@ class S3Test(BaseTest):
             session_factory=session_factory,
         )
         self.addCleanup(
-            LambdaManager(
-                functools.partial(session_factory, region="us-east-1")
-            ).remove,
+            LambdaManager(functools.partial(session_factory, region="us-east-1")).remove,
             s3crypt.get_function(None, role),
         )
         self.addCleanup(
@@ -2945,9 +2753,7 @@ class S3Test(BaseTest):
         session = session_factory()
         client = session.client("s3")
         client.create_bucket(Bucket=bname)
-        client.put_bucket_versioning(
-            Bucket=bname, VersioningConfiguration={"Status": "Enabled"}
-        )
+        client.put_bucket_versioning(Bucket=bname, VersioningConfiguration={"Status": "Enabled"})
         self.addCleanup(destroyVersionedBucket, client, bname)
         generateBucketContents(session.resource("s3"), bname)
 
@@ -2963,9 +2769,7 @@ class S3Test(BaseTest):
         )
         p.run()
         self.assertTrue(len(client.list_object_versions(Bucket=bname)["Versions"]) == 3)
-        self.assertTrue(
-            "ServerSideEncryption" in client.head_object(Bucket=bname, Key="home.txt")
-        )
+        self.assertTrue("ServerSideEncryption" in client.head_object(Bucket=bname, Key="home.txt"))
 
     @functional
     def test_encrypt_versioned_bucket_with_existing_keys(self):
@@ -2988,9 +2792,7 @@ class S3Test(BaseTest):
         generateBucketContents(
             session.resource("s3"), bname, {"data1.txt": "one", "data2.txt": "two"}
         )
-        client.put_bucket_versioning(
-            Bucket=bname, VersioningConfiguration={"Status": "Enabled"}
-        )
+        client.put_bucket_versioning(Bucket=bname, VersioningConfiguration={"Status": "Enabled"})
         self.addCleanup(destroyVersionedBucket, client, bname)
         generateBucketContents(session.resource("s3"), bname, {"data1.txt": "three"})
 
@@ -3007,12 +2809,8 @@ class S3Test(BaseTest):
         p.run()
 
         self.assertTrue(len(client.list_object_versions(Bucket=bname)["Versions"]) == 2)
-        self.assertTrue(
-            "ServerSideEncryption" in client.head_object(Bucket=bname, Key="data1.txt")
-        )
-        self.assertTrue(
-            "ServerSideEncryption" in client.head_object(Bucket=bname, Key="data2.txt")
-        )
+        self.assertTrue("ServerSideEncryption" in client.head_object(Bucket=bname, Key="data1.txt"))
+        self.assertTrue("ServerSideEncryption" in client.head_object(Bucket=bname, Key="data2.txt"))
 
     def test_encrypt_key_empty_bucket(self):
         self.patch(s3, "S3_AUGMENT_TABLE", [])
@@ -3075,9 +2873,7 @@ class S3Test(BaseTest):
         )
         p.run()
 
-        self.assertTrue(
-            "ServerSideEncryption" in client.head_object(Bucket=bname, Key="home.txt")
-        )
+        self.assertTrue("ServerSideEncryption" in client.head_object(Bucket=bname, Key="home.txt"))
 
         # re-run the report policy after to ensure we have no items
         # needing remediation
@@ -3096,14 +2892,8 @@ class S3Test(BaseTest):
         client.create_bucket(Bucket=bname)
         self.addCleanup(destroyBucket, client, bname)
         key_id = [
-            k
-            for k in kms.list_aliases().get("Aliases", ())
-            if k["AliasName"] == "alias/aws/s3"
-        ][
-            0
-        ][
-            "AliasArn"
-        ]
+            k for k in kms.list_aliases().get("Aliases", ()) if k["AliasName"] == "alias/aws/s3"
+        ][0]["AliasArn"]
 
         client.put_object(
             Bucket=bname,
@@ -3111,9 +2901,7 @@ class S3Test(BaseTest):
             ServerSideEncryption="aws:kms",
             SSEKMSKeyId=key_id,
         )
-        client.put_object(
-            Bucket=bname, Key="testing-123", ServerSideEncryption="AES256"
-        )
+        client.put_object(Bucket=bname, Key="testing-123", ServerSideEncryption="AES256")
 
         p = self.load_policy(
             {
@@ -3133,9 +2921,7 @@ class S3Test(BaseTest):
 
         result = client.head_object(Bucket=bname, Key="testing-abc")
         self.assertTrue(result["ServerSideEncryption"] == "aws:kms")
-        data = json.load(
-            open(os.path.join(p.ctx.output.root_dir, "action-encryptextantkeys"))
-        )
+        data = json.load(open(os.path.join(p.ctx.output.root_dir, "action-encryptextantkeys")))
         self.assertEqual([{"Count": 2, "Remediated": 0, "Bucket": bname}], data)
 
     def test_encrypt_keys_key_id_option(self):
@@ -3155,9 +2941,7 @@ class S3Test(BaseTest):
                 "name": "encrypt-keys",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "encrypt-keys", "crypto": "aws:kms", "key-id": key_one}
-                ],
+                "actions": [{"type": "encrypt-keys", "crypto": "aws:kms", "key-id": key_one}],
             },
             output_dir=None,
             session_factory=session_factory,
@@ -3174,9 +2958,7 @@ class S3Test(BaseTest):
                 "name": "encrypt-keys",
                 "resource": "s3",
                 "filters": [{"Name": bname}],
-                "actions": [
-                    {"type": "encrypt-keys", "crypto": "aws:kms", "key-id": key_two}
-                ],
+                "actions": [{"type": "encrypt-keys", "crypto": "aws:kms", "key-id": key_two}],
             },
             output_dir=None,
             session_factory=session_factory,
@@ -3205,9 +2987,7 @@ class S3Test(BaseTest):
                     "DisplayName": "k_vertigo",
                     "ID": "904fc4c4790937100e9eb293a15e6a0a1f265a064888055b43d030034f8881ee",
                 },
-                "Grants": [
-                    {"Grantee": {"Type": "Group", "URI": public}, "Permission": "WRITE"}
-                ],
+                "Grants": [{"Grantee": {"Type": "Group", "URI": public}, "Permission": "WRITE"}],
             },
         )
         p = self.load_policy(
@@ -3255,18 +3035,14 @@ class S3Test(BaseTest):
                     "DisplayName": "k_vertigo",
                     "ID": "904fc4c4790937100e9eb293a15e6a0a1f265a064888055b43d030034f8881ee",
                 },
-                "Grants": [
-                    {"Grantee": {"Type": "Group", "URI": public}, "Permission": "WRITE"}
-                ],
+                "Grants": [{"Grantee": {"Type": "Group", "URI": public}, "Permission": "WRITE"}],
             },
         )
         p = self.load_policy(
             {
                 "name": "s3-remove-global",
                 "resource": "s3",
-                "filters": [
-                    {"Name": "custodian-testing-grants"}, {"type": "global-grants"}
-                ],
+                "filters": [{"Name": "custodian-testing-grants"}, {"type": "global-grants"}],
                 "actions": [{"type": "delete-global-grants", "grantees": [public]}],
             },
             session_factory=session_factory,
@@ -3278,9 +3054,7 @@ class S3Test(BaseTest):
         self.assertEqual(resources[0]["Name"], bname)
 
     def test_s3_mark_for_op(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")])
         session_factory = self.replay_flight_data("test_s3_mark_for_op")
         session = session_factory()
         client = session.client("s3")
@@ -3302,9 +3076,7 @@ class S3Test(BaseTest):
         self.assertTrue("delete" in tag_map.get("maid_status"))
 
     def test_s3_remove_tag(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_tagging", "Tags", [], "TagSet")])
         self.patch(s3.RemoveTag, "executor_factory", MainThreadExecutor)
         session_factory = self.replay_flight_data("test_s3_remove_tag")
         session = session_factory()
@@ -3328,9 +3100,7 @@ class S3Test(BaseTest):
         self.assertTrue("maid_status" in old_tags)
 
     def test_hosts_website(self):
-        self.patch(
-            s3, "S3_AUGMENT_TABLE", [("get_bucket_website", "Website", None, None)]
-        )
+        self.patch(s3, "S3_AUGMENT_TABLE", [("get_bucket_website", "Website", None, None)])
         session_factory = self.replay_flight_data("test_s3_hosts_website")
         session = session_factory()
         client = session.client("s3")
@@ -3399,16 +3169,12 @@ class S3Test(BaseTest):
                         "op": "eq",
                     },
                 ],
-                "actions": [
-                    {"type": "delete-bucket-notification", "statement_ids": "matched"}
-                ],
+                "actions": [{"type": "delete-bucket-notification", "statement_ids": "matched"}],
             },
             session_factory=session_factory,
         )
 
-        topic_arn = session.client("sns").create_topic(Name="bucket-notification-test")[
-            "TopicArn"
-        ]
+        topic_arn = session.client("sns").create_topic(Name="bucket-notification-test")["TopicArn"]
         self.addCleanup(session.client("sns").delete_topic, TopicArn=topic_arn)
         topic_policy = {
             "Statement": [
@@ -3446,9 +3212,7 @@ class S3Test(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         # time.sleep(10)
-        topic_notifications = client.get_bucket_notification_configuration(
-            Bucket=bname
-        ).get(
+        topic_notifications = client.get_bucket_notification_configuration(Bucket=bname).get(
             "TopicConfigurations", []
         )
         us = [t for t in topic_notifications if t.get("TopicArn") == topic_arn]
@@ -3457,9 +3221,7 @@ class S3Test(BaseTest):
     def test_enable_bucket_encryption_kms(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
-        session_factory = self.replay_flight_data(
-            "test_s3_enable_bucket_encryption_kms"
-        )
+        session_factory = self.replay_flight_data("test_s3_enable_bucket_encryption_kms")
         session = session_factory()
         client = session.client("s3")
         kms_client = session.client("kms")
@@ -3505,9 +3267,7 @@ class S3Test(BaseTest):
     def test_enable_bucket_encryption_kms_alias(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
-        session_factory = self.replay_flight_data(
-            "test_s3_enable_bucket_encryption_kms_alias"
-        )
+        session_factory = self.replay_flight_data("test_s3_enable_bucket_encryption_kms_alias")
         session = session_factory()
         client = session.client("s3")
         kms_client = session.client("kms")
@@ -3577,9 +3337,7 @@ class S3Test(BaseTest):
     def test_enable_bucket_encryption_aes256(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(s3, "S3_AUGMENT_TABLE", [])
-        session_factory = self.replay_flight_data(
-            "test_s3_enable_bucket_encryption_aes256"
-        )
+        session_factory = self.replay_flight_data("test_s3_enable_bucket_encryption_aes256")
         session = session_factory()
         client = session.client("s3")
         bname = "custodian-enable-bucket-encryption-aes256"
@@ -3656,9 +3414,7 @@ class S3Test(BaseTest):
         client.put_bucket_encryption(
             Bucket=bname,
             ServerSideEncryptionConfiguration={
-                "Rules": [
-                    {"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
-                ]
+                "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]
             },
         )
 
@@ -3688,23 +3444,30 @@ class S3Test(BaseTest):
             {
                 "name": "s3-invoke-lambda-assume-role",
                 "resource": "s3",
-                "actions": [{"type": "invoke-lambda",
-                             "function": "lambda-invoke-with-assume-role", "assume-role":
-                                 "arn:aws:iam::0123456789:role/service-role/lambda-assumed-role"}],
+                "actions": [
+                    {
+                        "type": "invoke-lambda",
+                        "function": "lambda-invoke-with-assume-role",
+                        "assume-role": "arn:aws:iam::0123456789:role/service-role/lambda-assumed-role",
+                    }
+                ],
             },
             session_factory=session_factory,
         )
 
-        p.resource_manager.actions[0].process([{
-            "FunctionName": "abc",
-            "payload": {},
-        }])
+        p.resource_manager.actions[0].process(
+            [
+                {
+                    "FunctionName": "abc",
+                    "payload": {},
+                }
+            ]
+        )
 
         assert mock_assumed_session.call_count == 1
 
 
 class S3LifecycleTest(BaseTest):
-
     def test_lifecycle(self):
         self.patch(s3.S3, "executor_factory", MainThreadExecutor)
         self.patch(
@@ -3804,7 +3567,8 @@ class S3LifecycleTest(BaseTest):
         self.patch(
             s3,
             "S3_AUGMENT_TABLE",
-            [("get_bucket_lifecycle_configuration", "Lifecycle", None, None)],)
+            [("get_bucket_lifecycle_configuration", "Lifecycle", None, None)],
+        )
         bname = 'c7n-test-1'
         session_factory = self.replay_flight_data("test_s3_remove_lifecycle_rule_id")
         session = session_factory()
@@ -3812,16 +3576,13 @@ class S3LifecycleTest(BaseTest):
         lifecycle = client.get_bucket_lifecycle_configuration(Bucket=bname)
         self.assertSetEqual(
             {x["ID"] for x in lifecycle["Rules"]},
-            {'id2'},)
+            {'id2'},
+        )
         p = self.load_policy(
             {
                 "name": "s3-remove-lc-rule-id",
                 "resource": "s3",
-                "filters": [
-                    {
-                        "Name": bname
-                    }
-                ],
+                "filters": [{"Name": bname}],
                 "actions": [
                     {
                         "type": "configure-lifecycle",
@@ -3834,7 +3595,7 @@ class S3LifecycleTest(BaseTest):
                                 "ID": "id1",
                                 "Status": "absent",
                             },
-                        ]
+                        ],
                     }
                 ],
             },
@@ -3900,9 +3661,7 @@ class TestBucketOwnership:
     def test_s3_ownership_empty(self, test, s3_ownership):
         test.patch(s3.S3, "executor_factory", MainThreadExecutor)
         test.patch(s3.BucketOwnershipControls, "executor_factory", MainThreadExecutor)
-        test.patch(
-            s3, "S3_AUGMENT_TABLE", []
-        )
+        test.patch(s3, "S3_AUGMENT_TABLE", [])
         session_factory = test.replay_flight_data("test_s3_ownership_empty")
         bucket_name = s3_ownership['aws_s3_bucket.no_ownership_controls.bucket']
         p = test.load_policy(
@@ -3910,12 +3669,8 @@ class TestBucketOwnership:
                 "name": "s3-ownership-empty",
                 "resource": "s3",
                 "filters": [
-                    {"type": "value",
-                     "op": "glob",
-                     "key": "Name",
-                     "value": "c7ntest*"},
-                    {"type": "ownership",
-                     "value": "empty"},
+                    {"type": "value", "op": "glob", "key": "Name", "value": "c7ntest*"},
+                    {"type": "ownership", "value": "empty"},
                 ],
             },
             session_factory=session_factory,
@@ -3927,24 +3682,22 @@ class TestBucketOwnership:
     def test_s3_ownership_defined(self, test, s3_ownership):
         test.patch(s3.S3, "executor_factory", MainThreadExecutor)
         test.patch(s3.BucketOwnershipControls, "executor_factory", MainThreadExecutor)
-        test.patch(
-            s3, "S3_AUGMENT_TABLE", []
-        )
+        test.patch(s3, "S3_AUGMENT_TABLE", [])
         session_factory = test.replay_flight_data("test_s3_ownership_defined")
-        bucket_names = {s3_ownership[f'aws_s3_bucket.{r}.bucket']
-                        for r in ('owner_preferred', 'owner_enforced')}
+        bucket_names = {
+            s3_ownership[f'aws_s3_bucket.{r}.bucket'] for r in ('owner_preferred', 'owner_enforced')
+        }
         p = test.load_policy(
             {
                 "name": "s3-ownership-defined",
                 "resource": "s3",
                 "filters": [
-                    {"type": "value",
-                     "op": "glob",
-                     "key": "Name",
-                     "value": "c7ntest*"},
-                    {"type": "ownership",
-                     "op": "in",
-                     "value": ["BucketOwnerPreferred", "BucketOwnerEnforced"]},
+                    {"type": "value", "op": "glob", "key": "Name", "value": "c7ntest*"},
+                    {
+                        "type": "ownership",
+                        "op": "in",
+                        "value": ["BucketOwnerPreferred", "BucketOwnerEnforced"],
+                    },
                 ],
             },
             session_factory=session_factory,
@@ -3958,15 +3711,18 @@ class TestBucketOwnership:
         test.patch(s3.BucketOwnershipControls, "executor_factory", MainThreadExecutor)
         test.patch(s3, "S3_AUGMENT_TABLE", [])
         factory = test.replay_flight_data("test_s3_iam_analyzers")
-        p = test.load_policy({
-            'name': 'check-s3',
-            'resource': 'aws.s3',
-            'filters': [
-                {
-                    'type': 'iam-analyzer',
-                    'key': 'isPublic',
-                    'value': True,
-                },
-            ]
-        }, session_factory=factory)
+        p = test.load_policy(
+            {
+                'name': 'check-s3',
+                'resource': 'aws.s3',
+                'filters': [
+                    {
+                        'type': 'iam-analyzer',
+                        'key': 'isPublic',
+                        'value': True,
+                    },
+                ],
+            },
+            session_factory=factory,
+        )
         test.assertRaises(PolicyExecutionError, p.run)

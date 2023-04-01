@@ -14,19 +14,17 @@ class TestAdmissionControllerMode(KubeTest):
                 'mode': {
                     'type': 'k8s-admission',
                     'on-match': 'allow',
-                    'operations': [
-                        'CREATE',
-                        'DELETE'
-                    ]
-                }
-            }, session_factory=factory
+                    'operations': ['CREATE', 'DELETE'],
+                },
+            },
+            session_factory=factory,
         )
         expected = {
             'operations': ['CREATE', 'DELETE'],
             'resources': [policy.resource_manager.get_model().plural.lower()],
             'group': '',
             'apiVersions': policy.resource_manager.get_model().version.lower(),
-            'scope': 'Namespaced' if policy.resource_manager.get_model().namespaced else 'Cluster'
+            'scope': 'Namespaced' if policy.resource_manager.get_model().namespaced else 'Cluster',
         }
         match_values = policy.get_execution_mode().get_match_values()
         self.assertEqual(expected, match_values)
@@ -47,7 +45,7 @@ class TestAdmissionControllerMode(KubeTest):
                     'on-match': 'deny',
                     'operations': [
                         'CREATE',
-                    ]
+                    ],
                 },
                 'filters': [
                     {
@@ -55,10 +53,11 @@ class TestAdmissionControllerMode(KubeTest):
                         'key': 'request.userInfo.groups',
                         'value': 'system:masters',
                         'op': 'in',
-                        'value_type': 'swap'
+                        'value_type': 'swap',
                     }
-                ]
-            }, session_factory=factory
+                ],
+            },
+            session_factory=factory,
         )
         event = self.get_event('create_pod')
         resources = policy.push(event)
@@ -72,18 +71,13 @@ class TestAdmissionControllerMode(KubeTest):
             {
                 'name': 'test-delete-pod',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'deny',
-                    'operations': [
-                        'DELETE'
-                    ]
-                },
+                'mode': {'type': 'k8s-admission', 'on-match': 'deny', 'operations': ['DELETE']},
                 'filters': [
                     # we should be able to filter on the attribbutes of the resource to be deleted
                     {'metadata.name': 'static-web'},
-                ]
-            }, session_factory=factory
+                ],
+            },
+            session_factory=factory,
         )
         event = self.get_event('delete_pod')
         resources = policy.push(event)
@@ -97,14 +91,9 @@ class TestAdmissionControllerMode(KubeTest):
             {
                 'name': 'test-warn-pod',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'warn',
-                    'operations': [
-                        'CREATE'
-                    ]
-                }
-            }, session_factory=factory
+                'mode': {'type': 'k8s-admission', 'on-match': 'warn', 'operations': ['CREATE']},
+            },
+            session_factory=factory,
         )
         event = self.get_event('create_pod')
         resources = policy.push(event)
@@ -118,17 +107,10 @@ class TestAdmissionControllerMode(KubeTest):
             {
                 'name': 'test-warn-pod',
                 'resource': 'k8s.pod',
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'warn',
-                    'operations': [
-                        'CREATE'
-                    ]
-                },
-                'filters': [
-                    {'foo': 'bar'}
-                ]
-            }, session_factory=factory
+                'mode': {'type': 'k8s-admission', 'on-match': 'warn', 'operations': ['CREATE']},
+                'filters': [{'foo': 'bar'}],
+            },
+            session_factory=factory,
         )
         event = self.get_event('create_pod')
         resources = policy.push(event)
@@ -143,18 +125,9 @@ class TestAdmissionControllerMode(KubeTest):
                 'name': 'no-custom-resource-for-you',
                 'resource': 'k8s.custom-namespaced-resource',
                 'query': [
-                    {
-                        'plural': 'policyreports',
-                        'group': 'wgpolicyk8s.io',
-                        'version': 'v1alpha2'
-                    }
+                    {'plural': 'policyreports', 'group': 'wgpolicyk8s.io', 'version': 'v1alpha2'}
                 ],
-                'mode': {
-                    'type': 'k8s-admission',
-                    'on-match': 'deny',
-                    'operations': ['CREATE']
-                }
-
+                'mode': {'type': 'k8s-admission', 'on-match': 'deny', 'operations': ['CREATE']},
             },
             session_factory=factory,
         )
@@ -174,9 +147,7 @@ class TestAdmissionControllerMode(KubeTest):
                     'type': 'k8s-admission',
                     'subresource': ['exec'],
                     'on-match': 'deny',
-                    'operations': [
-                        'CONNECT'
-                    ]
+                    'operations': ['CONNECT'],
                 },
                 'filters': [
                     {
@@ -186,12 +157,13 @@ class TestAdmissionControllerMode(KubeTest):
                                 'key': 'request.userInfo.groups',
                                 'value': 'allow-exec',
                                 'op': 'in',
-                                'value_type': 'swap'
+                                'value_type': 'swap',
                             }
                         ]
                     }
-                ]
-            }, session_factory=factory
+                ],
+            },
+            session_factory=factory,
         )
         event = self.get_event('connect_pod_exec_options')
         resources = policy.push(event)
@@ -210,9 +182,7 @@ class TestAdmissionControllerMode(KubeTest):
                     'type': 'k8s-admission',
                     'subresource': ['exec', 'attach'],
                     'on-match': 'deny',
-                    'operations': [
-                        'CONNECT'
-                    ]
+                    'operations': ['CONNECT'],
                 },
                 'filters': [
                     {
@@ -222,12 +192,13 @@ class TestAdmissionControllerMode(KubeTest):
                                 'key': 'request.userInfo.groups',
                                 'value': 'allow-exec',
                                 'op': 'not-in',
-                                'value_type': 'swap'
+                                'value_type': 'swap',
                             }
                         ]
                     }
-                ]
-            }, session_factory=factory
+                ],
+            },
+            session_factory=factory,
         )
         event = self.get_event('connect_pod_attach_options')
         resources = policy.push(event)

@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from c7n.manager import resources
-from c7n.query import (
-    QueryResourceManager, TypeInfo, DescribeSource, RetryPageIterator)
+from c7n.query import QueryResourceManager, TypeInfo, DescribeSource, RetryPageIterator
 from c7n.actions import BaseAction
 from c7n.tags import Tag, TagDelayedAction, RemoveTag, coalesce_copy_user_tags, TagActionFilter
 from c7n.utils import type_schema, local_session, chunks
@@ -16,10 +15,8 @@ from c7n.filters.vpc import SubnetFilter
 
 
 class DescribeFSx(DescribeSource):
-
     def get_resources(self, ids):
-        """Support server side filtering on arns
-        """
+        """Support server side filtering on arns"""
         for n in range(len(ids)):
             if ids[n].startswith('arn:'):
                 ids[n] = ids[n].rsplit('/', 1)[-1]
@@ -29,7 +26,6 @@ class DescribeFSx(DescribeSource):
 
 @resources.register('fsx')
 class FSx(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'fsx'
         enum_spec = ('describe_file_systems', 'FileSystems', None)
@@ -38,14 +34,11 @@ class FSx(QueryResourceManager):
         date = 'CreationTime'
         cfn_type = 'AWS::FSx::FileSystem'
 
-    source_mapping = {
-        'describe': DescribeFSx
-    }
+    source_mapping = {'describe': DescribeFSx}
 
 
 @resources.register('fsx-backup')
 class FSxBackup(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'fsx'
         enum_spec = ('describe_backups', 'Backups', None)
@@ -75,6 +68,7 @@ class DeleteBackup(BaseAction):
               actions:
                 - type: delete
     """
+
     permissions = ('fsx:DeleteBackup',)
     schema = type_schema('delete')
 
@@ -85,8 +79,9 @@ class DeleteBackup(BaseAction):
                 client.delete_backup(BackupId=r['BackupId'])
             except client.exceptions.BackupRestoring as e:
                 self.log.warning(
-                    'Unable to delete backup for: %s - %s - %s' % (
-                        r['FileSystemId'], r['BackupId'], e))
+                    'Unable to delete backup for: %s - %s - %s'
+                    % (r['FileSystemId'], r['BackupId'], e)
+                )
 
 
 FSxBackup.filter_registry.register('marked-for-op', TagActionFilter)
@@ -148,12 +143,11 @@ class UpdateFileSystem(BaseAction):
 
     Reference: https://docs.aws.amazon.com/fsx/latest/APIReference/API_UpdateFileSystem.html
     """
+
     permissions = ('fsx:UpdateFileSystem',)
 
     schema = type_schema(
-        'update',
-        WindowsConfiguration={'type': 'object'},
-        LustreConfiguration={'type': 'object'}
+        'update', WindowsConfiguration={'type': 'object'}, LustreConfiguration={'type': 'object'}
     )
 
     def process(self, resources):
@@ -162,7 +156,7 @@ class UpdateFileSystem(BaseAction):
             client.update_file_system(
                 FileSystemId=r['FileSystemId'],
                 WindowsConfiguration=self.data.get('WindowsConfiguration', {}),
-                LustreConfiguration=self.data.get('LustreConfiguration', {})
+                LustreConfiguration=self.data.get('LustreConfiguration', {}),
             )
 
 
@@ -209,23 +203,11 @@ class BackupFileSystem(BaseAction):
     schema = type_schema(
         'backup',
         **{
-            'tags': {
-                'type': 'object'
-            },
+            'tags': {'type': 'object'},
             'copy-tags': {
-                'oneOf': [
-                    {
-                        'type': 'boolean'
-                    },
-                    {
-                        'type': 'array',
-                        'items': {
-                            'type': 'string'
-                        }
-                    }
-                ]
-            }
-        }
+                'oneOf': [{'type': 'boolean'}, {'type': 'array', 'items': {'type': 'string'}}]
+            },
+        },
     )
 
     def process(self, resources):
@@ -236,17 +218,11 @@ class BackupFileSystem(BaseAction):
             tags = coalesce_copy_user_tags(r, copy_tags, user_tags)
             try:
                 if tags:
-                    client.create_backup(
-                        FileSystemId=r['FileSystemId'],
-                        Tags=tags
-                    )
+                    client.create_backup(FileSystemId=r['FileSystemId'], Tags=tags)
                 else:
-                    client.create_backup(
-                        FileSystemId=r['FileSystemId']
-                    )
+                    client.create_backup(FileSystemId=r['FileSystemId'])
             except client.exceptions.BackupInProgress as e:
-                self.log.warning(
-                    'Unable to create backup for: %s - %s' % (r['FileSystemId'], e))
+                self.log.warning('Unable to create backup for: %s - %s' % (r['FileSystemId'], e))
 
 
 @FSx.action_registry.register('delete')
@@ -289,19 +265,9 @@ class DeleteFileSystem(BaseAction):
             'skip-snapshot': {'type': 'boolean'},
             'tags': {'type': 'object'},
             'copy-tags': {
-                'oneOf': [
-                    {
-                        'type': 'array',
-                        'items': {
-                            'type': 'string'
-                        }
-                    },
-                    {
-                        'type': 'boolean'
-                    }
-                ]
-            }
-        }
+                'oneOf': [{'type': 'array', 'items': {'type': 'string'}}, {'type': 'boolean'}]
+            },
+        },
     )
 
     def process(self, resources):
@@ -318,8 +284,7 @@ class DeleteFileSystem(BaseAction):
                 config['FinalBackupTags'] = tags
             try:
                 client.delete_file_system(
-                    FileSystemId=r['FileSystemId'],
-                    WindowsConfiguration=config
+                    FileSystemId=r['FileSystemId'], WindowsConfiguration=config
                 )
             except client.exceptions.BadRequest as e:
                 self.log.warning('Unable to delete: %s - %s' % (r['FileSystemId'], e))
@@ -351,10 +316,14 @@ class ConsecutiveBackups(Filter):
                 actions:
                   - notify
     """
-    schema = type_schema('consecutive-backups',
-                         days={'type': 'number', 'minimum': 1},
-                         required=['days'])
-    permissions = ('fsx:DescribeBackups', 'fsx:DescribeVolumes',)
+
+    schema = type_schema(
+        'consecutive-backups', days={'type': 'number', 'minimum': 1}, required=['days']
+    )
+    permissions = (
+        'fsx:DescribeBackups',
+        'fsx:DescribeVolumes',
+    )
     annotation = 'c7n:FSxBackups'
 
     def describe_backups(self, client, name=None, filters=[]):
@@ -362,14 +331,20 @@ class ConsecutiveBackups(Filter):
         try:
             paginator = client.get_paginator('describe_backups')
             paginator.PAGE_ITERATOR_CLS = RetryPageIterator
-            desc_backups = paginator.paginate(Filters=[
-                {
-                    'Name': name,
-                    'Values': filters,
-                }]).build_full_result().get('Backups', [])
+            desc_backups = (
+                paginator.paginate(
+                    Filters=[
+                        {
+                            'Name': name,
+                            'Values': filters,
+                        }
+                    ]
+                )
+                .build_full_result()
+                .get('Backups', [])
+            )
         except Exception as err:
-            self.log.warning(
-                'Unable to describe backups for ids: %s - %s' % (filters, err))
+            self.log.warning('Unable to describe backups for ids: %s - %s' % (filters, err))
         return desc_backups
 
     def ontap_process_resource_set(self, client, resources):
@@ -377,18 +352,20 @@ class ConsecutiveBackups(Filter):
         ontap_backups = []
         ontap_fids = [r['FileSystemId'] for r in resources]
         if ontap_fids:
-            ontap_volumes = client.describe_volumes(Filters=[
-                {
-                    'Name': 'file-system-id',
-                    'Values': ontap_fids,
-                }])
+            ontap_volumes = client.describe_volumes(
+                Filters=[
+                    {
+                        'Name': 'file-system-id',
+                        'Values': ontap_fids,
+                    }
+                ]
+            )
             ontap_vids = [v['VolumeId'] for v in ontap_volumes['Volumes']]
             for ovid in chunks(ontap_vids, 20):
                 ontap_backups = self.describe_backups(client, 'volume-id', ovid)
             if ontap_backups:
                 for ontap in ontap_backups:
-                    ontap_fid_backups.setdefault(ontap['Volume']
-                                           ['FileSystemId'], []).append(ontap)
+                    ontap_fid_backups.setdefault(ontap['Volume']['FileSystemId'], []).append(ontap)
         for r in resources:
             r[self.annotation] = ontap_fid_backups.get(r['FileSystemId'], [])
 
@@ -401,8 +378,9 @@ class ConsecutiveBackups(Filter):
                 nonontap_backups = self.describe_backups(client, 'file-system-id', nonontap_fid)
             if nonontap_backups:
                 for nonontap in nonontap_backups:
-                    fid_backups.setdefault(nonontap['FileSystem']
-                                           ['FileSystemId'], []).append(nonontap)
+                    fid_backups.setdefault(nonontap['FileSystem']['FileSystemId'], []).append(
+                        nonontap
+                    )
         for r in resources:
             r[self.annotation] = fid_backups.get(r['FileSystemId'], [])
 

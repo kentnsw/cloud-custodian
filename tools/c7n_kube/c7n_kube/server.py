@@ -25,15 +25,13 @@ class AdmissionControllerServer(http.server.HTTPServer):
         self.policy_dir = policy_dir
         self.on_exception = on_exception
         self.directory_loader = DirectoryLoader(Config.empty())
-        policy_collection = self.directory_loader.load_directory(
-            os.path.abspath(self.policy_dir))
+        policy_collection = self.directory_loader.load_directory(os.path.abspath(self.policy_dir))
         self.policy_collection = policy_collection.filter(modes=['k8s-admission'])
         log.info(f"Loaded {len(self.policy_collection)} policies")
         super().__init__(*args, **kwargs)
 
 
 class AdmissionControllerHandler(http.server.BaseHTTPRequestHandler):
-
     def run_policies(self, req):
         failed_policies = []
         warn_policies = []
@@ -45,13 +43,19 @@ class AdmissionControllerHandler(http.server.BaseHTTPRequestHandler):
                 resources = p.push(req)
                 action = p.data['mode'].get('on-match', 'deny')
                 result = evaluate_result(action, resources)
-                if result in ('allow', 'warn',):
+                if result in (
+                    'allow',
+                    'warn',
+                ):
                     verb = 'allowing'
                 else:
                     verb = 'denying'
 
                 log.info(f'{verb} admission because on-match:{action}, matched:{len(resources)}')
-            except (PolicyNotRunnableException, EventNotMatchedException, ):
+            except (
+                PolicyNotRunnableException,
+                EventNotMatchedException,
+            ):
                 result = 'allow'
                 resources = []
             except Exception as e:
@@ -64,16 +68,13 @@ class AdmissionControllerHandler(http.server.BaseHTTPRequestHandler):
 
             if result == 'deny':
                 failed_policies.append(
-                    {
-                        "name": p.name,
-                        "description": deny_message or p.data.get('description', '')
-                    }
+                    {"name": p.name, "description": deny_message or p.data.get('description', '')}
                 )
             if result == 'warn':
                 warn_policies.append(
                     {
                         "name": p.name,
-                        "description": warning_message or p.data.get('description', '')
+                        "description": warning_message or p.data.get('description', ''),
                     }
                 )
         return failed_policies, warn_policies
@@ -115,9 +116,7 @@ class AdmissionControllerHandler(http.server.BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         response = self.create_admission_response(
-            uid=req['request']['uid'],
-            failed_policies=failed_policies,
-            warn_policies=warn_policies
+            uid=req['request']['uid'], failed_policies=failed_policies, warn_policies=warn_policies
         )
         log.info(response)
         self.wfile.write(response.encode('utf-8'))
@@ -132,24 +131,30 @@ class AdmissionControllerHandler(http.server.BaseHTTPRequestHandler):
             for p in warn_policies:
                 warnings.append(f"{p['name']}:{p['description']}")
 
-        return json.dumps({
-            "apiVersion": "admission.k8s.io/v1",
-            "kind": "AdmissionReview",
-            "response": {
-                "allowed": False if failed_policies else True,
-                "warnings": warnings,
-                "uid": uid,
-                "status": {
-                    "code": code,
-                    "message": message
-                }
+        return json.dumps(
+            {
+                "apiVersion": "admission.k8s.io/v1",
+                "kind": "AdmissionReview",
+                "response": {
+                    "allowed": False if failed_policies else True,
+                    "warnings": warnings,
+                    "uid": uid,
+                    "status": {"code": code, "message": message},
+                },
             }
-        })
+        )
 
 
 def init(
-    host, port, policy_dir, on_exception='warn', serve_forever=True,
-    *, cert_path=None, cert_key_path=None, ca_cert_path=None,
+    host,
+    port,
+    policy_dir,
+    on_exception='warn',
+    serve_forever=True,
+    *,
+    cert_path=None,
+    cert_key_path=None,
+    ca_cert_path=None,
 ):
     use_tls = any((cert_path, cert_key_path))
     if use_tls and not (cert_path and cert_key_path):
@@ -166,6 +171,7 @@ def init(
 
     if use_tls:
         import ssl
+
         server.socket = ssl.wrap_socket(
             server.socket,
             server_side=True,

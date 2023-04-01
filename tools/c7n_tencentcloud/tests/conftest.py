@@ -19,8 +19,12 @@ def credential_env_vars(monkeypatch):
 @pytest.fixture(scope="package")
 def vcr_config():
     return {
-        "filter_headers": ["authorization", "X-TC-Timestamp", "X-TC-RequestClient",
-                           "X-TC-Language"],
+        "filter_headers": [
+            "authorization",
+            "X-TC-Timestamp",
+            "X-TC-RequestClient",
+            "X-TC-Language",
+        ],
         "before_record_response": scrub_string(["IntranetUrl", "InternetUrl", "Url"]),
     }
 
@@ -37,6 +41,7 @@ def scrub_string(keys, replacement=''):
                         i[key] = replacement
             response['body']['string'] = str.encode(json.dumps(res))
         return response
+
     return before_record_response
 
 
@@ -57,13 +62,15 @@ def client_tag(session):
 
 @pytest.fixture
 def options():
-    return Config.empty(**{
-        "region": "ap-singapore",  # just for init, ignore the value
-        "account_id": "100000750436",
-        "output_dir": "null://",
-        "log_group": "null://",
-        "cache": False,
-    })
+    return Config.empty(
+        **{
+            "region": "ap-singapore",  # just for init, ignore the value
+            "account_id": "100000750436",
+            "output_dir": "null://",
+            "log_group": "null://",
+            "cache": False,
+        }
+    )
 
 
 @pytest.fixture

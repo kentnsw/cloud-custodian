@@ -25,7 +25,6 @@ from c7n.utils import local_session, type_schema, get_retry
 
 @resources.register('service-quota-request')
 class ServiceQuotaRequest(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'service-quotas'
         permission_prefix = 'servicequotas'
@@ -59,18 +58,12 @@ class ServiceQuota(QueryResourceManager):
             def _get_quotas(client, s, attr):
                 quotas = {}
                 token = None
-                kwargs = {
-                    'ServiceCode': s['ServiceCode'],
-                    'MaxResults': self.batch_size
-                }
+                kwargs = {'ServiceCode': s['ServiceCode'], 'MaxResults': self.batch_size}
 
                 while True:
                     if token:
                         kwargs['NextToken'] = token
-                    response = retry(
-                        getattr(client, attr),
-                        **kwargs
-                    )
+                    response = retry(getattr(client, attr), **kwargs)
                     rquotas = {q['QuotaCode']: q for q in response['Quotas']}
                     token = response.get('NextToken')
                     new = set(rquotas) - set(quotas)
@@ -87,13 +80,9 @@ class ServiceQuota(QueryResourceManager):
                 return quotas.values()
 
             dquotas = {
-                q['QuotaCode']: q
-                for q in _get_quotas(client, s, 'list_aws_default_service_quotas')
+                q['QuotaCode']: q for q in _get_quotas(client, s, 'list_aws_default_service_quotas')
             }
-            quotas = {
-                q['QuotaCode']: q
-                for q in _get_quotas(client, s, 'list_service_quotas')
-            }
+            quotas = {q['QuotaCode']: q for q in _get_quotas(client, s, 'list_service_quotas')}
             dquotas.update(quotas)
             # NOTE filter out applied value is 0 as that means it is not in use
             # e.g. https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-quotas.html
@@ -140,8 +129,12 @@ class UsageFilter(MetricsFilter):
                   limit: 19
     """
 
-    schema = type_schema('usage-metric', limit={'type': 'integer'},
-        min_period={'type': 'integer'}, use_avg_stat={'type': 'array'})
+    schema = type_schema(
+        'usage-metric',
+        limit={'type': 'integer'},
+        min_period={'type': 'integer'},
+        use_avg_stat={'type': 'array'},
+    )
 
     permisisons = ('cloudwatch:GetMetricStatistics',)
 
@@ -157,13 +150,7 @@ class UsageFilter(MetricsFilter):
         'WEEK': 'weeks',
     }
 
-    metric_map = {
-        'Maximum': max,
-        'Minimum': min,
-        'Average': mean,
-        'Sum': sum,
-        'SampleCount': len
-    }
+    metric_map = {'Maximum': max, 'Minimum': min, 'Average': mean, 'Sum': sum, 'SampleCount': len}
 
     percentile_regex = re.compile('p\\d{0,2}\\.{0,1}\\d{0,2}')
 
@@ -270,9 +257,7 @@ class RequestHistoryFilter(RelatedResourceFilter):
     RelatedIdsExpression = 'QuotaCode'
     AnnotationKey = 'ServiceQuotaChangeHistory'
 
-    schema = type_schema(
-        'request-history', rinherit=ValueFilter.schema
-    )
+    schema = type_schema('request-history', rinherit=ValueFilter.schema)
 
     permissions = ('servicequotas:ListRequestedServiceQuotaChangeHistory',)
 
@@ -326,20 +311,22 @@ class Increase(Action):
                 continue
             try:
                 client.request_service_quota_increase(
-                    ServiceCode=r['ServiceCode'],
-                    QuotaCode=r['QuotaCode'],
-                    DesiredValue=count
+                    ServiceCode=r['ServiceCode'], QuotaCode=r['QuotaCode'], DesiredValue=count
                 )
             except client.exceptions.QuotaExceededException as e:
                 error = e
                 self.log.error('Requested:%s exceeds quota limit for %s' % (count, r['QuotaCode']))
                 continue
-            except (client.exceptions.AccessDeniedException,
-                    client.exceptions.DependencyAccessDeniedException,):
+            except (
+                client.exceptions.AccessDeniedException,
+                client.exceptions.DependencyAccessDeniedException,
+            ):
                 raise PolicyExecutionError('Access Denied to increase quota: %s' % r['QuotaCode'])
-            except (client.exceptions.NoSuchResourceException,
-                    client.exceptions.InvalidResourceStateException,
-                    client.exceptions.ResourceAlreadyExistsException,) as e:
+            except (
+                client.exceptions.NoSuchResourceException,
+                client.exceptions.InvalidResourceStateException,
+                client.exceptions.ResourceAlreadyExistsException,
+            ) as e:
                 error = e
                 continue
         if error:

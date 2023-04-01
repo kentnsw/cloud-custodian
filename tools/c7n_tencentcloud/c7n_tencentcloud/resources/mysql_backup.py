@@ -12,6 +12,7 @@ class MySQLBackUp(QueryResourceManager):
 
     class resource_type(ResourceTypeInfo):
         """resource_type"""
+
         id = "InstanceId"
         endpoint = "cdb.tencentcloudapi.com"
         service = "cdb"
@@ -20,21 +21,18 @@ class MySQLBackUp(QueryResourceManager):
         paging_def = {"method": PageMethod.Offset, "limit": {"key": "Limit", "value": 20}}
         resource_prefix = "instanceId"
         taggable = True
-        datetime_fields_format = {
-            "Date": ("%Y-%m-%d %H:%M:%S", pytz.timezone("Asia/Shanghai"))
-        }
+        datetime_fields_format = {"Date": ("%Y-%m-%d %H:%M:%S", pytz.timezone("Asia/Shanghai"))}
 
     def augment(self, resources):
         backup_resources = []
         cli = self.get_client()
         for resource in resources:
-            resp = cli.execute_query("DescribeBackups",
-                                     {"InstanceId": resource["InstanceId"]})
+            resp = cli.execute_query("DescribeBackups", {"InstanceId": resource["InstanceId"]})
             items = resp["Response"]["Items"]
             field_format = self.resource_type.datetime_fields_format["Date"]
             for item in items:
-                item["Date"] = isoformat_datetime_str(item["Date"],
-                                                      field_format[0],
-                                                      field_format[1])
+                item["Date"] = isoformat_datetime_str(
+                    item["Date"], field_format[0], field_format[1]
+                )
             backup_resources += items
         return backup_resources

@@ -4,24 +4,31 @@ from .common import BaseTest
 
 
 class TestSecretsManager(BaseTest):
-
     def test_secrets_manager_cross_account(self):
         factory = self.replay_flight_data('test_secrets_manager_cross_account')
-        p = self.load_policy({
-            'name': 'secrets-manager',
-            'resource': 'secrets-manager',
-            'filters': ['cross-account']},
-            session_factory=factory)
+        p = self.load_policy(
+            {
+                'name': 'secrets-manager',
+                'resource': 'secrets-manager',
+                'filters': ['cross-account'],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
         self.assertEqual(len(resources), 1)
         secret = resources.pop()
         self.assertEqual(secret['Name'], 'c7n-test-key')
         self.assertEqual(
             secret['CrossAccountViolations'],
-            [{'Action': 'secretsmanager:*',
-              'Effect': 'Allow',
-              'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
-              'Resource': '*'}])
+            [
+                {
+                    'Action': 'secretsmanager:*',
+                    'Effect': 'Allow',
+                    'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                    'Resource': '*',
+                }
+            ],
+        )
 
     def test_secrets_manager_kms_filter(self):
         session_factory = self.replay_flight_data('test_secrets_manager_kms_filter')
@@ -31,14 +38,10 @@ class TestSecretsManager(BaseTest):
                 'name': 'test-secrets-manager-kms-filter',
                 'resource': 'secrets-manager',
                 'filters': [
-                    {
-                        'type': 'kms-key',
-                        'key': 'c7n:AliasName',
-                        'value': 'alias/skunk/trails'
-                    }
-                ]
+                    {'type': 'kms-key', 'key': 'c7n:AliasName', 'value': 'alias/skunk/trails'}
+                ],
             },
-            session_factory=session_factory
+            session_factory=session_factory,
         )
         resources = p.run()
         self.assertEqual(len(resources), 1)
@@ -47,20 +50,21 @@ class TestSecretsManager(BaseTest):
 
     def test_secrets_manager_has_statement_filter(self):
         factory = self.replay_flight_data('test_secrets_manager_has_statement_filter')
-        p = self.load_policy({
-            'name': 'secrets-manager-has-statement',
-            'resource': 'secrets-manager',
-            'filters': [{
+        p = self.load_policy(
+            {
+                'name': 'secrets-manager-has-statement',
+                'resource': 'secrets-manager',
+                'filters': [
+                    {
                         "type": "has-statement",
                         "statements": [
-                            {
-                                "Effect": "Deny",
-                                "Action": "secretsmanager:GetSecretValue"
-                            }
-                        ]
-                        }]
-        },
-            session_factory=factory)
+                            {"Effect": "Deny", "Action": "secretsmanager:GetSecretValue"}
+                        ],
+                    }
+                ],
+            },
+            session_factory=factory,
+        )
         resources = p.run()
 
         self.assertEqual(len(resources), 1)

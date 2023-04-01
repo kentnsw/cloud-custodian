@@ -72,24 +72,24 @@ class MetricsFilter(Filter):
 
     schema = type_schema(
         'metrics',
-        **{'namespace': {'type': 'string'},
-           'name': {'type': 'string'},
-           'dimensions': {
-               'type': 'object',
-               'patternProperties': {
-                   '^.*$': {'type': 'string'}}},
-           # Type choices
-           'statistics': {'type': 'string'},
-           'days': {'type': 'number'},
-           'op': {'type': 'string', 'enum': list(OPERATORS.keys())},
-           'value': {'oneOf': [{'type': 'string'}, {'type': 'number'}]},
-           'value_factor': {'type': 'number'},
-           'expr': {'type': 'boolean'},
-           'period': {'type': 'number'},
-           'attr-multiplier': {'type': 'number'},
-           'percent-attr': {'type': 'string'},
-           'missing-value': {'type': 'number'},
-           'required': ('value', 'name')})
+        **{
+            'namespace': {'type': 'string'},
+            'name': {'type': 'string'},
+            'dimensions': {'type': 'object', 'patternProperties': {'^.*$': {'type': 'string'}}},
+            # Type choices
+            'statistics': {'type': 'string'},
+            'days': {'type': 'number'},
+            'op': {'type': 'string', 'enum': list(OPERATORS.keys())},
+            'value': {'oneOf': [{'type': 'string'}, {'type': 'number'}]},
+            'value_factor': {'type': 'number'},
+            'expr': {'type': 'boolean'},
+            'period': {'type': 'number'},
+            'attr-multiplier': {'type': 'number'},
+            'percent-attr': {'type': 'string'},
+            'missing-value': {'type': 'number'},
+            'required': ('value', 'name'),
+        }
+    )
     schema_alias = True
     permissions = ("cloudwatch:GetMetricStatistics",)
 
@@ -139,12 +139,12 @@ class MetricsFilter(Filter):
     def validate(self):
         stats = self.data.get('statistics', 'Average')
         if stats not in self.standard_stats and not self.extended_stats_re.match(stats):
-            raise PolicyValidationError(
-                "metrics filter statistics method %s not supported" % stats)
+            raise PolicyValidationError("metrics filter statistics method %s not supported" % stats)
 
         if self.days > 455:
             raise PolicyValidationError(
-                "metrics filter days value (%s) cannot exceed 455" % self.days)
+                "metrics filter days value (%s) cannot exceed 455" % self.days
+            )
 
     def get_metric_window(self):
         """Determine start and end times for the CloudWatch metric window
@@ -170,8 +170,9 @@ class MetricsFilter(Filter):
         elif duration <= timedelta(days=63):
             # Align period with the start of the next five-minute block
             # CloudWatch retention: 63 days
-            end = (now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0)
-                + timedelta(minutes=5))
+            end = now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0) + timedelta(
+                minutes=5
+            )
         else:
             # Align period with the start of the next hour
             # CloudWatch retention: 455 days
@@ -204,20 +205,17 @@ class MetricsFilter(Filter):
         with self.executor_factory(max_workers=3) as w:
             futures = []
             for resource_set in chunks(resources, 50):
-                futures.append(
-                    w.submit(self.process_resource_set, resource_set))
+                futures.append(w.submit(self.process_resource_set, resource_set))
 
             for f in as_completed(futures):
                 if f.exception():
-                    self.log.warning(
-                        "CW Retrieval error: %s" % f.exception())
+                    self.log.warning("CW Retrieval error: %s" % f.exception())
                     continue
                 matched.extend(f.result())
         return matched
 
     def get_dimensions(self, resource):
-        return [{'Name': self.model.dimension,
-                 'Value': resource[self.model.dimension]}]
+        return [{'Name': self.model.dimension, 'Value': resource[self.model.dimension]}]
 
     def get_user_dimensions(self):
         dims = []
@@ -228,8 +226,7 @@ class MetricsFilter(Filter):
         return dims
 
     def process_resource_set(self, resource_set):
-        client = local_session(
-            self.manager.session_factory).client('cloudwatch')
+        client = local_session(self.manager.session_factory).client('cloudwatch')
 
         matched = []
         for r in resource_set:
@@ -253,16 +250,16 @@ class MetricsFilter(Filter):
                 StartTime=self.start,
                 EndTime=self.end,
                 Period=self.period,
-                Dimensions=dimensions
+                Dimensions=dimensions,
             )
 
-            stats_key = (self.statistics in self.standard_stats
-                         and 'Statistics' or 'ExtendedStatistics')
+            stats_key = (
+                self.statistics in self.standard_stats and 'Statistics' or 'ExtendedStatistics'
+            )
             params[stats_key] = [self.statistics]
 
             if key not in collected_metrics:
-                collected_metrics[key] = client.get_metric_statistics(
-                    **params)['Datapoints']
+                collected_metrics[key] = client.get_metric_statistics(**params)['Datapoints']
 
             # In certain cases CloudWatch reports no data for a metric.
             # If the policy specifies a fill value for missing data, add
@@ -271,13 +268,16 @@ class MetricsFilter(Filter):
             if len(collected_metrics[key]) == 0:
                 if 'missing-value' not in self.data:
                     continue
-                collected_metrics[key].append({
-                    'Timestamp': self.start,
-                    self.statistics: self.data['missing-value'],
-                    'c7n:detail': 'Fill value for missing data'
-                })
+                collected_metrics[key].append(
+                    {
+                        'Timestamp': self.start,
+                        self.statistics: self.data['missing-value'],
+                        'c7n:detail': 'Fill value for missing data',
+                    }
+                )
 
             from c7n.actions.metric import METRIC_OPS
+
             metricOp = METRIC_OPS[self.statistics.lower()]
             collectedMetrics = metricOp([m[self.statistics] for m in collected_metrics[key]])
 
@@ -289,7 +289,7 @@ class MetricsFilter(Filter):
                 rvalue = r[self.data.get('percent-attr')]
                 if self.data.get('attr-multiplier'):
                     rvalue = rvalue * self.data['attr-multiplier']
-                percent = (collectedMetrics / rvalue * 100)
+                percent = collectedMetrics / rvalue * 100
                 if self.op(percent, val):
                     matched.append(r)
             elif self.op(collectedMetrics, val):
@@ -298,15 +298,12 @@ class MetricsFilter(Filter):
 
 
 class ShieldMetrics(MetricsFilter):
-    """Specialized metrics filter for shield
-    """
+    """Specialized metrics filter for shield"""
+
     schema = type_schema('shield-metrics', rinherit=MetricsFilter.schema)
 
     namespace = "AWS/DDoSProtection"
-    metrics = (
-        'DDoSAttackBitsPerSecond',
-        'DDoSAttackRequestsPerSecond',
-        'DDoSDetected')
+    metrics = ('DDoSAttackBitsPerSecond', 'DDoSAttackRequestsPerSecond', 'DDoSDetected')
 
     attack_vectors = (
         'ACKFlood',
@@ -323,20 +320,18 @@ class ShieldMetrics(MetricsFilter):
         'SYNFlood',
         'SSDPReflection',
         'UDPTraffic',
-        'UDPFragment')
+        'UDPFragment',
+    )
 
     def validate(self):
         if self.data.get('name') not in self.metrics:
             raise PolicyValidationError(
-                "invalid shield metric %s valid:%s on %s" % (
-                    self.data['name'],
-                    ", ".join(self.metrics),
-                    self.manager.data))
+                "invalid shield metric %s valid:%s on %s"
+                % (self.data['name'], ", ".join(self.metrics), self.manager.data)
+            )
 
     def get_dimensions(self, resource):
-        return [{
-            'Name': 'ResourceArn',
-            'Value': self.manager.get_arns([resource])[0]}]
+        return [{'Name': 'ResourceArn', 'Value': self.manager.get_arns([resource])[0]}]
 
     def process(self, resources, event=None):
         self.data['namespace'] = self.namespace

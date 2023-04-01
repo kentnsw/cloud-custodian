@@ -18,7 +18,6 @@ from c7n.resources.securityhub import PostFinding
 
 
 class DescribeDistribution(DescribeSource):
-
     def augment(self, resources):
         return universal_augment(self.manager, resources)
 
@@ -38,7 +37,6 @@ class DescribeDistribution(DescribeSource):
 
 @resources.register('distribution')
 class Distribution(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudfront'
         arn_type = 'distribution'
@@ -53,27 +51,20 @@ class Distribution(QueryResourceManager):
         # Denotes this resource type exists across regions
         global_resource = True
 
-    source_mapping = {
-        'describe': DescribeDistribution,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeDistribution, 'config': ConfigSource}
 
 
 class DescribeStreamingDistribution(DescribeSource):
-
     def augment(self, resources):
         return universal_augment(self.manager, resources)
 
 
 @resources.register('streaming-distribution')
 class StreamingDistribution(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'cloudfront'
         arn_type = 'streaming-distribution'
-        enum_spec = ('list_streaming_distributions',
-                     'StreamingDistributionList.Items',
-                     None)
+        enum_spec = ('list_streaming_distributions', 'StreamingDistributionList.Items', None)
         id = 'Id'
         arn = 'ARN'
         name = 'DomainName'
@@ -82,10 +73,7 @@ class StreamingDistribution(QueryResourceManager):
         universal_taggable = True
         cfn_type = config_type = "AWS::CloudFront::StreamingDistribution"
 
-    source_mapping = {
-        'describe': DescribeStreamingDistribution,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeStreamingDistribution, 'config': ConfigSource}
 
 
 Distribution.filter_registry.register('shield-metrics', ShieldMetrics)
@@ -113,9 +101,10 @@ class DistributionMetrics(MetricsFilter):
     """
 
     def get_dimensions(self, resource):
-        return [{'Name': self.model.dimension,
-                 'Value': resource[self.model.id]},
-                {'Name': 'Region', 'Value': 'Global'}]
+        return [
+            {'Name': self.model.dimension, 'Value': resource[self.model.id]},
+            {'Name': 'Region', 'Value': 'Global'},
+        ]
 
 
 @Distribution.filter_registry.register('waf-enabled')
@@ -134,10 +123,10 @@ class IsWafEnabled(Filter):
                     state: false
                     web-acl: test
     """
+
     schema = type_schema(
-        'waf-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'waf-enabled', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
 
     permissions = ('waf:ListWebACLs',)
 
@@ -156,8 +145,11 @@ class IsWafEnabled(Filter):
         for r in resources:
             if state and target_acl_id is None and r.get('WebACLId'):
                 results.append(r)
-            elif not state and target_acl_id is None and (not r.get('WebACLId') or
-                    r.get('WebACLId') not in waf_name_id_map.values()):
+            elif (
+                not state
+                and target_acl_id is None
+                and (not r.get('WebACLId') or r.get('WebACLId') not in waf_name_id_map.values())
+            ):
                 results.append(r)
             elif state and target_acl_id and r['WebACLId'] == target_acl_id:
                 results.append(r)
@@ -204,9 +196,8 @@ class IsWafV2Enabled(Filter):
     """
 
     schema = type_schema(
-        'wafv2-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
+        'wafv2-enabled', **{'web-acl': {'type': 'string'}, 'state': {'type': 'boolean'}}
+    )
 
     permissions = ('wafv2:ListWebACLs',)
 
@@ -217,8 +208,7 @@ class IsWafV2Enabled(Filter):
 
         target_acl = self.data.get('web-acl', '')
         state = self.data.get('state', False)
-        target_acl_ids = [v for k, v in waf_name_id_map.items() if
-                          re.match(target_acl, k)]
+        target_acl_ids = [v for k, v in waf_name_id_map.items() if re.match(target_acl, k)]
         results = []
         for r in resources:
             r_web_acl_id = r.get('WebACLId')
@@ -261,23 +251,26 @@ class DistributionConfig(BaseDistributionConfig):
                   - type: distribution-config
                     key: Logging.Enabled
                     value: False
-   """
+    """
+
     permissions = ('cloudfront:GetDistributionConfig',)
 
     def augment(self, resources):
         client = local_session(self.manager.session_factory).client(
-            'cloudfront', region_name=self.manager.config.region)
+            'cloudfront', region_name=self.manager.config.region
+        )
 
         for r in resources:
             try:
-                r[self.annotation_key] = client.get_distribution_config(Id=r['Id']) \
-                    .get('DistributionConfig')
+                r[self.annotation_key] = client.get_distribution_config(Id=r['Id']).get(
+                    'DistributionConfig'
+                )
             except (client.exceptions.NoSuchDistribution):
                 r[self.annotation_key] = {}
             except Exception as e:
                 self.log.warning(
-                    "Exception trying to get Distribution Config: %s error: %s",
-                    r['ARN'], e)
+                    "Exception trying to get Distribution Config: %s error: %s", r['ARN'], e
+                )
                 raise e
 
 
@@ -296,24 +289,29 @@ class StreamingDistributionConfig(BaseDistributionConfig):
                   - type: distribution-config
                     key: Logging.Enabled
                     value: true
-   """
+    """
+
     permissions = ('cloudfront:GetStreamingDistributionConfig',)
 
     def augment(self, resources):
 
         client = local_session(self.manager.session_factory).client(
-            'cloudfront', region_name=self.manager.config.region)
+            'cloudfront', region_name=self.manager.config.region
+        )
 
         for r in resources:
             try:
-                r[self.annotation_key] = client.get_streaming_distribution_config(Id=r['Id']) \
-                    .get('StreamingDistributionConfig')
+                r[self.annotation_key] = client.get_streaming_distribution_config(Id=r['Id']).get(
+                    'StreamingDistributionConfig'
+                )
             except (client.exceptions.NoSuchStreamingDistribution):
                 r[self.annotation_key] = {}
             except Exception as e:
                 self.log.warning(
                     "Exception trying to get Streaming Distribution Config: %s error: %s",
-                    r['ARN'], e)
+                    r['ARN'],
+                    e,
+                )
                 raise e
 
 
@@ -332,14 +330,12 @@ class MismatchS3Origin(Filter):
                 filters:
                   - type: mismatch-s3-origin
                     check_custom_origins: true
-   """
+    """
 
     s3_prefix = re.compile(r'.*(?=\.s3(-.*)?\.amazonaws.com)')
     s3_suffix = re.compile(r'^([^.]+\.)?s3(-.*)?\.amazonaws.com')
 
-    schema = type_schema(
-        'mismatch-s3-origin',
-        check_custom_origins={'type': 'boolean'})
+    schema = type_schema('mismatch-s3-origin', check_custom_origins={'type': 'boolean'})
 
     permissions = ('s3:ListAllMyBuckets',)
     retry = staticmethod(get_retry(('Throttling',)))
@@ -366,7 +362,8 @@ class MismatchS3Origin(Filter):
         results = []
 
         s3_client = local_session(self.manager.session_factory).client(
-            's3', region_name=self.manager.config.region)
+            's3', region_name=self.manager.config.region
+        )
 
         buckets = {b['Name'] for b in s3_client.list_buckets()['Buckets']}
 
@@ -381,8 +378,10 @@ class MismatchS3Origin(Filter):
                     target_bucket = self.is_s3_domain(x)
 
                 if target_bucket is not None and target_bucket not in buckets:
-                    self.log.debug("Bucket %s not found in distribution %s hosting account."
-                                   % (target_bucket, r['Id']))
+                    self.log.debug(
+                        "Bucket %s not found in distribution %s hosting account."
+                        % (target_bucket, r['Id'])
+                    )
                     r['c7n:mismatched-s3-origin'].append(target_bucket)
                     results.append(r)
 
@@ -398,29 +397,33 @@ class DistributionPostFinding(PostFinding):
         envelope, payload = self.format_envelope(r)
         origins = r['Origins']
 
-        payload.update(self.filter_empty({
-            'DomainName': r['DomainName'],
-            "WebAclId": r.get('WebACLId'),
-            'LastModifiedTime': r['LastModifiedTime'].isoformat(),
-            'Status': r['Status'],
-            'Logging': self.filter_empty(r.get('Logging', {})),
-            'Origins': {
-                'Items': [
-                    {
-                        # Extract a subset of origin item keys,
-                        # only if they're non-empty.
-                        #
-                        # The full item can be large and noisy, and
-                        # empty string values (notably for OriginPath)
-                        # will fail validation.
-                        k: o[k]
-                        for k in self.filter_empty(o)
-                        if k in ('Id', 'OriginPath', 'DomainName')
-                    }
-                    for o in origins['Items']
-                ]
-            }
-        }))
+        payload.update(
+            self.filter_empty(
+                {
+                    'DomainName': r['DomainName'],
+                    "WebAclId": r.get('WebACLId'),
+                    'LastModifiedTime': r['LastModifiedTime'].isoformat(),
+                    'Status': r['Status'],
+                    'Logging': self.filter_empty(r.get('Logging', {})),
+                    'Origins': {
+                        'Items': [
+                            {
+                                # Extract a subset of origin item keys,
+                                # only if they're non-empty.
+                                #
+                                # The full item can be large and noisy, and
+                                # empty string values (notably for OriginPath)
+                                # will fail validation.
+                                k: o[k]
+                                for k in self.filter_empty(o)
+                                if k in ('Id', 'OriginPath', 'DomainName')
+                            }
+                            for o in origins['Items']
+                        ]
+                    },
+                }
+            )
+        )
 
         return envelope
 
@@ -458,12 +461,17 @@ class SetWaf(BaseAction):
                     web-acl: testv2
 
     """
+
     permissions = ('cloudfront:UpdateDistribution', 'waf:ListWebACLs')
     schema = type_schema(
-        'set-waf', required=['web-acl'], **{
+        'set-waf',
+        required=['web-acl'],
+        **{
             'web-acl': {'type': 'string'},
             'force': {'type': 'boolean'},
-            'state': {'type': 'boolean'}})
+            'state': {'type': 'boolean'},
+        },
+    )
 
     retry = staticmethod(get_retry(('Throttling',)))
 
@@ -476,8 +484,7 @@ class SetWaf(BaseAction):
         if target_acl_id not in waf_name_id_map.values():
             raise ValueError("invalid web acl: %s" % (target_acl_id))
 
-        client = local_session(self.manager.session_factory).client(
-            'cloudfront')
+        client = local_session(self.manager.session_factory).client('cloudfront')
         force = self.data.get('force', False)
 
         for r in resources:
@@ -490,7 +497,10 @@ class SetWaf(BaseAction):
             config['WebACLId'] = target_acl_id
             self.retry(
                 client.update_distribution,
-                Id=r['Id'], DistributionConfig=config, IfMatch=result['ETag'])
+                Id=r['Id'],
+                DistributionConfig=config,
+                IfMatch=result['ETag'],
+            )
 
 
 @Distribution.action_registry.register('set-wafv2')
@@ -537,12 +547,16 @@ class SetWafv2(BaseAction):
                     state: true
                     web-acl: FMManagedWebACLV2-?FMS-TestWebACL
     """
+
     permissions = ('cloudfront:UpdateDistribution', 'wafv2:ListWebACLs')
     schema = type_schema(
-        'set-wafv2', **{
+        'set-wafv2',
+        **{
             'web-acl': {'type': 'string'},
             'force': {'type': 'boolean'},
-            'state': {'type': 'boolean'}})
+            'state': {'type': 'boolean'},
+        },
+    )
 
     retry = staticmethod(get_retry(('Throttling',)))
 
@@ -555,11 +569,9 @@ class SetWafv2(BaseAction):
         target_acl_id = ''
         if state:
             target_acl = self.data.get('web-acl', '')
-            target_acl_ids = [v for k, v in waf_name_id_map.items() if
-                              re.match(target_acl, k)]
+            target_acl_ids = [v for k, v in waf_name_id_map.items() if re.match(target_acl, k)]
             if len(target_acl_ids) != 1:
-                raise ValueError(f'{target_acl} matching to none or '
-                                 f'multiple webacls')
+                raise ValueError(f'{target_acl} matching to none or ' f'multiple webacls')
             target_acl_id = target_acl_ids[0]
 
         client = local_session(self.manager.session_factory).client('cloudfront')
@@ -575,7 +587,10 @@ class SetWafv2(BaseAction):
             config['WebACLId'] = target_acl_id
             self.retry(
                 client.update_distribution,
-                Id=r['Id'], DistributionConfig=config, IfMatch=result['ETag'])
+                Id=r['Id'],
+                DistributionConfig=config,
+                IfMatch=result['ETag'],
+            )
 
 
 @Distribution.action_registry.register('disable')
@@ -597,31 +612,34 @@ class DistributionDisableAction(BaseAction):
                 actions:
                   - type: disable
     """
+
     schema = type_schema('disable')
-    permissions = ("cloudfront:GetDistributionConfig",
-                   "cloudfront:UpdateDistribution",)
+    permissions = (
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:UpdateDistribution",
+    )
 
     def process(self, distributions):
-        client = local_session(
-            self.manager.session_factory).client(self.manager.get_model().service)
+        client = local_session(self.manager.session_factory).client(
+            self.manager.get_model().service
+        )
 
         for d in distributions:
             self.process_distribution(client, d)
 
     def process_distribution(self, client, distribution):
         try:
-            res = client.get_distribution_config(
-                Id=distribution[self.manager.get_model().id])
+            res = client.get_distribution_config(Id=distribution[self.manager.get_model().id])
             res['DistributionConfig']['Enabled'] = False
             res = client.update_distribution(
                 Id=distribution[self.manager.get_model().id],
                 IfMatch=res['ETag'],
-                DistributionConfig=res['DistributionConfig']
+                DistributionConfig=res['DistributionConfig'],
             )
         except Exception as e:
             self.log.warning(
-                "Exception trying to disable Distribution: %s error: %s",
-                distribution['ARN'], e)
+                "Exception trying to disable Distribution: %s error: %s", distribution['ARN'], e
+            )
             return
 
 
@@ -643,31 +661,36 @@ class StreamingDistributionDisableAction(BaseAction):
                 actions:
                   - type: disable
     """
+
     schema = type_schema('disable')
 
-    permissions = ("cloudfront:GetStreamingDistributionConfig",
-                   "cloudfront:UpdateStreamingDistribution",)
+    permissions = (
+        "cloudfront:GetStreamingDistributionConfig",
+        "cloudfront:UpdateStreamingDistribution",
+    )
 
     def process(self, distributions):
-        client = local_session(
-            self.manager.session_factory).client(self.manager.get_model().service)
+        client = local_session(self.manager.session_factory).client(
+            self.manager.get_model().service
+        )
         for d in distributions:
             self.process_distribution(client, d)
 
     def process_distribution(self, client, distribution):
         try:
             res = client.get_streaming_distribution_config(
-                Id=distribution[self.manager.get_model().id])
+                Id=distribution[self.manager.get_model().id]
+            )
             res['StreamingDistributionConfig']['Enabled'] = False
             res = client.update_streaming_distribution(
                 Id=distribution[self.manager.get_model().id],
                 IfMatch=res['ETag'],
-                StreamingDistributionConfig=res['StreamingDistributionConfig']
+                StreamingDistributionConfig=res['StreamingDistributionConfig'],
             )
         except Exception as e:
             self.log.warning(
-                "Exception trying to disable Distribution: %s error: %s",
-                distribution['ARN'], e)
+                "Exception trying to disable Distribution: %s error: %s", distribution['ARN'], e
+            )
             return
 
 
@@ -691,77 +714,76 @@ class DistributionSSLAction(BaseAction):
                   - type: set-protocols
                     ViewerProtocolPolicy: https-only
     """
+
     schema = {
         'type': 'object',
         'additionalProperties': False,
         'properties': {
             'type': {'enum': ['set-protocols']},
-            'OriginProtocolPolicy': {
-                'enum': ['http-only', 'match-viewer', 'https-only']
-            },
+            'OriginProtocolPolicy': {'enum': ['http-only', 'match-viewer', 'https-only']},
             'OriginSslProtocols': {
                 'type': 'array',
-                'items': {'enum': ['SSLv3', 'TLSv1', 'TLSv1.1', 'TLSv1.2']}
+                'items': {'enum': ['SSLv3', 'TLSv1', 'TLSv1.1', 'TLSv1.2']},
             },
-            'ViewerProtocolPolicy': {
-                'enum': ['allow-all', 'https-only', 'redirect-to-https']
-            }
-        }
+            'ViewerProtocolPolicy': {'enum': ['allow-all', 'https-only', 'redirect-to-https']},
+        },
     }
 
-    permissions = ("cloudfront:GetDistributionConfig",
-                   "cloudfront:UpdateDistribution",)
+    permissions = (
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:UpdateDistribution",
+    )
 
     def process(self, distributions):
         client = local_session(self.manager.session_factory).client(
-            self.manager.get_model().service)
+            self.manager.get_model().service
+        )
         for d in distributions:
             self.process_distribution(client, d)
 
     def process_distribution(self, client, distribution):
         try:
-            res = client.get_distribution_config(
-                Id=distribution[self.manager.get_model().id])
+            res = client.get_distribution_config(Id=distribution[self.manager.get_model().id])
             etag = res['ETag']
             dc = res['DistributionConfig']
 
             for item in dc['CacheBehaviors'].get('Items', []):
                 item['ViewerProtocolPolicy'] = self.data.get(
-                    'ViewerProtocolPolicy',
-                    item['ViewerProtocolPolicy'])
+                    'ViewerProtocolPolicy', item['ViewerProtocolPolicy']
+                )
             dc['DefaultCacheBehavior']['ViewerProtocolPolicy'] = self.data.get(
-                'ViewerProtocolPolicy',
-                dc['DefaultCacheBehavior']['ViewerProtocolPolicy'])
+                'ViewerProtocolPolicy', dc['DefaultCacheBehavior']['ViewerProtocolPolicy']
+            )
 
             for item in dc['Origins'].get('Items', []):
                 if item.get('CustomOriginConfig', False):
                     item['CustomOriginConfig']['OriginProtocolPolicy'] = self.data.get(
-                        'OriginProtocolPolicy',
-                        item['CustomOriginConfig']['OriginProtocolPolicy'])
+                        'OriginProtocolPolicy', item['CustomOriginConfig']['OriginProtocolPolicy']
+                    )
 
                     item['CustomOriginConfig']['OriginSslProtocols']['Items'] = self.data.get(
                         'OriginSslProtocols',
-                        item['CustomOriginConfig']['OriginSslProtocols']['Items'])
+                        item['CustomOriginConfig']['OriginSslProtocols']['Items'],
+                    )
 
                     item['CustomOriginConfig']['OriginSslProtocols']['Quantity'] = len(
-                        item['CustomOriginConfig']['OriginSslProtocols']['Items'])
+                        item['CustomOriginConfig']['OriginSslProtocols']['Items']
+                    )
 
             res = client.update_distribution(
-                Id=distribution[self.manager.get_model().id],
-                IfMatch=etag,
-                DistributionConfig=dc
+                Id=distribution[self.manager.get_model().id], IfMatch=etag, DistributionConfig=dc
             )
         except Exception as e:
             self.log.warning(
                 "Exception trying to force ssl on Distribution: %s error: %s",
-                distribution['ARN'], e)
+                distribution['ARN'],
+                e,
+            )
             return
 
 
 class BaseUpdateAction(BaseAction):
-    schema = type_schema('set-attributes',
-                        attributes={"type": "object"},
-                        required=('attributes',))
+    schema = type_schema('set-attributes', attributes={"type": "object"}, required=('attributes',))
     schema_alias = False
 
     def validate(self, config_name, shape):
@@ -783,7 +805,8 @@ class BaseUpdateAction(BaseAction):
 
     def process(self, distributions):
         client = local_session(self.manager.session_factory).client(
-            self.manager.get_model().service)
+            self.manager.get_model().service
+        )
         for d in distributions:
             self.process_distribution(client, d)
 
@@ -814,34 +837,23 @@ class DistributionUpdateAction(BaseUpdateAction):
                     Bucket: 'test-enable-logging-c7n.s3.amazonaws.com'
                     Prefix: ''
     """
-    permissions = ("cloudfront:UpdateDistribution",
-                   "cloudfront:GetDistributionConfig",)
+
+    permissions = (
+        "cloudfront:UpdateDistribution",
+        "cloudfront:GetDistributionConfig",
+    )
     shape = 'UpdateDistributionRequest'
     validation_config = {
-        'Origins': {
-            'Quantity': 0,
-            'Items': [{
-                'Id': '',
-                'DomainName': ''
-            }]
-        },
+        'Origins': {'Quantity': 0, 'Items': [{'Id': '', 'DomainName': ''}]},
         'DefaultCacheBehavior': {
             'TargetOriginId': '',
-            'ForwardedValues': {
-                'QueryString': True,
-                'Cookies': {
-                    'Forward': ''
-                }
-            },
-            'TrustedSigners': {
-                'Enabled': True,
-                'Quantity': 0
-            },
+            'ForwardedValues': {'QueryString': True, 'Cookies': {'Forward': ''}},
+            'TrustedSigners': {'Enabled': True, 'Quantity': 0},
             'ViewerProtocolPolicy': '',
-            'MinTTL': 0
+            'MinTTL': 0,
         },
         'Comment': '',
-        'Enabled': False
+        'Enabled': False,
     }
 
     def validate(self):
@@ -849,8 +861,7 @@ class DistributionUpdateAction(BaseUpdateAction):
 
     def process_distribution(self, client, distribution):
         try:
-            res = client.get_distribution_config(
-                Id=distribution[self.manager.get_model().id])
+            res = client.get_distribution_config(Id=distribution[self.manager.get_model().id])
             default_config = self.validation_config
             config = {**default_config, **res['DistributionConfig']}
 
@@ -862,14 +873,14 @@ class DistributionUpdateAction(BaseUpdateAction):
             res = client.update_distribution(
                 Id=distribution[self.manager.get_model().id],
                 IfMatch=res['ETag'],
-                DistributionConfig=updatedConfig
+                DistributionConfig=updatedConfig,
             )
         except (client.exceptions.NoSuchDistribution):
             pass
         except Exception as e:
             self.log.warning(
-                "Exception trying to update Distribution: %s error: %s",
-                distribution['ARN'], e)
+                "Exception trying to update Distribution: %s error: %s", distribution['ARN'], e
+            )
             raise e
 
 
@@ -900,20 +911,17 @@ class StreamingDistributionUpdateAction(BaseUpdateAction):
                     Bucket: 'test-enable-logging-c7n.s3.amazonaws.com'
                     Prefix: ''
     """
-    permissions = ("cloudfront:UpdateStreamingDistribution",
-                   "cloudfront:GetStreamingDistributionConfig",)
+
+    permissions = (
+        "cloudfront:UpdateStreamingDistribution",
+        "cloudfront:GetStreamingDistributionConfig",
+    )
     shape = 'UpdateStreamingDistributionRequest'
     validation_config = {
-        'S3Origin': {
-            'DomainName': 'domain_name',
-            'OriginAccessIdentity': 'origin_access_identity'
-        },
-        'TrustedSigners': {
-            'Enabled': False,
-            'Quantity': 0
-        },
+        'S3Origin': {'DomainName': 'domain_name', 'OriginAccessIdentity': 'origin_access_identity'},
+        'TrustedSigners': {'Enabled': False, 'Quantity': 0},
         'Comment': '',
-        'Enabled': False
+        'Enabled': False,
     }
 
     def validate(self):
@@ -922,7 +930,8 @@ class StreamingDistributionUpdateAction(BaseUpdateAction):
     def process_distribution(self, client, streaming_distribution):
         try:
             res = client.get_streaming_distribution_config(
-                Id=streaming_distribution[self.manager.get_model().id])
+                Id=streaming_distribution[self.manager.get_model().id]
+            )
             default_config = self.validation_config
             config = {**default_config, **res['StreamingDistributionConfig']}
             updatedConfig = {**config, **self.data['attributes']}
@@ -931,12 +940,14 @@ class StreamingDistributionUpdateAction(BaseUpdateAction):
             res = client.update_streaming_distribution(
                 Id=streaming_distribution[self.manager.get_model().id],
                 IfMatch=res['ETag'],
-                StreamingDistributionConfig=updatedConfig
+                StreamingDistributionConfig=updatedConfig,
             )
         except (client.exceptions.NoSuchStreamingDistribution):
             pass
         except Exception as e:
             self.log.warning(
                 "Exception trying to update Streaming Distribution: %s error: %s",
-                streaming_distribution['ARN'], e)
+                streaming_distribution['ARN'],
+                e,
+            )
             raise e

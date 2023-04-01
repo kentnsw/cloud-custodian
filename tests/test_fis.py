@@ -40,15 +40,11 @@ class TestFIS(BaseTest):
         resources = p.run()
         self.assertEqual(len(resources), 1)
         client = session_factory().client('fis')
-        experiment = client.get_experiment_template(id=resources[0]['id']).get(
-            'experimentTemplate'
-        )
+        experiment = client.get_experiment_template(id=resources[0]['id']).get('experimentTemplate')
         assert experiment['tags'] == {'Location': 'Messina'}
 
     def test_fis_mark_match(self):
-        session_factory = self.replay_flight_data(
-            "test_fis_mark_match"
-        )
+        session_factory = self.replay_flight_data("test_fis_mark_match")
         p = self.load_policy(
             {
                 "name": "test_fis_mark_for_op",
@@ -85,6 +81,10 @@ class TestFIS(BaseTest):
         )
         resources = policy.run()
         self.assertEqual(len(resources), 1)
-        self.assertEqual(resources[0]['Tags'][0],
-                        {'Key': 'custodian_cleanup',
-                         'Value': 'Resource does not meet policy: delete@2022/08/29'})
+        self.assertEqual(
+            resources[0]['Tags'][0],
+            {
+                'Key': 'custodian_cleanup',
+                'Value': 'Resource does not meet policy: delete@2022/08/29',
+            },
+        )

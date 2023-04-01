@@ -147,9 +147,7 @@ def test_image_metadata(image_name):
     }
 
 
-@pytest.mark.skipif(
-    not (TEST_DOCKER and CUSTODIAN_IMAGE), reason="docker testing not requested"
-)
+@pytest.mark.skipif(not (TEST_DOCKER and CUSTODIAN_IMAGE), reason="docker testing not requested")
 def test_cli_providers_available():
     providers = os.environ.get("CUSTODIAN_PROVIDERS", None)
     if providers is None:
@@ -166,9 +164,7 @@ def test_cli_providers_available():
     assert providers == found_providers
 
 
-@pytest.mark.skipif(
-    not (TEST_DOCKER and CUSTODIAN_IMAGE), reason="docker testing not requested"
-)
+@pytest.mark.skipif(not (TEST_DOCKER and CUSTODIAN_IMAGE), reason="docker testing not requested")
 def test_cli_version_debug():
     client = docker.from_env()
     output = client.containers.run(CUSTODIAN_IMAGE, "version --debug", stderr=True).decode('utf8')
@@ -184,9 +180,7 @@ def test_cli_run_aws(custodian_org_dir, custodian_env_creds):
     client = docker.from_env()
     output = client.containers.run(
         CUSTODIAN_IMAGE,
-        ("run -v" " -s {dir}/output" " {dir}/policies-aws.json").format(
-            dir="/home/custodian"
-        ),
+        ("run -v" " -s {dir}/output" " {dir}/policies-aws.json").format(dir="/home/custodian"),
         environment=custodian_env_creds,
         remove=True,
         stderr=True,

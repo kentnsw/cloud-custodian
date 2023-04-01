@@ -261,10 +261,7 @@ class ProviderSelector(unittest.TestCase):
             (self.gcp_config, MailerGcpQueueProcessor),
         ]
         for mailer_config, processor in params:
-            self.assertIsInstance(
-                utils.get_processor(mailer_config, logger),
-                processor
-            )
+            self.assertIsInstance(utils.get_processor(mailer_config, logger), processor)
 
     def test_missing_deps_guidance(self):
         """Make sure we catch failed imports and provide guidance around installing

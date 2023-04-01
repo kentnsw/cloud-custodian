@@ -10,20 +10,17 @@ import requests
 
 from unittest.mock import patch, MagicMock
 
-from c7n_kube.server import \
-    AdmissionControllerServer, AdmissionControllerHandler, init
+from c7n_kube.server import AdmissionControllerServer, AdmissionControllerHandler, init
 
 from common_kube import KubeTest
 
 
 class TestAdmissionControllerServer(AdmissionControllerServer):
     def __init__(self, bind_and_activate=False, *args, **kwargs):
-        super().__init__(
-            bind_and_activate=bind_and_activate, *args, **kwargs)
+        super().__init__(bind_and_activate=bind_and_activate, *args, **kwargs)
 
 
 class TestServer(KubeTest):
-
     def find_port(self):
         sock = socket.socket()
         sock.bind(('', 0))
@@ -50,21 +47,15 @@ class TestServer(KubeTest):
     def test_server_load_non_k8s_policies(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with open(f"{temp_dir}/policy.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test', 'resource': 's3'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test', 'resource': 's3'}]}, f)
             with open(f"{temp_dir}/policy2.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test2', 'resource': 'ec2'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test2', 'resource': 'ec2'}]}, f)
             with open(f"{temp_dir}/policy3.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test3', 'resource': 'ebs'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test3', 'resource': 'ebs'}]}, f)
             server = TestAdmissionControllerServer(
                 server_address=('localhost', 8080),
                 RequestHandlerClass=AdmissionControllerHandler,
-                policy_dir=temp_dir
+                policy_dir=temp_dir,
             )
 
             self.assertEqual(len(server.policy_collection.policies), 0)
@@ -72,21 +63,15 @@ class TestServer(KubeTest):
     def test_server_load_k8s_policies_no_mode(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with open(f"{temp_dir}/policy.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test', 'resource': 'k8s.pod'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test', 'resource': 'k8s.pod'}]}, f)
             with open(f"{temp_dir}/policy2.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test2', 'resource': 'k8s.deployment'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test2', 'resource': 'k8s.deployment'}]}, f)
             with open(f"{temp_dir}/policy3.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test3', 'resource': 'k8s.service'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test3', 'resource': 'k8s.service'}]}, f)
             server = TestAdmissionControllerServer(
                 server_address=('localhost', 8082),
                 RequestHandlerClass=AdmissionControllerHandler,
-                policy_dir=temp_dir
+                policy_dir=temp_dir,
             )
 
             self.assertEqual(len(server.policy_collection.policies), 0)
@@ -100,13 +85,11 @@ class TestServer(KubeTest):
                             {
                                 'name': 'test',
                                 'resource': 'k8s.pod',
-                                'mode': {
-                                    'type': 'k8s-admission',
-                                    'operations': ['CREATE']
-                                }
+                                'mode': {'type': 'k8s-admission', 'operations': ['CREATE']},
                             }
                         ]
-                    }, f
+                    },
+                    f,
                 )
             with open(f"{temp_dir}/policy2.yaml", "w+") as f:
                 json.dump(
@@ -115,31 +98,25 @@ class TestServer(KubeTest):
                             {
                                 'name': 'test2',
                                 'resource': 'k8s.deployment',
-                                'mode': {
-                                    'type': 'k8s-admission',
-                                    'operations': ['CREATE']
-                                }
+                                'mode': {'type': 'k8s-admission', 'operations': ['CREATE']},
                             }
                         ]
-                    }, f
+                    },
+                    f,
                 )
             with open(f"{temp_dir}/policy3.yaml", "w+") as f:
-                json.dump(
-                    {"policies": [{'name': 'test3', 'resource': 'k8s.service'}]}, f
-                )
+                json.dump({"policies": [{'name': 'test3', 'resource': 'k8s.service'}]}, f)
             server = TestAdmissionControllerServer(
                 server_address=('localhost', 8080),
                 RequestHandlerClass=AdmissionControllerHandler,
-                policy_dir=temp_dir
+                policy_dir=temp_dir,
             )
 
             # we should only have 2 policies here since there's only 2 policies with the right mode
             self.assertEqual(len(server.policy_collection.policies), 2)
 
     def test_server_handle_get_empty_policies(self):
-        policies = {
-            'policies': []
-        }
+        policies = {'policies': []}
         server, port = self._server(policies)
         res = requests.get(f'http://localhost:{port}')
         self.assertEqual(res.json(), [])
@@ -156,8 +133,8 @@ class TestServer(KubeTest):
                         'on-match': 'deny',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 }
             ]
         }
@@ -167,9 +144,7 @@ class TestServer(KubeTest):
         self.assertEqual(res.status_code, 200)
 
     def test_server_handle_post_no_policies(self):
-        policies = {
-            'policies': []
-        }
+        policies = {'policies': []}
         server, port = self._server(policies)
         event = self.get_event('create_pod')
         res = requests.post(f'http://localhost:{port}', json=event)
@@ -182,13 +157,10 @@ class TestServer(KubeTest):
                     'allowed': True,
                     'uid': '662c3df2-ade6-4165-b395-770857bc17b7',
                     'warnings': [],
-                    'status': {
-                        'code': 200,
-                        'message': 'OK'
-                    }
-                }
+                    'status': {'code': 200, 'message': 'OK'},
+                },
             },
-            res.json()
+            res.json(),
         )
 
     def test_server_handle_post_policies_deny_on_match(self):
@@ -202,8 +174,8 @@ class TestServer(KubeTest):
                         'on-match': 'deny',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 }
             ]
         }
@@ -224,8 +196,8 @@ class TestServer(KubeTest):
                         'on-match': 'allow',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 }
             ]
         }
@@ -247,8 +219,8 @@ class TestServer(KubeTest):
                         'on-match': 'deny',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 },
                 {
                     'name': 'test-validator',
@@ -259,8 +231,8 @@ class TestServer(KubeTest):
                         'on-match': 'deny',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 },
                 {
                     'name': 'test-validator-2',
@@ -271,9 +243,9 @@ class TestServer(KubeTest):
                         'on-match': 'deny',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
-                }
+                        ],
+                    },
+                },
             ]
         }
         server, port = self._server(policies)
@@ -281,9 +253,7 @@ class TestServer(KubeTest):
         res = requests.post(f'http://localhost:{port}', json=event)
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.json()['response']['allowed'])
-        failures = json.loads(
-            res.json()['response']['status']['message'].split(':', 1)[-1]
-        )
+        failures = json.loads(res.json()['response']['status']['message'].split(':', 1)[-1])
         self.assertEqual(len(failures), 2)
         self.assertEqual(failures[0], {'name': 'test-validator', 'description': 'description 1'})
         self.assertEqual(failures[1], {'name': 'test-validator-2', 'description': 'description 2'})
@@ -300,8 +270,8 @@ class TestServer(KubeTest):
                         'on-match': 'warn',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 },
             ]
         }
@@ -311,8 +281,7 @@ class TestServer(KubeTest):
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.json()['response']['allowed'])
         self.assertEqual(
-            res.json()['response']['warnings'],
-            ['test-validator-pod:description deployment']
+            res.json()['response']['warnings'], ['test-validator-pod:description deployment']
         )
 
     def test_server_init(self):
@@ -324,7 +293,7 @@ class TestServer(KubeTest):
                 server_address=('0.0.0.0', port),
                 RequestHandlerClass=AdmissionControllerHandler,
                 policy_dir='policies',
-                on_exception='warn'
+                on_exception='warn',
             )
             patched.return_value.serve_forever.assert_called_once()
 
@@ -347,8 +316,8 @@ class TestServer(KubeTest):
                         'on-match': 'warn',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 },
             ]
         }
@@ -375,8 +344,8 @@ class TestServer(KubeTest):
             res.json()['response']['warnings'],
             [
                 'test-validator-pod:Error in executing policy: foo',
-                'test-validator-pod-2:Error in executing policy: bar'
-            ]
+                'test-validator-pod-2:Error in executing policy: bar',
+            ],
         )
 
     def test_server_bad_policy_execution_deny(self):
@@ -391,8 +360,8 @@ class TestServer(KubeTest):
                         'on-match': 'warn',
                         'operations': [
                             'CREATE',
-                        ]
-                    }
+                        ],
+                    },
                 },
             ]
         }
@@ -416,13 +385,11 @@ class TestServer(KubeTest):
         res = requests.post(f'http://localhost:{port}', json=event)
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.json()['response']['allowed'])
-        failures = json.loads(
-            res.json()['response']['status']['message'].split(':', 1)[-1]
-        )
+        failures = json.loads(res.json()['response']['status']['message'].split(':', 1)[-1])
         self.assertEqual(
             failures,
             [
                 {"name": "test-validator-pod", "description": "Error in executing policy: foo"},
-                {"name": "test-validator-pod-2", "description": "Error in executing policy: bar"}
-            ]
+                {"name": "test-validator-pod-2", "description": "Error in executing policy: bar"},
+            ],
         )

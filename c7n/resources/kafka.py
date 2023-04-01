@@ -11,7 +11,6 @@ from .aws import shape_validate
 
 
 class DescribeKafka(DescribeSource):
-
     def augment(self, resources):
         for r in resources:
             if 'Tags' not in r:
@@ -25,7 +24,6 @@ class DescribeKafka(DescribeSource):
 
 @resources.register('kafka')
 class Kafka(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = 'kafka'
         enum_spec = ('list_clusters', 'ClusterInfoList', None)
@@ -37,10 +35,7 @@ class Kafka(QueryResourceManager):
         universal_taggable = object()
         cfn_type = config_type = 'AWS::MSK::Cluster'
 
-    source_mapping = {
-        'describe': DescribeKafka,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeKafka, 'config': ConfigSource}
 
 
 @Kafka.filter_registry.register('security-group')
@@ -74,6 +69,7 @@ class KafkaKmsFilter(KmsRelatedFilter):
                 key: c7n:AliasName
                 value: alias/aws/kafka
     """
+
     RelatedIdsExpression = 'EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId'
 
 
@@ -81,9 +77,8 @@ class KafkaKmsFilter(KmsRelatedFilter):
 class SetMonitoring(Action):
 
     schema = type_schema(
-        'set-monitoring',
-        config={'type': 'object', 'minProperties': 1},
-        required=('config',))
+        'set-monitoring', config={'type': 'object', 'minProperties': 1}, required=('config',)
+    )
 
     shape = 'UpdateMonitoringRequest'
     permissions = ('kafka:UpdateClusterConfiguration',)

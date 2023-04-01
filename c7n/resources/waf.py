@@ -28,7 +28,6 @@ class DescribeWafV2(DescribeSource):
 
 @resources.register('waf')
 class WAF(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "waf"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -45,7 +44,6 @@ class WAF(QueryResourceManager):
 
 @resources.register('waf-regional')
 class RegionalWAF(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "waf-regional"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -60,15 +58,11 @@ class RegionalWAF(QueryResourceManager):
         permissions_augment = ('waf-regional:GetWebACL',)
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribeRegionalWaf,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeRegionalWaf, 'config': ConfigSource}
 
 
 @resources.register('wafv2')
 class WAFV2(QueryResourceManager):
-
     class resource_type(TypeInfo):
         service = "wafv2"
         enum_spec = ("list_web_acls", "WebACLs", None)
@@ -83,7 +77,4 @@ class WAFV2(QueryResourceManager):
         permissions_augment = ('wafv2:GetWebACL',)
         universal_taggable = object()
 
-    source_mapping = {
-        'describe': DescribeWafV2,
-        'config': ConfigSource
-    }
+    source_mapping = {'describe': DescribeWafV2, 'config': ConfigSource}

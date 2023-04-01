@@ -42,6 +42,7 @@ class LambdaInvoke(EventAction):
     arguments. Alternatively use async: true
 
     """
+
     schema_alias = True
     schema = {
         'type': 'object',
@@ -57,16 +58,19 @@ class LambdaInvoke(EventAction):
             'batch_size': {'type': 'integer'},
             'timeout': {'type': 'integer'},
             'vars': {'type': 'object'},
-        }
+        },
     }
 
-    permissions = ('lambda:InvokeFunction',
-               'iam:ListAccountAliases',)
+    permissions = (
+        'lambda:InvokeFunction',
+        'iam:ListAccountAliases',
+    )
 
     def process(self, resources, event=None):
 
-        config = Config(read_timeout=self.data.get(
-            'timeout', 90), region_name=self.data.get('region', None))
+        config = Config(
+            read_timeout=self.data.get('timeout', 90), region_name=self.data.get('region', None)
+        )
         session = utils.local_session(self.manager.session_factory)
         assumed_role = self.data.get('assume-role', '')
 
@@ -75,8 +79,9 @@ class LambdaInvoke(EventAction):
             target_session = assumed_session(assumed_role, 'LambdaAssumedRoleSession', session)
             client = target_session.client('lambda', config=config)
         else:
-            client = utils.local_session(
-                self.manager.session_factory).client('lambda', config=config)
+            client = utils.local_session(self.manager.session_factory).client(
+                'lambda', config=config
+            )
 
         params = dict(FunctionName=self.data['function'])
         if self.data.get('qualifier'):
@@ -85,8 +90,7 @@ class LambdaInvoke(EventAction):
         if self.data.get('async', True):
             params['InvocationType'] = 'Event'
 
-        alias = utils.get_account_alias_from_sts(
-            utils.local_session(self.manager.session_factory))
+        alias = utils.get_account_alias_from_sts(utils.local_session(self.manager.session_factory))
 
         payload = {
             'version': VERSION,
@@ -95,7 +99,8 @@ class LambdaInvoke(EventAction):
             'account': alias,
             'region': self.manager.config.region,
             'action': self.data,
-            'policy': self.manager.data}
+            'policy': self.manager.data,
+        }
 
         results = []
         for resource_set in utils.chunks(resources, self.data.get('batch_size', 250)):

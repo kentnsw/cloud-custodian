@@ -9,8 +9,10 @@ from c7n.executor import ThreadPoolExecutor
 from c7n.provider import clouds
 from c7n.registry import PluginRegistry
 from c7n.resources import load_resources
+
 try:
     from c7n.resources.aws import AWS
+
     resources = AWS.resources
 except ImportError:
     resources = PluginRegistry('resources')
@@ -48,15 +50,12 @@ class ResourceManager:
         self.data = data
         self.environ = {k: v for k, v in os.environ.items()}
         self._cache = cache.factory(self.ctx.options)
-        self.log = logging.getLogger('custodian.resources.%s' % (
-            self.__class__.__name__.lower()))
+        self.log = logging.getLogger('custodian.resources.%s' % (self.__class__.__name__.lower()))
 
         if self.filter_registry:
-            self.filters = self.filter_registry.parse(
-                self.data.get('filters', []), self)
+            self.filters = self.filter_registry.parse(self.data.get('filters', []), self)
         if self.action_registry:
-            self.actions = self.action_registry.parse(
-                self.data.get('actions', []), self)
+            self.actions = self.action_registry.parse(self.data.get('actions', []), self)
 
     def format_json(self, resources, fh):
         return dumps(resources, fh, indent=2)
@@ -94,16 +93,18 @@ class ResourceManager:
             raise ValueError(resource_type)
 
         # if we're already querying via config carry it forward
-        if not data and self.source_type == 'config' and getattr(
-                klass.get_model(), 'config_type', None):
+        if (
+            not data
+            and self.source_type == 'config'
+            and getattr(klass.get_model(), 'config_type', None)
+        ):
             return klass(self.ctx, {'source': self.source_type})
         return klass(self.ctx, data or {})
 
     def filter_resources(self, resources, event=None):
         original = len(resources)
         if event and event.get('debug', False):
-            self.log.info(
-                "Filtering resources using %d filters", len(self.filters))
+            self.log.info("Filtering resources using %d filters", len(self.filters))
         for idx, f in enumerate(self.filters, start=1):
             if not resources:
                 break
@@ -115,7 +116,11 @@ class ResourceManager:
             if event and event.get('debug', False):
                 self.log.debug(
                     "Filter #%d applied %d->%d filter: %s",
-                    idx, rcount, len(resources), dumps(f.data, indent=None))
+                    idx,
+                    rcount,
+                    len(resources),
+                    dumps(f.data, indent=None),
+                )
 
         # NOTE annotate resource ID property. moving this to query.py doesn't work.
         for r in resources:
@@ -125,13 +130,14 @@ class ResourceManager:
                 except Exception as e:
                     self.log.warning(f"No resource type id found {str(e)}")
 
-        self.log.debug("Filtered from %d to %d %s" % (
-            original, len(resources), self.__class__.__name__.lower()))
+        self.log.debug(
+            "Filtered from %d to %d %s"
+            % (original, len(resources), self.__class__.__name__.lower())
+        )
         return resources
 
     def get_model(self):
-        """Returns the resource meta-model.
-        """
+        """Returns the resource meta-model."""
         return self.query.resolve(self.resource_type)
 
     def iter_filters(self, block_end=False):

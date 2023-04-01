@@ -5,7 +5,6 @@ from .common import BaseTest, load_data
 
 
 class TestEC2Report(BaseTest):
-
     def setUp(self):
         data = load_data("report.json")
         self.records = data["ec2"]["records"]
@@ -14,12 +13,11 @@ class TestEC2Report(BaseTest):
         self.p = self.load_policy({"name": "report-test-ec2", "resource": "ec2"})
 
     def test_default_csv(self):
-        self.patch(self.p.resource_manager.resource_type,
-                   'default_report_fields', ())
+        self.patch(self.p.resource_manager.resource_type, 'default_report_fields', ())
         formatter = Formatter(self.p.resource_manager.resource_type)
         self.assertEqual(
-            formatter.to_csv([self.records['full']]),
-            [['InstanceId-1', '', 'LaunchTime-1']])
+            formatter.to_csv([self.records['full']]), [['InstanceId-1', '', 'LaunchTime-1']]
+        )
 
     def test_csv(self):
         p = self.load_policy({"name": "report-test-ec2", "resource": "ec2"})
@@ -44,9 +42,7 @@ class TestEC2Report(BaseTest):
         ]
 
         # First do a test with adding custom fields to the normal ones
-        formatter = Formatter(
-            self.p.resource_manager.resource_type, extra_fields=extra_fields
-        )
+        formatter = Formatter(self.p.resource_manager.resource_type, extra_fields=extra_fields)
         recs = [self.records["full"]]
         rows = [self.rows["full_custom"]]
         self.assertEqual(formatter.to_csv(recs), rows)
@@ -69,19 +65,16 @@ class TestEC2Report(BaseTest):
                 id = 'metadata.uid'
                 name = 'metadata.name'
 
-        formatter = Formatter(
-            resource_type=FakeResource.TypeInfo
-        )
+        formatter = Formatter(resource_type=FakeResource.TypeInfo)
         records = [
             {'metadata': {'uid': 'foo', 'name': 'bar'}},
-            {'metadata': {'uid': 'foo', 'name': 'bar'}}
+            {'metadata': {'uid': 'foo', 'name': 'bar'}},
         ]
         result = formatter.uniq_by_id(records=records)
         self.assertEqual(len(result), 1)
 
 
 class TestASGReport(BaseTest):
-
     def setUp(self):
         data = load_data("report.json")
         self.records = data["asg"]["records"]
@@ -104,7 +97,6 @@ class TestASGReport(BaseTest):
 
 
 class TestELBReport(BaseTest):
-
     def setUp(self):
         data = load_data("report.json")
         self.records = data["elb"]["records"]
@@ -127,7 +119,6 @@ class TestELBReport(BaseTest):
 
 
 class TestMultiReport(BaseTest):
-
     def setUp(self):
         data = load_data("report.json")
         self.records = data["ec2"]["records"]
@@ -160,7 +151,6 @@ class TestMultiReport(BaseTest):
             f"/logs/{policy_name}/with/more/extra/path/segments",
         ]
 
-        self.assertTrue(all(
-            strip_output_path(p, policy_name) == f"logs/{policy_name}"
-            for p in output_paths
-        ))
+        self.assertTrue(
+            all(strip_output_path(p, policy_name) == f"logs/{policy_name}" for p in output_paths)
+        )
