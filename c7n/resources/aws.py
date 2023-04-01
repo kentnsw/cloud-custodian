@@ -64,7 +64,7 @@ except ImportError:
 _profile_session = None
 
 
-DEFAULT_NAMESPACE = "CloudMaid"
+DEFAULT_NAMESPACE = "CloudCustodian"
 
 
 def get_profile_session(options):

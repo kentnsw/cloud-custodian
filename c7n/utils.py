@@ -42,6 +42,13 @@ class SafeDumper(BaseSafeDumper or object):
 
 log = logging.getLogger('custodian.utils')
 
+try:
+    from yamlinclude import YamlIncludeConstructor
+
+    YamlIncludeConstructor.add_to_loader_class(loader_class=SafeLoader)
+except ImportError:
+    log.warning("pyyaml-include not found, !include tag will not be supported.")
+
 
 class VarsSubstitutionError(Exception):
     pass
@@ -56,21 +63,12 @@ def load_file(path, format=None, vars=None):
 
     with open(path) as fh:
         contents = fh.read()
-
-        if vars:
-            try:
-                contents = contents.format(**vars)
-            except IndexError:
-                msg = 'Failed to substitute variable by positional argument.'
-                raise VarsSubstitutionError(msg)
-            except KeyError as e:
-                msg = 'Failed to substitute variables.  KeyError on {}'.format(str(e))
-                raise VarsSubstitutionError(msg)
-
+        # NOTE change to format_string_values after the file is parsed
         if format == 'yaml':
-            return yaml_load(contents)
+            obj = yaml_load(contents)
         elif format == 'json':
-            return loads(contents)
+            obj = loads(contents)
+        return format_string_values(obj, **vars) if vars else obj
 
 
 def yaml_load(value):
@@ -852,6 +850,22 @@ def get_human_size(size, precision=2):
         size = size / 1024.0
 
     return "%.*f %s" % (precision, size, suffixes[suffixIndex])
+
+
+def gcpLabelaise(value):
+    if isinstance(value, str):
+        return (
+            value.strip()
+            .lower()
+            .replace(" ", "_")
+            .replace(".", "_")
+            .replace("@", "-")
+            .replace(":", "_")
+            .replace("/", "_")
+        )
+    elif isinstance(value, list):
+        return [gcpLabelaise(i) for i in value]
+    return value
 
 
 def get_support_region(manager):

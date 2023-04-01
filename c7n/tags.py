@@ -534,6 +534,7 @@ class RenameTag(Action):
         self.log.info("Renaming tag on %s instances" % (len(resource_set)))
         old_key = self.data.get('old_key')
         new_key = self.data.get('new_key')
+        delete = self.data.get('delete', True)
 
         # We have a preference to creating the new tag when possible first
         resource_ids = [
@@ -1069,6 +1070,7 @@ class CopyRelatedResourceTag(Tag):
         'copy-related-tag',
         resource={'type': 'string'},
         skip_missing={'type': 'boolean'},
+        status_tag={'type': 'string'},
         key={'type': 'string'},
         tags={'oneOf': [{'enum': ['*']}, {'type': 'array'}]},
         required=['tags', 'key', 'resource'],
@@ -1140,6 +1142,11 @@ class CopyRelatedResourceTag(Tag):
         for related, r in related_resources:
             if related is None or related in missing_related_tags or not related_tag_map[related]:
                 stats['missing'] += 1
+                # NOTE mark those missing so that next time can filter out
+                stag = self.data.get("status_tag")
+                sval = f"Related resource not found: {related}"
+                if stag:
+                    self.process_resource(client, r, {stag: sval}, [stag], tag_action)
             elif self.process_resource(
                 client, r, related_tag_map[related], self.data['tags'], tag_action
             ):

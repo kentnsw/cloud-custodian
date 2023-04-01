@@ -104,6 +104,7 @@ class SecurityHubFindingFilter(Filter):
         )
         found = []
         params = dict(self.data.get('query', {}))
+        idOriginValue = None
         for r_arn, resource in zip(self.manager.get_arns(resources), resources):
             params['ResourceId'] = [{"Value": r_arn, "Comparison": "EQUALS"}]
             if resource.get("InstanceId"):
@@ -116,6 +117,42 @@ class SecurityHubFindingFilter(Filter):
                 resource[self.annotation_key] = findings
                 found.append(resource)
         return found
+
+    def get_findings(self, client, params):
+        retry = get_retry(('TooManyRequestsException'))
+        return retry(client.get_findings, Filters=params).get("Findings", ())
+
+    def get_finding_tag(self, resource):
+        """NOTE method copied from post-findings action"""
+        policyName = self.manager.ctx.policy.name.split("--")[0]
+        finding_tag = None
+        tags = resource.get('Tags')
+        # NOTE generate the finding ID for those resources don't support tags,
+        # make it possible to find the related finding to update
+        if not tags:
+            model = self.manager.resource_type
+            # NOTE the below finding Id generate code is copied from post-finding,
+            # that has multi-resources though
+            finding_id = '{}/{}/{}/{}'.format(  # nosec
+                self.manager.config.region,
+                self.manager.config.account_id,
+                hashlib.sha256(policyName.encode('utf8')).hexdigest(),
+                hashlib.sha256(json.dumps([resource[model.id]]).encode('utf8')).hexdigest(),
+            )
+            return finding_id
+
+        finding_key = '{}:{}'.format('c7n:FindingId', policyName)
+
+        # Support Tags as dictionary
+        if isinstance(tags, dict):
+            return tags.get(finding_key)
+
+        # Support Tags as list of {'Key': 'Value'}
+        for t in tags:
+            if t['Key'] == finding_key:
+                finding_tag = t['Value']
+                break
+        return finding_tag
 
     @classmethod
     def register_resources(klass, registry, resource_class):
@@ -292,6 +329,7 @@ class SecurityHub(LambdaMode):
             )
         else:
             resources = self.policy.resource_manager.get_resources([])
+            # TODO bugfix resource_arns not defined
             resources[0]['resource-arns'] = resource_arns
         return resources
 

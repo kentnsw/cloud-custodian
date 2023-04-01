@@ -803,6 +803,7 @@ class PolicyMetaLint(BaseTest):
                     "egress",
                     "ingress",
                     "capacity-delta",
+                    "infracost",
                     "is-ssl",
                     "global-grants",
                     "missing-policy-statement",
@@ -1530,6 +1531,11 @@ class LambdaModeTest(BaseTest):
 
         self.patch(mu.LambdaManager, 'publish', publish)
 
+        def get(self, func_name, qualifier=None):
+            pass
+
+        self.patch(mu.LambdaManager, 'get', get)
+
         p.provision()
         self.assertEqual(
             policy_lambda[0].tags['custodian-info'], 'mode=config-rule:version=%s' % version
@@ -1834,6 +1840,14 @@ class GuardModeTest(BaseTest):
                 "mode": {"type": "guard-duty"},
             }
         )
+
+        def get(self, func_name, qualifier=None):
+            pass
+
+        from c7n import mu
+
+        self.patch(mu.LambdaManager, 'get', get)
+
         p.run()
 
     @mock.patch("c7n.mu.LambdaManager.publish")
@@ -1857,6 +1871,14 @@ class GuardModeTest(BaseTest):
                 "mode": {"type": "guard-duty"},
             }
         )
+
+        def get(self, func_name, qualifier=None):
+            pass
+
+        from c7n import mu
+
+        self.patch(mu.LambdaManager, 'get', get)
+
         p.run()
 
     @mock.patch("c7n.query.QueryResourceManager.get_resources")
@@ -1876,7 +1898,9 @@ class GuardModeTest(BaseTest):
 
         event = event_data("ec2-duty-event.json")
         results = p.push(event, None)
-        self.assertEqual(results, [{"InstanceId": "i-99999999"}])
+        self.assertEqual(
+            results, [{"InstanceId": "i-99999999", "c7n_resource_type_id": "InstanceId"}]
+        )
 
     @mock.patch("c7n.query.QueryResourceManager.get_resources")
     def test_iam_user_access_key_annotate(self, get_resources):
@@ -1901,6 +1925,7 @@ class GuardModeTest(BaseTest):
                 {
                     u"UserName": u"GeneratedFindingUserName",
                     u"c7n:AccessKeys": {u"AccessKeyId": u"GeneratedFindingAccessKeyId"},
+                    u"c7n_resource_type_id": u"UserName",
                 }
             ],
         )

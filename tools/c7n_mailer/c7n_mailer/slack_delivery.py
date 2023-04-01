@@ -114,14 +114,15 @@ class SlackDelivery:
                     self.logger.debug("No %s tag found in resource." % tag_name)
                     continue
 
-                resolved_addr = slack_target = result['Value']
+                    resolved_addrs = slack_target = result['Value']
 
-                if is_email(resolved_addr):
-                    ims = self.retrieve_user_im([resolved_addr])
-                    slack_target = ims[resolved_addr]
-                elif not resolved_addr.startswith("#"):
-                    resolved_addr = "#" + resolved_addr
-                    slack_target = resolved_addr
+                    if is_email(resolved_addrs):
+                        ims = self.retrieve_user_im([resolved_addrs])
+                        slack_target = ims[resolved_addrs]
+                    # NOTE allow user to decide prefix # or not
+                    # elif not resolved_addr.startswith("#"):
+                    #     resolved_addr = "#" + resolved_addr
+                    #     slack_target = resolved_addr
 
                 slack_messages[resolved_addr] = get_rendered_jinja(
                     slack_target,

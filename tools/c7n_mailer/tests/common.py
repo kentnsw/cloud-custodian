@@ -49,6 +49,7 @@ MAILER_CONFIG = {
     "templates_folders": [os.path.abspath(os.path.dirname(__file__)), os.path.abspath("/"), ""],
 }
 MAILER_CONFIG_AZURE = {
+    "cloud_provider": "Azure",
     "queue_url": "asq://storageaccount.queue.core.windows.net/queuename",
     "from_address": "you@youremail.com",
     "sendgrid_api_key": "SENDGRID_API_KEY",
@@ -66,6 +67,7 @@ MAILER_CONFIG_GCP = {
     "smtp_username": "user",
     "smtp_password": "password",
     "from_address": "devops@initech.com",
+    "cloud_provider": "GCP",
     "queue_url": "projects/c7n-dev/subscriptions/getnotify",
     "smtp_server": "smtp.inittech.com",
     "templates_folders": [os.path.abspath(os.path.dirname(__file__)), os.path.abspath("/"), ""],

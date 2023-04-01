@@ -49,7 +49,7 @@ def test_config_defaults():
         ses_region="us-east-1",
         memory=1024,
         timeout=300,
-        runtime="python3.7",
+        runtime="python3.9",
         contact_tags=[],
     )
 
@@ -82,7 +82,7 @@ class ResourceFormat(unittest.TestCase):
             utils.resource_format(
                 {"PublicIp": "8.8.8.8", "Domain": "vpc", "AllocationId": "eipxyz"}, "network-addr"
             ),
-            "ip: 8.8.8.8  id: eipxyz  scope: vpc",
+            "ip: 8.8.8.8  id: eipxyz  domain: vpc",
         )
 
     def test_nat(self):
@@ -348,7 +348,7 @@ class OtherTests(unittest.TestCase):
                 "us-east-1",
                 config.get("region"),
                 1024,
-                "python3.7",
+                "python3.9",
                 300,
                 None,
                 None,

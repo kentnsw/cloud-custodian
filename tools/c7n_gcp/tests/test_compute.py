@@ -410,7 +410,6 @@ class ImageTest(BaseTest):
             ['gcp:compute::cloud-custodian:image/image-1'],
         )
 
-
 class InstanceTemplateTest(BaseTest):
     def test_instance_template_query(self):
         project_id = 'cloud-custodian'

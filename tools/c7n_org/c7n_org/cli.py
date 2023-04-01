@@ -42,6 +42,13 @@ from c7n_org.utils import environ, account_tags
 
 log = logging.getLogger('c7n_org')
 
+try:
+    from yamlinclude import YamlIncludeConstructor
+
+    YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.SafeLoader)
+except ImportError:
+    log.warn("pyyaml-include not found, !include tag will not be supported.")
+
 # Workaround OSX issue, note this exists for py2 but there
 # isn't anything we can do in that case.
 # https://bugs.python.org/issue33725
@@ -105,6 +112,7 @@ CONFIG_SCHEMA = {
             'required': ['project_id'],
             'properties': {
                 'project_id': {'type': 'string'},
+                'project_number': {'type': 'string'},
                 'tags': {'type': 'array', 'items': {'type': 'string'}},
                 'name': {'type': 'string'},
                 'vars': {'type': 'object'},
@@ -173,6 +181,7 @@ def init(
     logging.getLogger('s3transfer').setLevel(logging.WARNING)
     logging.getLogger('custodian.s3').setLevel(logging.ERROR)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('gql').setLevel(logging.WARNING)
 
     accounts = comma_expand(accounts)
     policies = comma_expand(policies)
@@ -364,8 +373,11 @@ def report_account(account, region, policies_config, output_path, cache_path, de
 
         for r in policy_records:
             r['policy'] = p.name
+            r['policy_data'] = p.data
             r['region'] = p.options.region
             r['account'] = account['name']
+            r['account_id'] = account['account_id']
+            r['now'] = datetime.utcnow()
             for t in account.get('tags', ()):
                 if ':' in t:
                     k, v = t.split(':', 1)
@@ -506,7 +518,6 @@ def _get_env_creds(account, session, region, env=None):
 
 
 def run_account_script(account, region, output_dir, debug, script_args):
-
     try:
         session = get_session(account, "org-script", region)
     except ClientError:
@@ -549,8 +560,9 @@ def run_account_script(account, region, output_dir, debug, script_args):
 @click.option('-r', '--region', default=None, multiple=True)
 @click.option('--echo', default=False, is_flag=True)
 @click.option('--serial', default=False, is_flag=True)
+@click.option('--worker', default=0, type=int)
 @click.argument('script_args', nargs=-1, type=click.UNPROCESSED)
-def run_script(config, output_dir, accounts, tags, region, echo, serial, script_args):
+def run_script(config, output_dir, accounts, tags, region, echo, serial, worker, script_args):
     """run an aws/azure/gcp script across accounts"""
     # TODO count up on success / error / error list by account
     accounts_config, custodian_config, executor = init(

@@ -41,7 +41,6 @@ class AppEngineAppTest(BaseTest):
             ["gcp:appengine:europe-west3:cloud-custodian:app/cloud-custodian"],
         )
 
-
 class AppEngineCertificateTest(BaseTest):
     def test_certificate_query(self):
         project_id = 'cloud-custodian'
@@ -91,7 +90,6 @@ class AppEngineCertificateTest(BaseTest):
             ["gcp:appengine:europe-west3:cloud-custodian:certificate/12277184"],
         )
 
-
 class AppEngineDomainTest(BaseTest):
     def test_domain_query(self):
         project_id = 'cloud-custodian'
@@ -114,7 +112,6 @@ class AppEngineDomainTest(BaseTest):
             policy.resource_manager.get_urns(resources),
             ["gcp:appengine:europe-west3:cloud-custodian:domain/gcp-li.ga"],
         )
-
 
 class AppEngineDomainMappingTest(BaseTest):
     def test_domain_mapping_query(self):
@@ -170,7 +167,6 @@ class AppEngineDomainMappingTest(BaseTest):
             policy.resource_manager.get_urns([resource]),
             ["gcp:appengine:europe-west3:cloud-custodian:domain-mapping/alex.gcp-li.ga"],
         )
-
 
 class AppEngineFirewallIngressRuleTest(BaseTest):
     def test_firewall_ingress_rule_query(self):

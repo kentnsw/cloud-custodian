@@ -1,5 +1,7 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
+from typing import Dict, List
+import jmespath
 from itertools import chain
 
 from c7n_mailer.smtp_delivery import SmtpDelivery
@@ -26,7 +28,10 @@ class EmailDelivery:
         if self.provider == Providers.AWS:
             self.aws_ses = self.get_ses_session()
         self.ldap_lookup = self.get_ldap_connection()
-        self.provider = get_provider(self.config)
+        self.jp_key = jmespath.compile(
+            config.get("servicenow_it_service_key", "custodian_it_service")
+        )
+        self.servicenow_url = config.get("servicenow_url")
 
     def get_ses_session(self):
         if self.config.get('ses_role', False):
@@ -224,8 +229,8 @@ class EmailDelivery:
             to_addrs_to_mimetext_map[to_addrs] = get_mimetext_message(
                 self.config, self.logger, sqs_message, resources, list(to_addrs)
             )
-        # eg: { ('milton@initech.com', 'peter@initech.com'): mimetext_message }
-        return to_addrs_to_mimetext_map
+        # eg: { 'Jira': mimetext_message }
+        return groupby_to_mimetext_map
 
     def send_c7n_email(self, sqs_message, email_to_addrs, mimetext_msg):
         try:
@@ -235,6 +240,7 @@ class EmailDelivery:
                     config=self.config, session=self.session, logger=self.logger
                 )
                 smtp_delivery.send_message(message=mimetext_msg, to_addrs=email_to_addrs)
+            # TODO this looks like a bug, should be push up a level to sqs_queue_processor.py
             elif 'sendgrid_api_key' in self.config:
                 sendgrid_delivery = sendgrid.SendGridDelivery(
                     config=self.config, session=self.session, logger=self.logger
@@ -245,13 +251,21 @@ class EmailDelivery:
             # if smtp_server or sendgrid_api_key isn't set in mailer.yml, use aws ses normally.
             else:
                 self.aws_ses.send_raw_email(RawMessage={'Data': mimetext_msg.as_string()})
+
+            # NOTE mimetext_msg should not be none unless only use sendgrid
+            if not mimetext_msg:
+                mimetext_msg = {"To": email_to_addrs}
+            # NOTE borrow 'action' object to carry the delivery result
+            sqs_message["action"]["delivered_email"] = mimetext_msg.get('To')
+            if self.servicenow_url:
+                sqs_message["action"]["delivered_email_url"] = self.servicenow_url
         except Exception as error:
             self.logger.warning(
                 "Error policy:%s account:%s sending to:%s \n\n error: %s\n\n mailer.yml: %s"
                 % (
                     sqs_message['policy'],
                     sqs_message.get('account', ''),
-                    email_to_addrs,
+                    mimetext_msg.get('To'),
                     error,
                     self.config,
                 )

@@ -55,7 +55,7 @@ class MailerGcpQueueProcessor(MessageTargetMixin):
     # Also support for Datadog and Slack
     def process_message(self, encoded_gcp_pubsub_message, publish_date):
         pubsub_message = self.unpack_to_dict(encoded_gcp_pubsub_message["message"]["data"])
-        self.handle_targets(pubsub_message, publish_date, email_delivery=True, sns_delivery=False)
+        self.handle_targets(pubsub_message, publish_date)
         return True
 
     def receive_messages(self):

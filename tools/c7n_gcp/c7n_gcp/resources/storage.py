@@ -1,7 +1,11 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
-from c7n.utils import type_schema
-from c7n_gcp.actions import MethodAction
+from googleapiclient.errors import HttpError
+from google.cloud import storage
+from c7n_gcp.actions.labels import LabelDelayedAction, SetLabelsAction
+from c7n_gcp.filters.labels import LabelActionFilter
+from c7n.utils import type_schema, local_session
+from c7n_gcp.actions import MethodAction, SetIamPolicy
 from c7n_gcp.provider import resources
 from c7n_gcp.query import QueryResourceManager, TypeInfo
 from c7n_gcp.filters import IamPolicyFilter
@@ -36,8 +40,92 @@ class BucketIamPolicyFilter(IamPolicyFilter):
     permissions = ('storage.buckets.getIamPolicy',)
 
     def _verb_arguments(self, resource):
-        verb_arguments = {{"bucket": resource["name"]}}
+        verb_arguments = {"bucket": resource["name"]}
         return verb_arguments
+
+
+@Bucket.filter_registry.register('marked-for-op')
+class BucketLabelActionFilter(LabelActionFilter):
+    pass
+
+
+def invoke_api_set_labels(action, params):
+    try:
+        # NOTE override the client with storage.Client
+        session = local_session(action.manager.session_factory)
+        client = storage.Client(
+            project=session.get_default_project(), credentials=session._credentials
+        )
+        bucket = client.get_bucket(params["bucket"])
+        bucket.labels = params["body"]["labels"]
+        bucket.patch()
+    except HttpError as e:
+        if e.resp.status in action.ignore_error_codes:
+            return e
+        raise
+
+
+@Bucket.action_registry.register('set-labels')
+class BucketSetLabelsAction(SetLabelsAction):
+    def invoke_api(self, client, op_name, params):
+        return invoke_api_set_labels(self, params)
+
+
+@Bucket.action_registry.register('mark-for-op')
+class BucketLabelDelayedAction(LabelDelayedAction):
+    def invoke_api(self, client, op_name, params):
+        return invoke_api_set_labels(self, params)
+
+
+@Bucket.action_registry.register('set-iam-policy')
+class BucketSetIamPolicy(SetIamPolicy):
+    """
+    Overrides the base implementation to process Bucket resources correctly.
+    """
+
+    permissions = ('storage.buckets.getIamPolicy', 'storage.buckets.setIamPolicy')
+
+    def get_resource_params(self, model, resource):
+        params = super().get_resource_params(model, resource)
+        params["body"]["bindings"] = params["body"]["policy"]["bindings"]
+        del params["body"]["policy"]
+        return params
+
+    def _verb_arguments(self, resource):
+        verb_arguments = {"bucket": resource["name"]}
+        return verb_arguments
+
+
+@Bucket.action_registry.register('set-public-access-prevention')
+class PublicAccessPrevention(MethodAction):
+    '''Enforce public access prevention for a bucket.
+
+    Example Policy:
+
+    .. code-block:: yaml
+
+      policies:
+       - name: enforce-bucket-public-access-prevention
+         resource: gcp.bucket
+         actions:
+          - type: set-public-access-prevention
+            # The following is also the default
+            state: inherited
+    '''
+
+    schema = type_schema('set-public-access-prevention', state={'enum': ['enforced', 'inherited']})
+    method_spec = {'op': 'patch'}
+    method_perm = 'update'
+
+    # https://cloud.google.com/storage/docs/using-public-access-prevention#rest-apis
+    #
+    def get_resource_params(self, model, resource):
+        state = self.data.get('state', "inherited")
+        return {
+            'bucket': resource['name'],
+            'fields': 'iamConfiguration',
+            'body': {'iamConfiguration': {'publicAccessPrevention': state}},
+        }
 
 
 @Bucket.action_registry.register('set-uniform-access')

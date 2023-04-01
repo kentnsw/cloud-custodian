@@ -168,6 +168,51 @@ class VpcFilter(net_filters.VpcFilter):
     RelatedIdsExpression = "VpcId"
 
 
+@filters.register('infracost')
+class Ec2Cost(Infracost):
+    def get_query(self):
+        # reference: https://gql.readthedocs.io/en/stable/usage/variables.html
+        return """
+            query ($region: String, $instanceType: String) {
+                products(
+                    filter: {
+                        vendorName: "aws",
+                        service: "AmazonEC2",
+                        productFamily: "Compute Instance",
+                        region: $region,
+                        attributeFilters: [
+                            { key: "instanceType", value: $instanceType }
+                            { key: "operatingSystem", value: "Linux" }
+                            { key: "tenancy", value: "Shared" }
+                            { key: "capacitystatus", value: "Used" }
+                            { key: "preInstalledSw", value: "NA" }
+                        ]
+                    },
+                ) {
+                    prices(
+                        filter: {purchaseOption: "on_demand"}
+                    ) { USD, unit, description, purchaseOption }
+                }
+            }
+        """
+
+    def get_params(self, resource):
+        params = {
+            "region": resource["Placement"]["AvailabilityZone"][:-1],
+            "instanceType": resource["InstanceType"],
+        }
+        return params
+
+    def get_quantity(self, resource):
+        hours = self.data.get("quantity")
+        # NOTE use instance age if quantity is not set
+        if not hours:
+            launchTime = InstanceAgeFilter({}, self.manager).get_resource_date(resource)
+            terminateTime = StateTransitionAge({}, self.manager).get_resource_date(resource)
+            hours = round((terminateTime - launchTime).total_seconds() / 3600, 4)
+        return hours
+
+
 @filters.register('check-permissions')
 class ComputePermissions(CheckPermissions):
     def get_iam_arns(self, resources):

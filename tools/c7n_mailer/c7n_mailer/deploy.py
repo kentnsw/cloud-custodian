@@ -19,6 +19,7 @@ logger = logging.getLogger('custodian.mailer')
 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
 logging.getLogger('botocore').setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 def dispatch(event, context):
     return handle.start_c7n_mailer(logger)
@@ -55,7 +56,7 @@ CORE_DEPS = [
 
 
 def get_archive(config):
-    deps = ['c7n_mailer'] + list(CORE_DEPS)
+    deps = ['c7n_mailer', 'c7n_gcp'] + list(CORE_DEPS)
     archive = PythonPackageArchive(modules=deps)
 
     for d in set(config['templates_folders']):
@@ -69,6 +70,12 @@ def get_archive(config):
     function_config['templates_folders'] = ['msg-templates/']
     archive.add_contents('config.json', json.dumps(function_config))
     archive.add_contents('periodic.py', entry_source)
+
+    # NOTE pack GCP Service Account creds
+    sa_info = config.get("service_account_info")
+    if sa_info:
+        with open(sa_info) as fh:
+            archive.add_contents(sa_info, fh.read())
 
     archive.close()
     return archive

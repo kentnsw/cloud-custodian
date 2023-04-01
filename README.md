@@ -12,6 +12,102 @@ Cloud Custodian
 [![](https://requires.io/github/cloud-custodian/cloud-custodian/requirements.svg?branch=master)](https://requires.io/github/cloud-custodian/cloud-custodian/requirements/?branch=master)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3402/badge)](https://bestpractices.coreinfrastructure.org/projects/3402)
 
+## News Corp customizations
+
+To avoid any unnecessary code conflict while merging upstream changes, we must follow the rule `Do NOT change the code unless necessary`.
+
+- If things can be done without customizing Custodian, please do not customize it. e.g. You may leverage features like `invoke-lambda`, `webhook`, `value_from` of value filter etc. to integrate with your app
+- Add new lines of code over revising existing code/logic
+- Do NOT format existing code (keep it as it is please)
+- Please spare some time to create a PR for upstream if you've completed a bug fix (to return to the community)
+
+### c7n
+
+1. c7n
+
+   - c7n - enable --vars option to load vars file
+   - aws - reduce jitter of retry
+
+2. ami resource
+   
+   - aws - ami - add last-launched-time filter
+
+3. ebs resource
+
+   - aws - divide into small batches when getting EBS resource
+
+4. manager
+   
+   - aws - add c7n_resource_type_id to resource response
+
+5. notify action
+   
+   - aws - prepare iam-saml-provider for notify and more important for security hub
+  
+6. policy
+   
+   - aws - introduce tag:custodian-policy as a version to avoid massive re-deployments
+   - aws - support `metrics` keyword in policy to reduce the cost of custom metrics
+   - policy - rename property comments to title
+
+7. security hub
+
+   - aws-finding - support Id param and auto-gen value: filter finding support Id param; generate id with policy name instead of policy data; generate the finding ID for those resources do not support tags
+
+8. service quota resource
+
+   - service quota - bugfix TooManyRequestsException when calling the ListServices in us-east-1
+   - service quota - bugfix usage-metric requests more than 1440 data points
+
+9.  tag action
+
+   - aws - support marking missing resource when copy related tag
+   - aws - ec2 - add property 'delete' to rename-tag to achieve copy-tag effect
+
+11. value filter
+
+   - filter value - support GCP labelisation when extracting content from value_from
+   - normalise value_type apply to keys in value_from.expr
+   - add key_type to enable key normalization
+     - make key_type apply to value_from.expr as well
+     - support key_type in value_filter
+   - add annotation op to value filter
+   - enable variables in expr of value_from
+   - aws - value filter value_from support default_value so that can load resources.json from other policies result
+
+11. webhook action
+
+   - webhook action supports os env variables
+
+### c7n-mailer
+
+- add ServiceNow notification
+- mailer - jira delivery
+
+### c7n_org
+
+- support org level vars in config file
+- c7n-org supports the argument not-accounts
+- c7n-org - fix NoCredentialsError when getting creds from instance profile too frequently
+
+### c7n_gcp
+
+1. gcp.project
+
+   - enable annotation op for IAM policy in gcp.project
+     - extract values from gcp.project iam policy
+     - convert values to gcp lable
+
+2. filters.iam-policy
+
+   - iam-policy - user-role support roles and verb_argument() refactor
+
+3. gcp.bucket
+
+   - gcp-bucket - add set-labels and mark(ed)-for-op
+
+---
+
 Cloud Custodian is a rules engine for managing public cloud accounts and
 resources. It allows users to define policies to enable a well managed
 cloud infrastructure, that\'s both secure and cost optimized. It
@@ -64,7 +160,6 @@ Links
 
 -   [Homepage](http://cloudcustodian.io)
 -   [Docs](http://cloudcustodian.io/docs/index.html)
--   [Project Roadmap](https://github.com/orgs/cloud-custodian/projects/1)
 -   [Developer Install](https://cloudcustodian.io/docs/developer/installing.html)
 -   [Presentations](https://www.google.com/search?q=cloud+custodian&source=lnms&tbm=vid)
 -   [YouTube Channel](https://www.youtube.com/channel/UCdeXCdFLluylWnFfS0-jbDA)
@@ -98,8 +193,8 @@ The best getting started guides are the cloud provider specific tutorials.
 As a quick walk through, below are some sample policies for AWS resources.
 
   1. will enforce that no S3 buckets have cross-account access enabled.
-  1. will terminate any newly launched EC2 instance that do not have an encrypted EBS volume.
-  1. will tag any EC2 instance that does not have the follow tags
+  2. will terminate any newly launched EC2 instance that do not have an encrypted EBS volume.
+  3. will tag any EC2 instance that does not have the follow tags
      "Environment", "AppId", and either "OwnerContact" or "DeptID" to
      be stopped in four days.
 
@@ -289,4 +384,3 @@ Code of Conduct
 This project adheres to the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md)
 
 By participating, you are expected to honor this code.
-

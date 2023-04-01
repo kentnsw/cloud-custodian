@@ -147,7 +147,7 @@ def setup_defaults(config):
     config.setdefault('region', 'us-east-1')
     config.setdefault('ses_region', config.get('region'))
     config.setdefault('memory', 1024)
-    config.setdefault('runtime', 'python3.7')
+    config.setdefault('runtime', 'python3.9')
     config.setdefault('timeout', 300)
     config.setdefault('subnets', None)
     config.setdefault('security_groups', None)
@@ -346,8 +346,8 @@ def resource_format(resource, resource_type):
             resource['FileSystemId'],
             resource['LifeCycleState'],
         )
-    elif resource_type == "network-addr":
-        return "ip: %s  id: %s  scope: %s" % (
+    elif resource_type == "network-addr" or resource_type == "elastic-ip":
+        return "ip: %s  id: %s  domain: %s" % (
             resource['PublicIp'],
             resource['AllocationId'],
             resource['Domain'],
@@ -395,9 +395,10 @@ def resource_format(resource, resource_type):
 
 
 def get_provider(mailer_config):
-    if mailer_config.get('queue_url', '').startswith('asq://'):
+    provider: str = mailer_config.get("cloud_provider", "")
+    if mailer_config.get('queue_url', '').startswith('asq://') or provider.lower() == "azure":
         return Providers.Azure
-    if mailer_config.get('queue_url', '').startswith('projects'):
+    elif mailer_config.get('queue_url', '').startswith('projects') or provider.lower() == "gcp":
         return Providers.GCP
     return Providers.AWS
 

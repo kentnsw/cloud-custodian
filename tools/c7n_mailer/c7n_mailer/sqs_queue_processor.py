@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 SQS Message Processing
-===============
 
 """
 import base64
@@ -17,9 +16,9 @@ DATA_MESSAGE = "maidmsg/1.0"
 
 class MailerSqsQueueIterator:
     # Copied from custodian to avoid runtime library dependency
-    msg_attributes = ['sequence_id', 'op', 'ser']
+    msg_attributes = ["sequence_id", "op", "ser"]
 
-    def __init__(self, aws_sqs, queue_url, logger, limit=0, timeout=10):
+    def __init__(self, aws_sqs, queue_url, logger, limit=0, timeout=1):
         self.aws_sqs = aws_sqs
         self.queue_url = queue_url
         self.limit = limit
@@ -42,8 +41,8 @@ class MailerSqsQueueIterator:
             AttributeNames=['SentTimestamp'],
         )
 
-        msgs = response.get('Messages', [])
-        self.logger.debug('Messages received %d', len(msgs))
+        msgs = response.get("Messages", [])
+        self.logger.debug("Messages received %d", len(msgs))
         for m in msgs:
             self.messages.append(m)
         if self.messages:
@@ -62,10 +61,10 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
         self.logger = logger
         self.session = session
         self.max_num_processes = max_num_processes
-        self.receive_queue = self.config['queue_url']
-        self.endpoint_url = self.config.get('endpoint_url', None)
-        if self.config.get('debug', False):
-            self.logger.debug('debug logging is turned on from mailer config file.')
+        self.receive_queue = self.config["queue_url"]
+        self.endpoint_url = self.config.get("endpoint_url", None)
+        if self.config.get("debug", False):
+            self.logger.debug("debug logging is turned on from mailer config file.")
             logger.setLevel(logging.DEBUG)
 
     """
@@ -87,10 +86,10 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
 
     def run(self, parallel=False):
         self.logger.info("Downloading messages from the SQS queue.")
-        aws_sqs = self.session.client('sqs', endpoint_url=self.endpoint_url)
+        aws_sqs = self.session.client("sqs", endpoint_url=self.endpoint_url)
         sqs_messages = MailerSqsQueueIterator(aws_sqs, self.receive_queue, self.logger)
 
-        sqs_messages.msg_attributes = ['mtype', 'recipient']
+        sqs_messages.msg_attributes = ["mtype", "recipient"]
         # lambda doesn't support multiprocessing, so we don't instantiate any mp stuff
         # unless it's being run from CLI on a normal system with SHM
         if parallel:
@@ -104,20 +103,33 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
             )
             msg_kind = sqs_message.get('MessageAttributes', {}).get('mtype')
             if msg_kind:
-                msg_kind = msg_kind['StringValue']
+                msg_kind = msg_kind["StringValue"]
             if not msg_kind == DATA_MESSAGE:
-                warning_msg = 'Unknown sqs_message or sns format %s' % (sqs_message['Body'][:50])
+                warning_msg = "Unknown sqs_message or sns format %s" % (sqs_message["Body"][:50])
                 self.logger.warning(warning_msg)
+
+            # NOTE move below block from process_sqs_message() so that the method can be reused
+            sentTimestamp = sqs_message["Attributes"]["SentTimestamp"]
+            messageId = sqs_message["MessageId"]
+            body = sqs_message["Body"]
+            try:
+                body = json.dumps(json.loads(body)["Message"])
+            except ValueError:
+                pass
+            message = json.loads(zlib.decompress(base64.b64decode(body)))
+
             if parallel:
-                process_pool.apply_async(self.process_sqs_message, args=sqs_message)
+                process_pool.apply_async(
+                    self.process_message, args=(message, messageId, sentTimestamp)
+                )
             else:
-                self.process_sqs_message(sqs_message)
-            self.logger.debug('Processed sqs_message')
+                self.process_message(message, messageId, sentTimestamp)
+            self.logger.debug("Processed sqs_message")
             sqs_messages.ack(sqs_message)
         if parallel:
             process_pool.close()
             process_pool.join()
-        self.logger.info('No sqs_messages left on the queue, exiting c7n_mailer.')
+        self.logger.info("No messages left on the queue, exiting c7n_mailer.")
         return
 
     # This function when processing sqs messages will only deliver messages over email or sns
@@ -150,3 +162,5 @@ class MailerSqsQueueProcessor(MessageTargetMixin):
             email_delivery=True,
             sns_delivery=True,
         )
+
+        self.handle_targets(message, sentTimestamp)

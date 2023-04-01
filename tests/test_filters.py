@@ -305,7 +305,6 @@ class TestValueFilter(unittest.TestCase):
         res = vf.match(resource)
         self.assertEqual(res, False)
 
-
 class TestAgeFilter(unittest.TestCase):
     def test_age_filter(self):
         af = base_filters.AgeFilter({})

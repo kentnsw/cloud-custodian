@@ -15,7 +15,7 @@ import jmespath
 from c7n.cwe import CloudWatchEvents
 from c7n.ctx import ExecutionContext
 from c7n.exceptions import PolicyValidationError, ClientError, ResourceLimitExceeded
-from c7n.filters import FilterRegistry, And, Or, Not
+from c7n.filters import COST_ANNOTATION_KEY, FilterRegistry, And, Or, Not
 from c7n.manager import iter_filters
 from c7n.output import DEFAULT_NAMESPACE
 from c7n.resources import load_resources
@@ -415,7 +415,9 @@ class LambdaMode(ServerlessExecutionMode):
         tags = self.policy.data['mode'].get('tags')
         if not tags:
             return
-        reserved_overlap = [t for t in tags if t.startswith('custodian-')]
+        reserved_overlap = [
+            t for t in tags if t.startswith('custodian-') and t != 'custodian-policy'
+        ]
         if reserved_overlap:
             log.warning(
                 (

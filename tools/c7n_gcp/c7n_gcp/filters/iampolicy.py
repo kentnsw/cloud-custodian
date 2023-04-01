@@ -1,9 +1,12 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 import copy
+import jmespath
+import re
+
 from c7n.filters.core import Filter, ValueFilter
 
-from c7n.utils import local_session, type_schema
+from c7n.utils import local_session, type_schema, gcpLabelaise
 
 
 class IamPolicyFilter(Filter):
@@ -17,7 +20,7 @@ class IamPolicyFilter(Filter):
     user_role_schema = {
         'type': 'object',
         'additionalProperties': False,
-        'required': ['user', 'role'],
+        'required': ['user'],
         'properties': {
             'user': {'type': 'string'},
             'role': {'type': 'string'},
@@ -34,16 +37,12 @@ class IamPolicyFilter(Filter):
 
     def process(self, resources, event=None):
         if 'doc' in self.data:
-            try:
-                valueFilter = IamPolicyValueFilter(self.data['doc'], self.manager)
-                resources = valueFilter.process(resources)
-            except TypeError:
-                valueFilter = IamPolicyValueFilter(self.data['doc'], self.manager, "bucket")
-                resources = valueFilter.process(resources)
+            valueFilter = IamPolicyValueFilter(self, self.data['doc'], self.manager)
+            resources = valueFilter.process(resources)
         if 'user-role' in self.data:
             user_role = self.data['user-role']
             key = user_role['user']
-            val = user_role['role']
+            val = user_role.get('role') or user_role['roles']
             op = 'in' if user_role.get('has', True) else 'not-in'
             value_type = 'swap'
             userRolePairFilter = IamPolicyUserRolePairFilter(
@@ -51,7 +50,39 @@ class IamPolicyFilter(Filter):
             )
             resources = userRolePairFilter.process(resources)
 
+        # NOTE news corp customisation to extract values from binding iam policies
+        if "extract" in self.data:
+            extract = self.data["extract"]
+            for r in resources:
+                expr = ".".join(f'"{e}"' if ":" in e else e for e in extract["expr"].split("."))
+                v = jmespath.search(expr, r) or []
+                if "regex" in extract:
+                    # regex example: 'user:(.*)@news.com.au'
+                    p = re.compile(extract["regex"])
+                    v = self.extractString(v, p)
+                if extract.get("value_type") == "gcp_label":
+                    v = gcpLabelaise(v)
+                # print(f"extracted {v}")
+                r[extract["key"]] = v
+
         return resources
+
+    def _verb_arguments(self, resource):
+        """
+        Returns a dictionary passed when making the `getIamPolicy` and 'setIamPolicy' API calls.
+
+        :param resource: the same as in `get_resource_params`
+        """
+        return {"resource": resource[self.manager.resource_type.id]}
+
+    def extractString(self, value, pattern):
+        if isinstance(value, str):
+            # NOTE group(1) will return the 1st capture (stuff within the brackets)
+            result = pattern.search(value)
+            return result.group(1) if result else None
+        elif isinstance(value, list):
+            return list(filter(None, [self.extractString(i, pattern) for i in value]))
+        return value
 
 
 class IamPolicyValueFilter(ValueFilter):
@@ -81,9 +112,9 @@ class IamPolicyValueFilter(ValueFilter):
     )
     #     permissions = 'GCP_SERVICE.GCP_RESOURCE.getIamPolicy',)
 
-    def __init__(self, data, manager=None, identifier="resource"):
+    def __init__(self, filter: IamPolicyFilter, data, manager=None):
         super(IamPolicyValueFilter, self).__init__(data, manager)
-        self.identifier = identifier
+        self.filter = filter
 
     def get_client(self, session, model):
         return session.client(model.service, model.version, model.component)
@@ -94,21 +125,13 @@ class IamPolicyValueFilter(ValueFilter):
         client = self.get_client(session, model)
 
         for r in resources:
-            iam_policy = client.execute_command('getIamPolicy', self._verb_arguments(r))
+            iam_policy = client.execute_command('getIamPolicy', self.filter._verb_arguments(r))
             r["c7n:iamPolicy"] = iam_policy
 
         return super(IamPolicyValueFilter, self).process(resources)
 
     def __call__(self, r):
         return self.match(r['c7n:iamPolicy'])
-
-    def _verb_arguments(self, resource):
-        """
-        Returns a dictionary passed when making the `getIamPolicy` and 'setIamPolicy' API calls.
-
-        :param resource: the same as in `get_resource_params`
-        """
-        return {self.identifier: resource[self.manager.resource_type.id]}
 
 
 class IamPolicyUserRolePairFilter(ValueFilter):
@@ -143,7 +166,7 @@ class IamPolicyUserRolePairFilter(ValueFilter):
         client = self.get_client(session, model)
 
         for r in resources:
-            iam_policy = client.execute_command('getIamPolicy', {"resource": r["projectId"]})
+            iam_policy = client.execute_command('getIamPolicy', self.filter._verb_arguments(r))
             r["c7n:iamPolicyUserRolePair"] = {}
             userToRolesMap = {}
 
@@ -157,15 +180,13 @@ class IamPolicyUserRolePairFilter(ValueFilter):
             for user, roles in userToRolesMap.items():
                 r["c7n:iamPolicyUserRolePair"][user] = roles
 
+        if type(self.data['value']) is list:
+            checkHas = self.data['op'] == 'in'
+            self.data['op'] = 'intersect'
+            result = super(IamPolicyUserRolePairFilter, self).process(resources)
+            return result if checkHas else not result
+
         return super(IamPolicyUserRolePairFilter, self).process(resources)
 
     def __call__(self, r):
         return self.match(r["c7n:iamPolicyUserRolePair"])
-
-    def _verb_arguments(self, resource, identifier="resource"):
-        """
-        Returns a dictionary passed when making the `getIamPolicy` and 'setIamPolicy' API calls.
-
-        :param resource: the same as in `get_resource_params`
-        """
-        return {identifier: resource[self.manager.resource_type.id]}

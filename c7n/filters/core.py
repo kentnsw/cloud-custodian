@@ -89,6 +89,7 @@ OPERATORS = {
     'glob': glob_match,
     'regex': regex_match,
     'regex-case': regex_case_sensitive_match,
+    'annotation': None,
     'in': operator_in,
     'ni': operator_ni,
     'not-in': operator_ni,
@@ -236,13 +237,17 @@ class BaseValueFilter(Filter):
         super(BaseValueFilter, self).__init__(data, manager)
         self.expr = {}
 
-    def get_resource_value(self, k, i, regex=None):
+    def get_resource_value(self, k, i, regex=None, ktype=None):
         r = None
         if k.startswith('tag:'):
             tk = k.split(':', 1)[1]
             if 'Tags' in i:
                 for t in i.get("Tags", []):
                     if t.get('Key') == tk:
+                        r = t.get('Value')
+                        break
+                    # NOTE normalize key, aka key case-insensitive
+                    if ktype == 'normalize' and t.get('Key').lower() == tk.lower():
                         r = t.get('Value')
                         break
             # GCP schema: 'labels': {'key': 'value'}
@@ -489,6 +494,7 @@ class ValueFilter(BaseValueFilter):
             # Doesn't mix well as enum with inherits that extend
             'type': {'enum': ['value']},
             'key': {'type': 'string'},
+            'key_type': {'enum': ['normalize']},
             'value_type': {'$ref': '#/definitions/filters_common/value_types'},
             'default': {'type': 'object'},
             'value_regex': {'type': 'string'},
@@ -585,8 +591,9 @@ class ValueFilter(BaseValueFilter):
 
         return super(ValueFilter, self).process(resources, event)
 
-    def get_resource_value(self, k, i):
-        return super(ValueFilter, self).get_resource_value(k, i, self.data.get('value_regex'))
+    def get_resource_value(self, k, i, ktype=None):
+        value_regex = self.data.get('value_regex')
+        return super(ValueFilter, self).get_resource_value(k, i, value_regex, ktype)
 
     def get_path_value(self, i):
         """Retrieve values using JMESPath.
@@ -615,13 +622,22 @@ class ValueFilter(BaseValueFilter):
         return jmespath.search(self.data.get('value_path'), i)
 
     def match(self, i):
+        if i is None:
+            return False
+
         if self.v is None and len(self.data) == 1:
             [(self.k, self.v)] = self.data.items()
-        elif self.v is None and not hasattr(self, 'content_initialized'):
+        elif (
+            self.v is None
+            and not hasattr(self, 'content_initialized')
+            or hasattr(self, 'content_need_reinit')
+        ):
             self.k = self.data.get('key')
             self.op = self.data.get('op')
             if 'value_from' in self.data:
                 values = ValuesFrom(self.data['value_from'], self.manager)
+                # NOTE support vars in expr
+                self.resolveExprVariables(values, i)
                 self.v = values.get_values()
             elif 'value_path' in self.data:
                 self.v = self.get_path_value(i)
@@ -630,8 +646,13 @@ class ValueFilter(BaseValueFilter):
             self.content_initialized = True
             self.vtype = self.data.get('value_type')
 
-        if i is None:
-            return False
+        # TODO move the annotation logic to action
+        # NOTE annotation resouce to support further actions
+        # annotation resource by borrowing the capability of value_filter
+        if self.op and self.op == 'annotation':
+            if self.v:
+                i[self.k] = self.v
+            return True
 
         # value extract
         r = self.get_resource_value(self.k, i)
@@ -664,6 +685,49 @@ class ValueFilter(BaseValueFilter):
 
         return False
 
+    def resolveExprVariables(self, values, i):
+        # TODO to find an better way to enhance the filter, e.g. a new filter
+        if "expr" in values.data:
+            expr = values.data.get("expr")
+            default_var_value = values.data.get("default_expr_var_value")
+            if isinstance(expr, str) and expr.find("{") != -1:
+                values.data["origin_expr"] = expr
+                values.data["expr"] = self._replace_var_placeholders(expr, default_var_value, i)
+
+    def _replace_var_placeholders(self, expr, default_var_value, i):
+        if "{{" in expr:
+            var_key = expr[expr.find("{{") + 2 : expr.find("}}")]
+        else:
+            var_key = expr[expr.find("{") + 1 : expr.find("}")]
+
+        var_value = self.get_resource_value(var_key, i, self.data.get('key_type'))
+
+        if var_value is None:
+            # self.log.warning(f"ValueFrom filter: {expr} key {var_key} not found")
+            if default_var_value:
+                var_value = default_var_value
+            else:
+                raise AttributeError(f"Value not found for key '{var_key}' in {expr}")
+
+        if self.data.get('value_type') == 'normalize':
+            var_value = var_value.strip().lower()
+
+        if "{{" in expr:
+            expr_var = expr.replace("{{" + var_key + "}}", var_value)
+        else:
+            expr_var = expr.replace("{" + var_key + "}", var_value)
+        if expr_var.find("{") != -1:
+            # NOTE to support more than 1 var_key
+            return self._replace_var_placeholders(expr_var, default_var_value, i)
+        else:
+            return expr_var
+
+    def recoverOriginExpr(self, values) -> bool:
+        if "origin_expr" in values.data:
+            values.data["expr"] = values.data["origin_expr"]
+            return True
+        return False
+
     def process_value_type(self, sentinel, value, resource):
         if self.vtype == 'normalize' and isinstance(value, str):
             return sentinel, value.strip().lower()
@@ -677,6 +741,11 @@ class ValueFilter(BaseValueFilter):
                 value = int(str(value).strip())
             except ValueError:
                 value = 0
+        elif self.vtype == 'number':
+            try:
+                value = float(str(value).strip())
+            except ValueError:
+                value = 0.0
         elif self.vtype == 'size':
             try:
                 return sentinel, len(value)

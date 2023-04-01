@@ -49,7 +49,7 @@ class Element:
             if value in allowed_values
         ]
         if resource_count != len(results):
-            self.log.warning(
+            self.log.debug(
                 "%s implicitly filtered %d of %d resources key:%s on %s",
                 self.type,
                 len(results),

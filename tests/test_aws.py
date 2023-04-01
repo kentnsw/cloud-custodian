@@ -26,7 +26,6 @@ from aws_xray_sdk.core.models.subsegment import Subsegment
 import pytest
 import vcr
 
-
 class TraceDoc(Bag):
     def serialize(self):
         return json.dumps(dict(self))

@@ -3,6 +3,7 @@
 """
 CloudWatch Metrics suppport for resources
 """
+import jmespath
 import re
 
 from collections import namedtuple
@@ -185,6 +186,10 @@ class MetricsFilter(Filter):
         self.model = self.manager.get_model()
         self.op = OPERATORS[self.data.get('op', 'less-than')]
         self.value = self.data['value']
+        self.value_factor = self.data.get('value_factor', 1)
+        self.is_expr = self.data.get('expr', False)
+        if self.is_expr:
+            self.value = jmespath.compile(self.value)
 
         ns = self.data.get('namespace')
         if not ns:
@@ -276,7 +281,7 @@ class MetricsFilter(Filter):
                 percent = collected_metrics[key][0][self.statistics] / rvalue * 100
                 if self.op(percent, self.value):
                     matched.append(r)
-            elif self.op(collected_metrics[key][0][self.statistics], self.value):
+            elif self.op(collectedMetrics, val):
                 matched.append(r)
         return matched
 

@@ -7,13 +7,14 @@ import json
 import os.path
 import logging
 import itertools
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 from urllib.parse import parse_qsl, urlparse
 import zlib
 from contextlib import closing
 
 from c7n.cache import NullCache
-from c7n.utils import format_string_values
+from c7n.utils import format_string_values, gcpLabelaise
 
 log = logging.getLogger('custodian.resolver')
 
@@ -152,6 +153,15 @@ class ValuesFrom:
             if contents is not None:
                 return contents
             contents = self._get_values()
+
+            # NOTE apply default value
+            if not contents and "default_value" in self.data:
+                contents = self.data.get("default_value")
+
+            # NOTE normalise the value for gcp label
+            if self.data.get("value_type") == "gcp_label":
+                contents = gcpLabelaise(contents)
+
             self.cache.save(("value-from", key), contents)
             return contents
 

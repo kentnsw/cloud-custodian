@@ -1,5 +1,6 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
+from unittest.mock import patch
 from c7n.resources.elasticache import _cluster_eligible_for_snapshot
 
 from .common import BaseTest

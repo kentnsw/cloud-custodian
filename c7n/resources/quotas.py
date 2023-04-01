@@ -11,6 +11,7 @@ import math
 from concurrent.futures import as_completed
 from datetime import timedelta, datetime
 from statistics import mean
+from time import sleep
 
 from c7n.actions import Action
 from c7n.exceptions import PolicyExecutionError
@@ -51,6 +52,7 @@ class ServiceQuota(QueryResourceManager):
     def augment(self, resources):
         client = local_session(self.session_factory).client('service-quotas')
         retry = get_retry(('TooManyRequestsException',))
+        ignore_codes = set(self.data.get("metadata", {}).get("ignore_service_codes", []))
 
         def get_quotas(client, s):
             def _get_quotas(client, s, attr):
@@ -66,6 +68,10 @@ class ServiceQuota(QueryResourceManager):
                     token = response.get('NextToken')
                     new = set(rquotas) - set(quotas)
                     quotas.update(rquotas)
+                    self.log.info(f"- {s['ServiceCode']} has {len(response['Quotas'])} quotas")
+                    # NOTE fix TooManyRequestsException when calling the ListServiceQuotas
+                    # NOTE sleep before any break; default quota 10rps
+                    sleep(0.3)
                     if token is None:
                         break
                     # ssm, ec2, kms have bad behaviors.
@@ -78,7 +84,9 @@ class ServiceQuota(QueryResourceManager):
             }
             quotas = {q['QuotaCode']: q for q in _get_quotas(client, s, 'list_service_quotas')}
             dquotas.update(quotas)
-            return dquotas.values()
+            # NOTE filter out applied value is 0 as that means it is not in use
+            # e.g. https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-quotas.html
+            return [q for q in dquotas.values() if q.get('Value')]
 
         results = []
         # NOTE TooManyRequestsException errors are reported in us-east-1 often
@@ -87,6 +95,8 @@ class ServiceQuota(QueryResourceManager):
         with self.executor_factory(max_workers=1) as w:
             futures = {}
             for r in resources:
+                if r["ServiceCode"] in ignore_codes:
+                    continue
                 futures[w.submit(get_quotas, client, r)] = r
 
             for f in as_completed(futures):
@@ -170,6 +180,9 @@ class UsageFilter(MetricsFilter):
             if 'Period' in r:
                 period_unit = self.time_delta_map[r['Period']['PeriodUnit']]
                 period = int(timedelta(**{period_unit: r['Period']['PeriodValue']}).total_seconds())
+                if period_unit == "seconds" and period < min_period and stat == "Sum":
+                    metric_scale = min_period / period
+                    period = min_period
             else:
                 period = int(timedelta(1).total_seconds())
 

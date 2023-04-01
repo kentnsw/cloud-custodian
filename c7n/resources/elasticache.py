@@ -9,6 +9,7 @@ from dateutil.parser import parse
 
 from c7n.actions import ActionRegistry, BaseAction, ModifyVpcSecurityGroupsAction
 from c7n.filters import FilterRegistry, AgeFilter
+from c7n.filters.cost import Infracost
 import c7n.filters.vpc as net_filters
 from c7n.filters.kms import KmsRelatedFilter
 from c7n.manager import resources
@@ -26,6 +27,7 @@ TTYPE = re.compile('cache.t1')
 class ElastiCacheCluster(QueryResourceManager):
     class resource_type(TypeInfo):
         service = 'elasticache'
+        arn = 'ARN'
         arn_type = 'cluster'
         arn_separator = ":"
         enum_spec = ('describe_cache_clusters', 'CacheClusters[]', None)
@@ -41,6 +43,41 @@ class ElastiCacheCluster(QueryResourceManager):
     action_registry = actions
     permissions = ('elasticache:ListTagsForResource',)
     augment = universal_augment
+
+
+@filters.register('infracost')
+class Ec2Cost(Infracost):
+    def get_query(self):
+        # reference: https://gql.readthedocs.io/en/stable/usage/variables.html
+        return """
+            query ($region: String, $instanceType: String, $cacheEngine: String) {
+                products(
+                    filter: {
+                        vendorName: "aws",
+                        service: "AmazonElastiCache",
+                        productFamily: "Cache Instance"
+                        region: $region,
+                        attributeFilters: [
+                            { key: "instanceType", value: $instanceType }
+                            { key: "locationType", value: "AWS Region" }
+                            { key: "cacheEngine", value: $cacheEngine }
+                        ]
+                    },
+                ) {
+                    prices(
+                        filter: {purchaseOption: "on_demand"}
+                    ) { USD, unit, description, purchaseOption }
+                }
+            }
+        """
+
+    def get_params(self, resource):
+        params = {
+            "region": resource["PreferredAvailabilityZone"][:-1],
+            "instanceType": resource["CacheNodeType"],
+            "cacheEngine": resource["Engine"].capitalize(),
+        }
+        return params
 
 
 @filters.register('security-group')

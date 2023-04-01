@@ -1630,6 +1630,7 @@ class SecurityGroupTest(BaseTest):
         formatted = post_finding.format_resource(resources[0])
         for k in ('IpPermissions', 'IpPermissionsEgress', 'Tags'):
             formatted['Details']['Other'].pop(k)
+        print("formatted", formatted)
         self.assertEqual(
             formatted,
             {

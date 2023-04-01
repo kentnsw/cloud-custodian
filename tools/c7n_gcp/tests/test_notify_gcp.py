@@ -49,6 +49,7 @@ class NotifyTest(BaseTest):
         )
 
         resources = p.run()
+        print("resources", resources)
 
         self.assertEqual(len(resources), 1)
         stub_client.execute_command.assert_called_once()

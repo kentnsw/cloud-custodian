@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError
 from concurrent.futures import as_completed
 
 from c7n.actions import BaseAction, ModifyVpcSecurityGroupsAction
+from c7n.filters.cost import Infracost
 from c7n.filters.kms import KmsRelatedFilter
 from c7n import query
 from c7n.manager import resources

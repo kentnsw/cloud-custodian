@@ -36,7 +36,10 @@ CONFIG_SCHEMA = {
     'additionalProperties': False,
     'required': ['queue_url'],
     'properties': {
+        'cloud_provider': {'type': 'string'},
         'queue_url': {'type': 'string'},
+        'gcp_queue_url': {'type': 'string'},
+        'service_account_info': {'type': 'string'},
         'endpoint_url': {'type': 'string'},
         'from_address': {'type': 'string'},
         'additional_email_headers': {
@@ -257,11 +260,23 @@ def main():
         # Select correct processor
         processor = get_processor(mailer_config, logger)
 
+        # NOTE below is to process GCP pubsub with the mailer on AWS
+        if provider == Providers.AWS:
+            processor_gcp = None
+            if "gcp_queue_url" in mailer_config:
+                from c7n_mailer.queue_processor_pubsub import MailerPubSubProcessor
+
+                processor_gcp = MailerPubSubProcessor(mailer_config, logger, processor=processor)
+
         # Execute
         if max_num_processes:
             run_mailer_in_parallel(processor, max_num_processes)
+            if processor_gcp:
+                run_mailer_in_parallel(processor_gcp, max_num_processes)
         else:
             processor.run()
+            if processor_gcp:
+                processor_gcp.run()
 
 
 if __name__ == '__main__':

@@ -90,8 +90,7 @@ def _default_options(p, exclude=[]):
     output.add_argument("--debug", default=False, help=argparse.SUPPRESS, action="store_true")
 
     if 'vars' not in exclude:
-        # p.add_argument('--vars', default=None,
-        #               help='Vars file to substitute into policy')
+        p.add_argument('--vars', default=None, help='Vars file to substitute into policy')
         p.set_defaults(vars=None)
 
     if 'log-group' not in exclude:
@@ -389,9 +388,9 @@ def _setup_logger(options):
         external_log_level = logging.INFO
 
     logging.getLogger('botocore').setLevel(external_log_level)
-    logging.getLogger('urllib3').setLevel(external_log_level)
     logging.getLogger('s3transfer').setLevel(external_log_level)
     logging.getLogger('urllib3').setLevel(logging.ERROR)
+    logging.getLogger('gql').setLevel(logging.WARNING)
 
 
 def main():

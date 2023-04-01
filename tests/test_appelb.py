@@ -751,7 +751,6 @@ class AppELBTargetGroupTest(BaseTest):
         attrs = {obj['Key']: obj['Value'] for obj in attrs}
         assert attrs['preserve_client_ip.enabled'] == 'true'
 
-
 class TestAppElbLogging(BaseTest):
     def test_enable_s3_logging(self):
         session_factory = self.replay_flight_data("test_appelb_enable_s3_logging")

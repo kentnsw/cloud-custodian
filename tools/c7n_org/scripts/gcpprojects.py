@@ -29,8 +29,12 @@ def main(output):
             if project['lifecycleState'] != 'ACTIVE':
                 continue
 
+            if project["parent"]["id"] in ignore:
+                continue
+
             project_info = {
                 'project_id': project['projectId'],
+                'project_number': project['projectNumber'],
                 'name': project['name'],
             }
 

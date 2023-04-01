@@ -11,10 +11,10 @@ class MessageTargetMixin(object):
     def handle_targets(self, message, sent_timestamp, email_delivery=True, sns_delivery=False):
         # get the map of email_to_addresses to mimetext messages (with resources baked in)
         # and send any emails (to SES or SMTP) if there are email addresses found
-        if email_delivery:
-            email_delivery = EmailDelivery(self.config, self.session, self.logger)
-            to_addrs_to_email_messages_map = email_delivery.get_to_addrs_email_messages_map(message)
-            for email_to_addrs, mimetext_msg in to_addrs_to_email_messages_map.items():
+        # NOTE Azure process has its own implementation atm
+        if self.on_aws() or self.on_gcp():
+            groupedAddrMsg = email_delivery.get_to_addrs_email_messages_map(message)
+            for email_to_addrs, mimetext_msg in groupedAddrMsg.items():
                 email_delivery.send_c7n_email(message, list(email_to_addrs), mimetext_msg)
 
         # this sections gets the map of sns_to_addresses to rendered_jinja messages
@@ -48,7 +48,7 @@ class MessageTargetMixin(object):
                 pass
 
         # this section gets the map of metrics to send to datadog and delivers it
-        if any(e.startswith('datadog') for e in message.get('action', ()).get('to')):
+        if any(e.startswith("datadog") for e in message.get("action", ()).get("to", [])):
             from .datadog_delivery import DataDogDelivery
 
             datadog_delivery = DataDogDelivery(self.config, self.session, self.logger)

@@ -253,6 +253,64 @@ filters.register('offhour', OffHour)
 filters.register('onhour', OnHour)
 
 
+@filters.register('infracost')
+class RdsCost(Infracost):
+    def get_query(self):
+        # reference: https://gql.readthedocs.io/en/stable/usage/variables.html
+        return """
+            query (
+                    $region: String,
+                    $instanceType: String,
+                    $deploymentOption: String,
+                    $databaseEngine: String,
+                ) {
+                products(
+                    filter: {
+                        vendorName: "aws",
+                        service: "AmazonRDS",
+                        productFamily: "Database Instance"
+                        region: $region,
+                        attributeFilters: [
+                            { key: "instanceType", value: $instanceType }
+                            { key: "databaseEngine", value: $databaseEngine }
+                            { key: "deploymentOption", value: $deploymentOption }
+                        ]
+                    },
+                ) {
+                    prices(
+                        filter: {purchaseOption: "on_demand"}
+                    ) { USD, unit, description, purchaseOption }
+                }
+            }
+        """
+
+    def get_params(self, resource):
+        # NOTE the order below metters
+        engines = {
+            "aurora-postgresql": "Aurora PostgreSQL",
+            "aurora": "Aurora MySQL",
+            "oracle-": "Oracle",
+            "sqlserver-": "SQL Server",
+            "postgres": "PostgreSQL",
+            "mysql": "MySQL",
+            "mariadb": "MariaDB",
+        }
+        engine = engines.get(resource["Engine"])
+        if not engine:
+            for k, v in engines.items():
+                if resource["Engine"].startswith(k):
+                    engine = v
+                    break
+
+        params = {
+            "region": resource["AvailabilityZone"][:-1],
+            "instanceType": resource["DBInstanceClass"],
+            "databaseEngine": engine or resource["Engine"],
+            "deploymentOption": "Multi-AZ" if resource["MultiAZ"] else "Single-AZ",
+        }
+        return params
+
+
 @filters.register('default-vpc')
 class DefaultVpc(net_filters.DefaultVpcBase):
     """Matches if an rds database is in the default vpc

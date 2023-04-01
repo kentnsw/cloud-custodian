@@ -255,6 +255,7 @@ class AzureTest(unittest.TestCase):
             "smtp_server": "test_server",
             "smtp_username": "user",
             "smtp_password": "password",
+            "templates_folders": "somewhere",
         }
 
         with patch(

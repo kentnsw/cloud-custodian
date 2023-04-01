@@ -5,6 +5,7 @@ import unittest
 import time
 
 import datetime
+from unittest.mock import patch
 from dateutil import tz
 import jmespath
 from mock import mock
@@ -972,7 +973,6 @@ class TestTag(BaseTest):
         )
         resources = policy.run()
         self.assertEqual(len(resources), 3)
-
 
 class TestStop(BaseTest):
     def test_ec2_stop(self):
@@ -2015,7 +2015,6 @@ class TestModifySecurityGroupAction(BaseTest):
             ),
             ['sg-0cba7a01d343d5c65', 'sg-02e14ba7dd2dbe44b', 'sg-0e630ac9094eff5c5'],
         )
-
 
 class TestAutoRecoverAlarmAction(BaseTest):
     def test_autorecover_alarm(self):

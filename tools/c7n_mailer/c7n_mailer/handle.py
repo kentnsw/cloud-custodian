@@ -29,7 +29,16 @@ def start_c7n_mailer(logger, config=None, parallel=False):
         if not config:
             config = config_setup()
         logger.info('c7n_mailer starting...')
-        mailer_sqs_queue_processor = MailerSqsQueueProcessor(config, session, logger)
-        mailer_sqs_queue_processor.run(parallel)
+        processor_aws = MailerSqsQueueProcessor(config, session, logger)
+        processor_aws.run(parallel)
+
+        # NOTE use AWS mailer to process GCP PubSub message
+        # TODO provide sentTimestamp by converting publishTime of the message
+        if "gcp_queue_url" in config:
+            from .queue_processor_pubsub import MailerPubSubProcessor
+
+            processor_gcp = MailerPubSubProcessor(config, logger, processor=processor_aws)
+            processor_gcp.run()
+
     except Exception as e:
         logger.exception("Error starting mailer MailerSqsQueueProcessor(). \n Error: %s \n" % (e))
