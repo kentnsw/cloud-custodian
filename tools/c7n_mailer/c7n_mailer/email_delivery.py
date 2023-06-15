@@ -238,7 +238,7 @@ class EmailDelivery:
                 )
                 for emails, mimetext_msg in emails_to_mimetext_map.items():
                     email_to_addrs = list(emails)
-                    smtp_delivery.send_message(message=mimetext_msg, to_addrs=list(email_to_addrs))
+                    smtp_delivery.send_message(message=mimetext_msg, to_addrs=email_to_addrs)
             elif "sendgrid_api_key" in self.config:
                 sendgrid_delivery = sendgrid.SendGridDelivery(
                     config=self.config, session=self.session, logger=self.logger

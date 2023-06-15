@@ -339,7 +339,7 @@ class EmailTest(unittest.TestCase):
             # NOTE send to 3 addrs: bill_lumberg@initech.com,milton@initech.com,peter@initech.com
             assert mock_send.call_count == 3
 
-        # NOTE simulate case of len(emails_to_mimetext_map) > 1 to reproduce duplicated emails bug
+        # NOTE reproduce duplicated emails bug when len(emails_to_mimetext_map) > 1
         sqs_msg = copy.deepcopy(SQS_MESSAGE_1)
         sqs_msg["resources"].append(RESOURCE_4)
         with patch("sendgrid.SendGridAPIClient.send") as mock_send:
