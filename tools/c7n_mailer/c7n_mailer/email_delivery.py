@@ -261,13 +261,13 @@ class EmailDelivery:
                 )
             )
         self.logger.info(
-            "Sending account:%s policy:%s %s:%s email:%s to %s"
+            "Sent account:%s policy:%s %s:%s email:%s to %s"
             % (
                 sqs_message.get("account", ""),
                 sqs_message["policy"]["name"],
                 sqs_message["policy"]["resource"],
                 str(len(sqs_message["resources"])),
                 sqs_message["action"].get("template", "default"),
-                email_to_addrs,
+                list(emails_to_mimetext_map.keys()),
             )
         )
