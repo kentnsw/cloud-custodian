@@ -5,6 +5,7 @@ import boto3
 import copy
 import os
 import unittest
+from mock.mock import _Call
 
 from c7n_mailer.email_delivery import EmailDelivery
 from common import (
@@ -348,6 +349,25 @@ class EmailTest(unittest.TestCase):
                 delivery.send_c7n_email(sqs_msg)
             # ensure send 4 times instead of 8 as there are only 4 addrs
             assert mock_send.call_count == 4
+
+    def test_ses_send_raw_email(self):
+        config = copy.deepcopy(MAILER_CONFIG)
+        logger_mock = MagicMock()
+
+        del config["smtp_server"]
+        delivery = MockEmailDelivery(config, self.aws_session, logger_mock)
+
+        sqs_msg = copy.deepcopy(SQS_MESSAGE_1)
+        sqs_msg["resources"].append(RESOURCE_4)
+        with patch("botocore.client.BaseClient._make_api_call") as mock_send:
+            delivery.send_c7n_email(sqs_msg)
+            # Ensure the for loop is working by checking the call_count
+            assert mock_send.call_count == 2
+            args = mock_send.call_args_list[0][0]
+            assert args[0] == "SendRawEmail"
+            assert "To: bill_lumberg@initech.com" in args[1]["RawMessage"]["Data"]
+            args = mock_send.call_args_list[1][0]
+            assert "To: someone@example.com" in args[1]["RawMessage"]["Data"]
 
     def test_get_ldap_connection(self):
         with patch("c7n_mailer.email_delivery.decrypt") as patched:
