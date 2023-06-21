@@ -5,7 +5,6 @@ import boto3
 import copy
 import os
 import unittest
-from mock.mock import _Call
 
 from c7n_mailer.email_delivery import EmailDelivery
 from common import (
