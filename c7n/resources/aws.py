@@ -414,6 +414,14 @@ class MetricsOutput(Metrics):
         else:
             watch = utils.local_session(
                 self.ctx.session_factory).client('cloudwatch', region_name=self.region)
+
+        # NOTE filter metrics data by the metric name configured in the policy
+        # metrics = [m for m in metrics if m["Value"] > 0]
+        if hasattr(self.ctx.policy, "data") and "metrics" in self.ctx.policy.data:
+            metrics = [m for m in metrics if m["MetricName"] in self.ctx.policy.data["metrics"]]
+        if not metrics:
+            return
+
         return self.retry(
             watch.put_metric_data, Namespace=ns, MetricData=metrics)
 
