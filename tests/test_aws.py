@@ -332,6 +332,10 @@ class OutputMetricsTest(BaseTest):
             sink._put_metrics("ns", [{'MetricName': 'Calories'}, {'MetricName': 'ResourceCount'}])
             assert aws_api.call_args[0][0] == "PutMetricData"
             assert aws_api.call_args[0][1]["MetricData"] == [{'MetricName': 'ResourceCount'}]
+            assert aws_api.call_count == 1
+            # Exclude all metrics
+            sink._put_metrics("ns", [])
+            assert aws_api.call_count == 1
 
 
 class OutputLogsTest(BaseTest):
