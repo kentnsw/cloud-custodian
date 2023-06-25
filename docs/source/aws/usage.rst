@@ -58,6 +58,18 @@ specify a region::
 When running the metrics in a centralized account or when centralizing to a specific
 region, additional account and region dimensions will be included.
 
+Typically, the following four metrics are included: ResourceCount, ResourceTime,
+ActionTime, and ApiCalls. To filter the metrics and save costs, you can specify a
+'metrics' item in the policy as shown below:
+
+.. code-block:: yaml
+
+  policies:
+    - name: list-ec2
+      resource: ec2
+      metrics:
+        - ResourceCount
+
 
 CloudWatch Logs
 ---------------

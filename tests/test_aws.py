@@ -7,7 +7,7 @@ import threading
 import socket
 import sys
 from urllib.error import URLError, HTTPError
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from c7n.config import Bag, Config
 from c7n.exceptions import PolicyValidationError, InvalidOutputConfig
@@ -325,6 +325,17 @@ class OutputMetricsTest(BaseTest):
         self.assertTrue(isinstance(sink, aws.MetricsOutput))
         sink.put_metric('ResourceCount', 101, 'Count')
         sink.flush()
+
+        # Test metrics filter when 'metrics' is present in policy
+        policy['data'] = {'metrics':['ResourceCount']}
+        with patch("botocore.client.BaseClient._make_api_call") as aws_api:
+            sink._put_metrics("ns", [{'MetricName': 'Calories'}, {'MetricName': 'ResourceCount'}])
+            assert aws_api.call_args[0][0] == "PutMetricData"
+            assert aws_api.call_args[0][1]["MetricData"] == [{'MetricName': 'ResourceCount'}]
+            assert aws_api.call_count == 1
+            # Exclude all metrics
+            sink._put_metrics("ns", [])
+            assert aws_api.call_count == 1
 
 
 class OutputLogsTest(BaseTest):
