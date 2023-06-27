@@ -235,15 +235,13 @@ class EmailDelivery:
             if "smtp_server" in self.config:
                 delivery = SmtpDelivery(self.config, self.session, self.logger)
                 for emails, mimetext_msg in emails_to_mimetext_map.items():
-                    email_to_addrs = list(emails)
-                    delivery.send_message(message=mimetext_msg, to_addrs=email_to_addrs)
+                    delivery.send_message(message=mimetext_msg, to_addrs=list(emails))
             elif "sendgrid_api_key" in self.config:
                 delivery = SendGridDelivery(self.config, self.session, self.logger)
                 delivery.sendgrid_handler(sqs_message, emails_to_mimetext_map)
             # if smtp_server or sendgrid_api_key isn't set in mailer.yml, use aws ses normally.
             else:
                 for emails, mimetext_msg in emails_to_mimetext_map.items():
-                    email_to_addrs = list(emails)
                     self.aws_ses.send_raw_email(RawMessage={"Data": mimetext_msg.as_string()})
         except Exception as error:
             self.logger.error(
