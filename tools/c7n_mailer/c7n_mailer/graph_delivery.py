@@ -37,7 +37,9 @@ class GraphDelivery:
                 },
                 "isDraft": "false",
             }
-            r = requests.post(self.sendmail_endpoint, data=json.dumps(data), headers=headers)
+            r = requests.post(
+                self.sendmail_endpoint, data=json.dumps(data), headers=headers, timeout=10
+            )
             r.raise_for_status()
 
     def get_token(self, url, client_id, client_secret):
@@ -47,6 +49,6 @@ class GraphDelivery:
             "client_id": client_id,
             "client_secret": client_secret,
         }
-        r = requests.post(url, data=data)
+        r = requests.post(url, data=data, timeout=10)
         r.raise_for_status()
         return r.json().get("access_token")
