@@ -17,11 +17,12 @@ class GraphDelivery:
         self.sendmail_endpoint = config["graph_sendmail_endpoint"]
         self.logger = logger
 
-    def send_message(self, emails_to_mimetext_map: dict[tuple, MIMEText]):
+    def send_message(self, emails_to_mimetext_map):
         headers = {
             "Authorization": "Bearer " + self.token,
             "Content-type": "application/json",
         }
+        # NOTE emails_to_mimetext_map: dict[tuple, MIMEText]; removed it from sinature for py3.8
         for emails, mimetext in emails_to_mimetext_map.items():
             contentType = mimetext.get_content_type().lower().endswith("html") and "html" or "text"
             content = mimetext.get_payload(decode=True).decode(mimetext.get_content_charset())
