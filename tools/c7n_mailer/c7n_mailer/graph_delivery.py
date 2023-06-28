@@ -1,5 +1,4 @@
 import json
-from email.mime.text import MIMEText
 
 import requests
 
