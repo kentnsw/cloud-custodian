@@ -31,7 +31,8 @@ class GraphDelivery:
                     "subject": mimetext.get("Subject"),
                     "body": {"contentType": contentType, "content": content},
                     "toRecipients": [{"emailAddress": {"address": e}} for e in emails],
-                    # NOTE cc has been included in "to" field when creating mimetext map, so skipping it
+                    # NOTE cc has been included into "to" field when creating mimetext map,
+                    # so skipping it
                     # "ccRecipients": [],
                 },
                 "isDraft": "false",

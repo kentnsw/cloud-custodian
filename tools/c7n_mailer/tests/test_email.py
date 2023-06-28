@@ -378,7 +378,8 @@ class EmailTest(unittest.TestCase):
             sendmail_req = req.call_args_list[1]
             assert sendmail_req[0][0] == "my_graph_sendmail_endpoint"
             assert sendmail_req[1]["data"].startswith(
-                '{"message": {"subject": "core-services-dev AWS EBS Volumes will be DELETED in 15 DAYS!"'
+                '{"message": {"subject": "core-services-dev AWS EBS Volumes'
+                ' will be DELETED in 15 DAYS!"'
             )
 
     def test_ses_send_raw_email(self):
