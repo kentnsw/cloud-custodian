@@ -10,8 +10,6 @@ class JiraDelivery:
         self.session = session
         self.logger = logger
         self.url = config.get("jira_url")
-        # The tag attached to cloud resources to indicate what Jira project to log ticket to
-        self.prj_key = config.get("jira_project_tag", "c7n_jira_project")
         # The dict to set custom fields for each Jira project when needed
         self.custom_fields = config.get("jira_custom_fields", {})
         self.init_jira()
@@ -24,10 +22,18 @@ class JiraDelivery:
         basic_auth = tuple([self.config.get("jira_username"), token])
         self.client = JIRA(server=self.url, basic_auth=basic_auth)
 
-    def get_project_to_resources(self, message, default) -> Dict[str, List]:
+    def get_project_to_resources(self, message, default_project) -> Dict[str, List]:
+        to_list = message.get("action", ()).get("to")
+        tags = [to[11:] for to in to_list if to.startswith("jira://tag/")]
+        # TODO maybe we should support multiple tags and distinations
+        if len(tags) > 1:
+            raise Exception(f"Only one jira distination is supported, got {tags}")
+
         grouped = {}
+        project = default_project
         for r in message["resources"]:
-            project = utils.get_resource_tag_value(r, self.prj_key) or default
+            if len(tags):
+                project = utils.get_resource_tag_value(r, tags[-1])
             grouped.setdefault(project, []).append(r)
         # eg: { 'MYPROJECT': [resource1, resource2, etc] }
         return grouped

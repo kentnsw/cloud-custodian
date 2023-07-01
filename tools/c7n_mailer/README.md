@@ -199,9 +199,6 @@ The Custodian mailer supports Jira as a separate notification mechanism for the 
 jira_url: https://your-org.atlassian.net/
 jira_username: YOUR_JIRA_USERNAME
 jira_token: YOUR_JIRA_TOKEN
-# optional, tag "c7n_jira_project" will be used by default
-jira_project_tag: custom_tag_on_resources_to_read_jira_project_name
-
 # optional, the dict to set custom fields for each Jira project when needed
 jira_custom_fields:
   # Set fields for all projects by using 'DEFAULT' section
@@ -224,13 +221,18 @@ actions:
     to:
       # Use keyword "jira" to enable Jira delivery
       - jira
+      # alternatively, specify a tag attached to cloud resources to indicate what Jira project to log ticket to
+      - jira://tag/jira_project_tag
+    # The subject will be used as issue summary
+    subject: This is the email subject, and jira issue summary as well
     # Below is the dict data to send to create_issue api
     # Ref https://jira.readthedocs.io/examples.html#issues
     jira:
-      # The mailer will use the jira_project_tag on the resources first.
+      # The mailer will use the tag value on the resources first, if specified.
       # If tag is not found, it will fall back to the below value.
       project: MY_JIRA_PROJECT
-      priority: High
+      priority:
+        name: High
       # more fields here if needed
     transport:
       type: sqs
@@ -427,8 +429,7 @@ These fields are not necessary if c7n_mailer is run in a instance/lambda/etc wit
 |           | `jira_url`           | string         | Jira endpoint                                                                      |
 |           | `jira_username`      | string         | Jira username                                                                      |
 |           | `jira_token`         | secured string | Jira token                                                                         |
-|           | `jira_project_tag`   | string         | The tag attached to cloud resources to indicate what Jira project to log ticket to |
-|           | `jira_custom_fields` | string         | The dict to set custom fields for each Jira project when needed                    |
+|           | `jira_custom_fields` | object         | The dict to set custom fields for each Jira project when needed                    |
 
 
 ### Splunk HEC Config

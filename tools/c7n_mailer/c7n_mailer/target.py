@@ -10,9 +10,12 @@ from .utils import decrypt
 
 class MessageTargetMixin(object):
     def handle_targets(self, message, sent_timestamp, email_delivery=True, sns_delivery=False):
-        # NOTE borrow the 'action' object to carry the delivery result for template rendering
-        message["action"].setdefault("result", {})
-        if any(to == "jira" for to in message.get("action", ()).get("to")):
+        to_list = message.get("action", ()).get("to")
+        if any(to == "jira" or to.startswith("jira://") for to in to_list):
+            # NOTE borrow the 'action' object to carry the delivery result for template rendering
+            # TODO It should be moved out of the jira block if the design is accepted
+            message["action"].setdefault("result", {})
+
             try:
                 if "jira_url" not in self.config:
                     raise Exception("jira_url not found in mailer config")
@@ -59,7 +62,7 @@ class MessageTargetMixin(object):
                 pass
 
         # this section gets the map of metrics to send to datadog and delivers it
-        if any(e.startswith("datadog") for e in message.get("action", ()).get("to")):
+        if any(e.startswith("datadog") for e in to_list):
             from .datadog_delivery import DataDogDelivery
 
             datadog_delivery = DataDogDelivery(self.config, self.session, self.logger)
@@ -72,7 +75,7 @@ class MessageTargetMixin(object):
                 pass
 
         # this section sends the full event to a Splunk HTTP Event Collector (HEC)
-        if any(e.startswith("splunkhec://") for e in message.get("action", ()).get("to")):
+        if any(e.startswith("splunkhec://") for e in to_list):
             from .splunk_delivery import SplunkHecDelivery
 
             splunk_delivery = SplunkHecDelivery(self.config, self.session, self.logger)

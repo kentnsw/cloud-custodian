@@ -167,7 +167,6 @@ CONFIG_SCHEMA = {
         "jira_url": {"type": "string"},
         "jira_username": {"type": "string"},
         "jira_token": SECURED_STRING_SCHEMA,
-        "jira_project_tag": {"type": "string"},
         "jira_custom_fields": {"type": "object"},
         # SDK Config
         "profile": {"type": "string"},
