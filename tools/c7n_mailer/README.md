@@ -203,7 +203,8 @@ jira_token: YOUR_JIRA_TOKEN
 jira_custom_fields:
   # Set fields for all projects by using 'DEFAULT' section
   DEFAULT:
-    priority: Medium
+    priority:
+      name: Medium
   # Add special fields for a Jira project
   MY_PROJECT:
     customfield_10059: value_for_the_field
