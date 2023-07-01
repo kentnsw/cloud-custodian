@@ -191,6 +191,54 @@ Slack delivery can also be set via a resource's tag name. For example, using "sl
 
 Delivery via tag has been tested with webhooks but should support all delivery methods.
 
+### Jira:
+
+The Custodian mailer supports Jira as a separate notification mechanism for the SQS transport method. To enable Jira integration, you must specify below fields in the mailer config file.
+
+```yaml
+jira_url: https://your-org.atlassian.net/
+jira_username: YOUR_JIRA_USERNAME
+jira_token: YOUR_JIRA_TOKEN
+# optional, tag "c7n_jira_project" will be used by default
+jira_project_tag: custom_tag_on_resources_to_read_jira_project_name
+
+# optional, the dict to set custom fields for each Jira project when needed
+jira_custom_fields:
+  # Set fields for all projects by using 'DEFAULT' section
+  DEFAULT:
+    priority: Medium
+  # Add special fields for a Jira project
+  MY_PROJECT:
+    customfield_10059: value_for_the_field
+  # Remove special fields for a Jira project with keyword 'cannot-be-set'
+  MY_ANOTHER_PROJECT:
+    priority: cannot-be-set
+```
+
+To enable Jira integration, several unique fields are evaluated in the policy, as shown in the below example:
+
+```yaml
+actions:
+  - type: notify
+    jira_template: my-jira-template
+    to:
+      # Use keyword "jira" to enable Jira delivery
+      - jira
+    # Below is the dict data to send to create_issue api
+    # Ref https://jira.readthedocs.io/examples.html#issues
+    jira:
+      # The mailer will use the jira_project_tag on the resources first.
+      # If tag is not found, it will fall back to the below value.
+      project: MY_JIRA_PROJECT
+      priority: High
+      # more fields here if needed
+    transport:
+      type: sqs
+      queue: https://sqs.us-east-1.amazonaws.com/1234567890/c7n-mailer-test
+```
+
+Slack messages support use of a unique template field specified by `jira_template`. If not specified, the mailer will use the default value `default`.
+
 ### Splunk HTTP Event Collector (HEC)
 
 The Custodian mailer supports delivery to the HTTP Event Collector (HEC) endpoint of a Splunk instance as a separate notification mechanism for the SQS transport method. To enable Splunk HEC integration, you must specify the URL to the HEC endpoint as well as a valid username and token:
@@ -370,6 +418,17 @@ These fields are not necessary if c7n_mailer is run in a instance/lambda/etc wit
 |           | `graph_sendmail_endpoint` | string         | Graph sendmail endpoint  |
 |           | `graph_client_id`         | string         | Client ID                |
 |           | `graph_client_secret`     | secured string | Client secret            |
+
+
+### Atlassian Jira Config
+
+| Required? | Key                  | Type           | Notes                                                                              |
+| :-------: | :------------------- | :------------- | :--------------------------------------------------------------------------------- |
+|           | `jira_url`           | string         | Jira endpoint                                                                      |
+|           | `jira_username`      | string         | Jira username                                                                      |
+|           | `jira_token`         | secured string | Jira token                                                                         |
+|           | `jira_project_tag`   | string         | The tag attached to cloud resources to indicate what Jira project to log ticket to |
+|           | `jira_custom_fields` | string         | The dict to set custom fields for each Jira project when needed                    |
 
 
 ### Splunk HEC Config

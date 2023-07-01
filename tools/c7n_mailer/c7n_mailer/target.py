@@ -4,11 +4,24 @@
 import traceback
 
 from .email_delivery import EmailDelivery
+from .jira_delivery import JiraDelivery
 from .utils import decrypt
 
 
 class MessageTargetMixin(object):
     def handle_targets(self, message, sent_timestamp, email_delivery=True, sns_delivery=False):
+        # NOTE borrow the 'action' object to carry the delivery result for template rendering
+        message["action"].setdefault("result", {})
+        if any(to == "jira" for to in message.get("action", ()).get("to")):
+            try:
+                if "jira_url" not in self.config:
+                    raise Exception("jira_url not found in mailer config")
+                jira_delivery = JiraDelivery(self.config, self.session, self.logger)
+                jira_delivery.process(message)
+            except Exception as e:
+                self.logger.error(f"Failed to create Jira issue: {str(e)}")
+                message["action"]["result"]["jira_error"] = "Failed to create Jira issue"
+
         # get the map of email_to_addresses to mimetext messages (with resources baked in)
         # and send any emails (to SES or SMTP) if there are email addresses found
         if email_delivery:
