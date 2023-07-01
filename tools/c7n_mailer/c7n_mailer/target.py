@@ -19,7 +19,7 @@ class MessageTargetMixin(object):
             try:
                 if "jira_url" not in self.config:
                     raise Exception("jira_url not found in mailer config")
-                # FIXME JiraDelivery is instantiated for each SQS message, which is not optimal. 
+                # FIXME JiraDelivery is instantiated for each SQS message, which is not optimal.
                 jira_delivery = JiraDelivery(self.config, self.session, self.logger)
                 jira_delivery.process(message)
             except Exception as e:
