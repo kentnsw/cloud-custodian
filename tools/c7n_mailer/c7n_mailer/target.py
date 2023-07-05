@@ -13,7 +13,7 @@ class MessageTargetMixin(object):
         to_list = message.get("action", ()).get("to")
         if any(to == "jira" or to.startswith("jira://") for to in to_list):
             # NOTE borrow the 'action' object to carry the delivery result for template rendering
-            # TODO It should be moved out of the jira block if the design is accepted
+            # TODO It should be moved out from this jira block if below approach is accepted
             message["action"].setdefault("result", {})
 
             try:

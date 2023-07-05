@@ -223,24 +223,24 @@ actions:
       # Use keyword "jira" to enable Jira delivery
       - jira
       # alternatively, specify a tag attached to cloud resources to indicate what Jira project to log ticket to
+      # set tag value to empty to ignore logging the resource to any Jira project
       - jira://tag/jira_project_tag
     # The subject will be used as issue summary
     subject: This is the email subject, and jira issue summary as well
     # Below is the dict data to send to create_issue api
-    # Ref https://jira.readthedocs.io/examples.html#issues
     jira:
-      # The mailer will use the tag value on the resources first, if specified.
+      # The mailer will use the tag value (if tag specified and found) on the resources first.
       # If tag is not found, it will fall back to the below value.
       project: MY_JIRA_PROJECT
       priority:
         name: High
-      # more fields here if needed
+      # More fields here if needed. Ref https://jira.readthedocs.io/examples.html#issues
     transport:
       type: sqs
       queue: https://sqs.us-east-1.amazonaws.com/1234567890/c7n-mailer-test
 ```
 
-Slack messages support use of a unique template field specified by `jira_template`. If not specified, the mailer will use the default value `default`.
+Jira delivery support use of a unique template field specified by `jira_template`. If not specified, the mailer will use the default value `default`.
 
 ### Splunk HTTP Event Collector (HEC)
 

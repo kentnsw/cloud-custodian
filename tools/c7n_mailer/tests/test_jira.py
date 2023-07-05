@@ -26,6 +26,11 @@ EBS_MY_ANOTHER_PROJECT = {
     "Tags": [{"Key": "jira_project", "Value": "MY_ANOTHER_PROJECT"}],
 }
 
+EBS_EMPTY = {
+    "VolumeId": "vol-04",
+    "Tags": [{"Key": "jira_project", "Value": ""}],
+}
+
 SQS_MESSAGE_JIRA = {
     "account": "core-services-dev",
     "account_id": "123456789012",
@@ -106,6 +111,11 @@ class TestJiraDelivery(TestCase):
         issue_dict["priority"] = {"name": "Low"}
         assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
 
+        # case 4: skip resource that with an empty tag value
+        msg["resources"] = [EBS_MY_PROJECT, EBS_MY_ANOTHER_PROJECT, EBS_EMPTY]
+        result = self.delivery.process(msg)
+        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
+
     @patch("c7n_mailer.jira_delivery.JiraDelivery.process")
     def test_handle_targets(self, mock_jira):
         msg = copy.deepcopy(SQS_MESSAGE_JIRA)
@@ -115,20 +125,22 @@ class TestJiraDelivery(TestCase):
         mtm.config = self.config
 
         # NOTE test handle_targets to ensure msg is routed as expected
-        # No call because JiraError raised
         mtm.handle_targets(msg, None, False, False)
-        assert mock_jira.call_count == 0
+        assert mock_jira.call_count == 0  # No call because JiraError is raised
 
         with patch("jira.client.JIRA.server_info"):
+            # case 1: to jira
             mtm.handle_targets(msg, None, False, False)
             assert mock_jira.call_count == 1
             assert mock_jira.call_args[0][0] == msg
 
+            # case 2: to jira://tag/xxx
             msg["action"]["to"] = ["jira://tag/jira_project"]
             mtm.handle_targets(msg, None, False, False)
             assert mock_jira.call_count == 2
             assert mock_jira.call_args[0][0] == msg
 
+            # case 3: jira not in "to" list
             call_count = mock_jira.call_count
             msg["action"]["to"] = ["someone@example.com"]
             mtm.handle_targets(msg, None, False, False)
