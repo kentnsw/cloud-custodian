@@ -27,7 +27,7 @@ EBS_MY_ANOTHER_PROJECT = {
 }
 
 EBS_EMPTY = {
-    "VolumeId": "vol-04",
+    "VolumeId": "vol-05",
     "Tags": [{"Key": "jira_project", "Value": ""}],
 }
 
@@ -64,6 +64,11 @@ class TestJiraDelivery(TestCase):
         msg["action"]["to"] = ["jira://tag/jira_project"]
         grouped = self.delivery.get_project_to_resources(msg, "MYPRJ")
         assert grouped == {"MYPRJ": [EBS_NO_TAG], "SPECIALPRJ": [EBS_SPECIALPRJ]}
+
+        # group resources that with an empty tag value
+        msg["resources"] = [EBS_NO_TAG, EBS_EMPTY]
+        grouped = self.delivery.get_project_to_resources(msg, "MYPRJ")
+        assert grouped == {"MYPRJ": [EBS_NO_TAG], "": [EBS_EMPTY]}
 
     @patch("c7n_mailer.utils.get_rendered_jinja", return_value="mock content")
     @patch("jira.client.JIRA.create_issues")
@@ -111,10 +116,10 @@ class TestJiraDelivery(TestCase):
         issue_dict["priority"] = {"name": "Low"}
         assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
 
-        # case 4: skip resource that with an empty tag value
-        msg["resources"] = [EBS_MY_PROJECT, EBS_MY_ANOTHER_PROJECT, EBS_EMPTY]
+        # case 5: skip resource that with an empty tag value
+        msg["resources"] = [EBS_MY_PROJECT, EBS_EMPTY]
         result = self.delivery.process(msg)
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
+        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict]
 
     @patch("c7n_mailer.jira_delivery.JiraDelivery.process")
     def test_handle_targets(self, mock_jira):

@@ -22,6 +22,13 @@ class JiraDelivery:
         basic_auth = tuple([self.config.get("jira_username"), token])
         self.client = JIRA(server=self.url, basic_auth=basic_auth)
 
+    @staticmethod
+    def get_resource_tag_value(resource, k) -> str | None:
+        # return None if tag not found
+        for t in resource.get("Tags", []):
+            if t["Key"] == k:
+                return t["Value"]
+
     def get_project_to_resources(self, message, default_project) -> Dict[str, List]:
         to_list = message.get("action", ()).get("to")
         tags = [to[11:] for to in to_list if to.startswith("jira://tag/")]
@@ -30,10 +37,13 @@ class JiraDelivery:
             raise Exception(f"Only one jira distination is supported, got {tags}")
 
         grouped = {}
-        project = default_project
         for r in message["resources"]:
+            project = default_project
             if len(tags):
-                project = utils.get_resource_tag_value(r, tags[-1]) or project
+                tag_value = self.get_resource_tag_value(r, tags[-1])
+                # NOTE processed event if the value is an empty string
+                if tag_value is not None:
+                    project = tag_value
             grouped.setdefault(project, []).append(r)
         # eg: { 'MYPROJECT': [resource1, resource2, etc] }
         return grouped
