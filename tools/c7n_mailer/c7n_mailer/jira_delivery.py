@@ -33,7 +33,7 @@ class JiraDelivery:
         project = default_project
         for r in message["resources"]:
             if len(tags):
-                project = utils.get_resource_tag_value(r, tags[-1])
+                project = utils.get_resource_tag_value(r, tags[-1]) or project
             grouped.setdefault(project, []).append(r)
         # eg: { 'MYPROJECT': [resource1, resource2, etc] }
         return grouped
@@ -59,10 +59,10 @@ class JiraDelivery:
             )
             issue = {}
             # Ref https://jira.readthedocs.io/examples.html#issues
-            # Set the dict via action conf from policy pov, via mailer conf from Jira projects pov
+            # Set the dict via action conf from policy PoV, via mailer conf from Jira projects PoV
+            issue.update(**self.custom_fields.get("DEFAULT", {}))  # lowest priority
             issue.update(**jira_conf)
-            issue.update(**self.custom_fields.get("DEFAULT", {}))
-            issue.update(**self.custom_fields.get(project, {}))
+            issue.update(**self.custom_fields.get(project, {}))  # higher priority
             # NOTE remove `cannot-be-set` attributes in case some Jira projects can't have them
             [issue.pop(k) for k, v in list(issue.items()) if v == "cannot-be-set"]
 
@@ -92,9 +92,9 @@ class JiraDelivery:
         if not issue_list:
             return
         res = self.client.create_issues(field_list=issue_list)
-        success_list = [i["issue"].key for i in res if i["status"] == "Success"]
+        success_list = [i["issue"].key for i in res if i.get("status") == "Success"]
         self.logger.info(f"Created issues {success_list}")
-        error_list = [i["error"] for i in res if i["error"]]
+        error_list = [i["error"] for i in res if i.get("error")]
         if error_list:
             self.logger.error(f"Failed to create issues {error_list}")
         return success_list
