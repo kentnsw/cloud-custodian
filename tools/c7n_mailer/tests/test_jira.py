@@ -99,8 +99,8 @@ class TestJiraDelivery(TestCase):
         result = self.delivery.process(msg)
         assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
 
-        # case 4: issue fields overriding priority
-        # Priority: jira_custom_fields.DEFAULT < policy.action.jira < jira_custom_fields.specific_project
+        # case 4: issue fields overriding priority:
+        # jira_custom_fields.DEFAULT < policy.action.jira < jira_custom_fields.specific_project
         msg["action"]["jira"]["priority"] = {"name": "Low"}
         result = self.delivery.process(msg)
         issue_dict["priority"] = {"name": "Low"}
