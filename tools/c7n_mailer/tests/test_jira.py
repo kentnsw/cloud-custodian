@@ -11,9 +11,9 @@ EBS_NO_TAG = {
     "Tags": [],
 }
 
-EBS_SPECIALPRJ = {
+EBS_PRJB = {
     "VolumeId": "vol-02",
-    "Tags": [{"Key": "jira_project", "Value": "SPECIALPRJ"}],
+    "Tags": [{"Key": "jira_project", "Value": "PRJB"}],
 }
 
 EBS_MY_PROJECT = {
@@ -39,14 +39,14 @@ SQS_MESSAGE_JIRA = {
         "type": "notify",
         "transport": {"queue": "xxx", "type": "sqs"},
         "subject": "my subject",
-        "jira": {"project": "MYPRJ"},
+        "jira": {"project": "PRJA"},
         "result": {},
     },
     "policy": {
         "resource": "ebs",
         "name": "ebs-mark-unattached-deletion",
     },
-    "resources": [EBS_NO_TAG, EBS_SPECIALPRJ],
+    "resources": [EBS_NO_TAG, EBS_PRJB],
 }
 
 
@@ -57,24 +57,24 @@ class TestJiraDelivery(TestCase):
         self.delivery = JiraDelivery(self.config, MagicMock(), MagicMock())
 
     def test_get_project_to_resources(self):
-        grouped = self.delivery.get_project_to_resources(SQS_MESSAGE_JIRA, "MYPRJ")
-        assert grouped == {"MYPRJ": [EBS_NO_TAG, EBS_SPECIALPRJ]}
+        grouped = self.delivery.get_project_to_resources(SQS_MESSAGE_JIRA)
+        assert grouped == {None: [EBS_NO_TAG, EBS_PRJB]}
 
         msg = copy.deepcopy(SQS_MESSAGE_JIRA)
         msg["action"]["to"] = ["jira://tag/jira_project"]
-        grouped = self.delivery.get_project_to_resources(msg, "MYPRJ")
-        assert grouped == {"MYPRJ": [EBS_NO_TAG], "SPECIALPRJ": [EBS_SPECIALPRJ]}
+        grouped = self.delivery.get_project_to_resources(msg)
+        assert grouped == {None: [EBS_NO_TAG], "PRJB": [EBS_PRJB]}
 
         # group resources that with an empty tag value
         msg["resources"] = [EBS_NO_TAG, EBS_EMPTY]
-        grouped = self.delivery.get_project_to_resources(msg, "MYPRJ")
-        assert grouped == {"MYPRJ": [EBS_NO_TAG], "": [EBS_EMPTY]}
+        grouped = self.delivery.get_project_to_resources(msg)
+        assert grouped == {None: [EBS_NO_TAG], "": [EBS_EMPTY]}
 
     @patch("c7n_mailer.utils.get_rendered_jinja", return_value="mock content")
     @patch("jira.client.JIRA.create_issues")
-    def test_process(self, mock_create_issues, mock_jinja):
-        issue_dict = {
-            "project": "MYPRJ",
+    def test_process_jira_fields(self, mock_create_issues, mock_jinja):
+        fields = {
+            "project": "PRJA",
             # NOTE "priority" field is added by jira_custom_fields.DEFAULT
             "priority": {"name": "Medium"},
             "issuetype": {"name": "Task"},
@@ -83,43 +83,57 @@ class TestJiraDelivery(TestCase):
         }
         msg = copy.deepcopy(SQS_MESSAGE_JIRA)
 
-        # NOTE CAUTION: below cases are reusing vars msg, issue and issue_dict, so order matters
         # case 1: to jira, 1 ticket is expected
         issue = MagicMock()
-        issue.key = "MYPRJ-1"
+        issue.key = "PRJA-1"
         mock_create_issues.return_value = [{"issue": issue, "status": "Success"}]
         result = self.delivery.process(msg)
-        assert result == ["MYPRJ-1"]
+        assert result == ["PRJA-1"]
         assert mock_jinja.call_args[0][4] == "jira_template"
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict]
+        assert mock_create_issues.call_args.kwargs["field_list"] == [fields]
 
         # case 2: to jira://tag/jira_project, 2 ticket is expected
         msg["action"]["to"] = ["jira://tag/jira_project"]
         self.delivery.process(msg)
-        issue_dict2 = copy.deepcopy(issue_dict)
-        issue_dict2["project"] = "SPECIALPRJ"
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
+        fields_b = copy.deepcopy(fields)
+        fields_b["project"] = "PRJB"
+        assert mock_create_issues.call_args.kwargs["field_list"] == [fields, fields_b]
 
+    @patch("c7n_mailer.utils.get_rendered_jinja", return_value="mock content")
+    @patch("jira.client.JIRA.create_issues")
+    def test_process_jira_custom_fields(self, mock_create_issues, mock_jinja):
+        fields = {
+            "project": "MY_PROJECT",
+            # NOTE "priority" field is added by jira_custom_fields.DEFAULT
+            "priority": {"name": "Medium"},
+            "issuetype": {"name": "Task"},
+            "summary": "my subject",
+            "description": "mock content",
+        }
+        # NOTE CAUTION: below cases are reusing vars like msg, issue and fields, so order matters
         # case 3: custom fields configured in jira_custom_fields are expected
+        msg = copy.deepcopy(SQS_MESSAGE_JIRA)
+        msg["action"]["to"] = ["jira://tag/jira_project"]
         msg["resources"] = [EBS_MY_PROJECT, EBS_MY_ANOTHER_PROJECT]
-        issue_dict["project"] = "MY_PROJECT"
-        issue_dict["customfield_10059"] = "value_for_the_field"
-        issue_dict2["project"] = "MY_ANOTHER_PROJECT"
-        issue_dict2.pop("priority")
-        result = self.delivery.process(msg)
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
+
+        fields_b = copy.deepcopy(fields)
+        fields["customfield_10059"] = "value_for_the_field"
+        fields_b["project"] = "MY_ANOTHER_PROJECT"
+        fields_b.pop("priority")
+        self.delivery.process(msg)
+        assert mock_create_issues.call_args.kwargs["field_list"] == [fields, fields_b]
 
         # case 4: issue fields overriding priority:
         # jira_custom_fields.DEFAULT < policy.action.jira < jira_custom_fields.specific_project
         msg["action"]["jira"]["priority"] = {"name": "Low"}
-        result = self.delivery.process(msg)
-        issue_dict["priority"] = {"name": "Low"}
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict, issue_dict2]
+        self.delivery.process(msg)
+        fields["priority"] = {"name": "Low"}
+        assert mock_create_issues.call_args.kwargs["field_list"] == [fields, fields_b]
 
-        # case 5: skip resource that with an empty tag value
+        # case 5: ignore resources that with an empty tag value
         msg["resources"] = [EBS_MY_PROJECT, EBS_EMPTY]
-        result = self.delivery.process(msg)
-        assert mock_create_issues.call_args.kwargs["field_list"] == [issue_dict]
+        self.delivery.process(msg)
+        assert mock_create_issues.call_args.kwargs["field_list"] == [fields]
 
     @patch("c7n_mailer.jira_delivery.JiraDelivery.process")
     def test_handle_targets(self, mock_jira):

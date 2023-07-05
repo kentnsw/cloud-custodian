@@ -23,13 +23,13 @@ class JiraDelivery:
         self.client = JIRA(server=self.url, basic_auth=basic_auth)
 
     @staticmethod
-    def get_resource_tag_value(resource, k) -> str | None:
+    def get_resource_tag_value(resource, k):
         # return None if tag not found
         for t in resource.get("Tags", []):
             if t["Key"] == k:
                 return t["Value"]
 
-    def get_project_to_resources(self, message, default_project) -> Dict[str, List]:
+    def get_project_to_resources(self, message) -> Dict[str, List]:
         to_list = message.get("action", ()).get("to")
         tags = [to[11:] for to in to_list if to.startswith("jira://tag/")]
         # TODO maybe we should support multiple tags and distinations
@@ -38,24 +38,22 @@ class JiraDelivery:
 
         grouped = {}
         for r in message["resources"]:
-            project = default_project
-            if len(tags):
-                tag_value = self.get_resource_tag_value(r, tags[-1])
-                # NOTE processed event if the value is an empty string
-                if tag_value is not None:
-                    project = tag_value
+            project = self.get_resource_tag_value(r, tags[-1]) if len(tags) else None
             grouped.setdefault(project, []).append(r)
-        # eg: { 'MYPROJECT': [resource1, resource2, etc] }
+        # eg: { 'MYPROJECT': [resource1, resource2, etc], "":[...], None: [...] }
         return grouped
 
     def process(self, message) -> List:
         issue_list = []
-        jira_conf = message["action"].get("jira", {})
-        pr = self.get_project_to_resources(message, jira_conf.get("project"))
+        jira_fields = message["action"].get("jira", {})
+        pr = self.get_project_to_resources(message)
         for project, resources in pr.items():
-            if not project:
-                self.logger.info(f"Skip {len(resources)} resources due to no project value found")
+            # NOTE allow attaching an empty tag to resources to be ignored
+            if project == "":
+                self.logger.info(f"Ignore {len(resources)} resources because project value is empty")
                 continue
+            # NOTE use default value if no tag attached to these resources
+            project = project or jira_fields.get("project")
             self.logger.info(
                 "Sending account:%s policy:%s %s:%d jira:%s to %s"
                 % (
@@ -71,7 +69,7 @@ class JiraDelivery:
             # Ref https://jira.readthedocs.io/examples.html#issues
             # Set the dict via action conf from policy PoV, via mailer conf from Jira projects PoV
             issue.update(**self.custom_fields.get("DEFAULT", {}))  # lowest priority
-            issue.update(**jira_conf)
+            issue.update(**jira_fields)
             issue.update(**self.custom_fields.get(project, {}))  # higher priority
             # NOTE remove `cannot-be-set` attributes in case some Jira projects can't have them
             [issue.pop(k) for k, v in list(issue.items()) if v == "cannot-be-set"]
