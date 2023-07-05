@@ -50,7 +50,7 @@ class JiraDelivery:
         for project, resources in pr.items():
             # NOTE allow attaching an empty tag to resources to be ignored
             if project == "":
-                self.logger.info(f"Ignore {len(resources)} resources because project value is empty")
+                self.logger.info(f"Ignore {len(resources)} resources as project value is empty")
                 continue
             # NOTE use default value if no tag attached to these resources
             project = project or jira_fields.get("project")
