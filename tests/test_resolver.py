@@ -24,7 +24,7 @@ def test__get_headers_from_string():
     )
     values = ValuesFrom({}, mgr)
     raw_headers = {'x-api-key': '1234567890'}
-    headers = values.resolve_secrect(raw_headers)
+    headers = values.resolve_secret(raw_headers)
 
     assert len(headers) == 1
     assert headers['x-api-key'] == '1234567890'
@@ -46,7 +46,7 @@ def test__get_headers_from_secretsmanager_secret(test, get_headers_from_secretsm
     )
     values = ValuesFrom({}, mgr)
 
-    headers = values.resolve_secrect({'x-api-key': {'value_from': secrect_id}})
+    headers = values.resolve_secret({'x-api-key': {'value_from': secrect_id}})
     assert len(headers) == 1
     assert headers['x-api-key'] == secrect_string
 

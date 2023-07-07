@@ -164,7 +164,7 @@ class ValuesFrom:
         )
         return client.get_secret_value(SecretId=SecretId)['SecretString']
 
-    def resolve_secrect(self, conf: dict) -> dict:
+    def resolve_secret(self, conf: dict) -> dict:
         resolved = {}
         for k, v in conf.items():
             resolved[k] = v
@@ -172,7 +172,7 @@ class ValuesFrom:
                 secret_id = v.get('value_from', '')
                 if secret_id.startswith('arn:aws:secretsmanager:'):
                     resolved[k] = self.get_secret_value_aws(secret_id)
-                # TODO resolve secrect with Azure, GCP, etc.
+                # TODO resolve secret with Azure, GCP, etc.
         return resolved
 
     def get_contents(self):
@@ -190,7 +190,7 @@ class ValuesFrom:
 
         params = dict(
             uri=self.data.get('url'),
-            headers=self.resolve_secrect(self.data.get('headers', {})),
+            headers=self.resolve_secret(self.data.get('headers', {})),
         )
 
         contents = str(self.resolver.resolve(**params))
