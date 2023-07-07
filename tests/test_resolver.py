@@ -23,9 +23,8 @@ def test__get_headers_from_string():
         {'session_factory': None, '_cache': None, 'config': Config.empty(account_id=ACCOUNT_ID)}
     )
     values = ValuesFrom({}, mgr)
-    raw_headers = {'x-api-key': '1234567890'}
-    headers = values.resolve_secret(raw_headers)
 
+    headers = values.resolve_secret({'x-api-key': '1234567890'})
     assert len(headers) == 1
     assert headers['x-api-key'] == '1234567890'
 
