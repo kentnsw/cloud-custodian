@@ -157,26 +157,23 @@ class ValuesFrom:
         self.cache = manager._cache or NullCache({})
         self.resolver = URIResolver(self.session_factory, self.cache)
 
-    def _read_value_from_aws_secretsmanager(self, secret: str) -> str:
+    def get_secret_value_aws(self, SecretId: str) -> str:
         client = self.session_factory().client(
             'secretsmanager',
             region_name=self.manager.config.region
         )
-        secret_string = client.get_secret_value(SecretId=secret)['SecretString']
-        return secret_string
+        return client.get_secret_value(SecretId=SecretId)['SecretString']
 
-    def _get_headers(self) -> dict:
-        raw_headers_data = self.data.get('headers', {})
-
-        headers = {}
-        for k, v in raw_headers_data.items():
-            if isinstance(v, str):
-                headers[k] = v
-            elif isinstance(v, dict):
-                secret = v.get('value_from')
-                value = self._read_value_from_aws_secretsmanager(secret)
-                headers[k] = value
-        return headers
+    def resolve_secrect(self, conf: dict) -> dict:
+        resolved = {}
+        for k, v in conf.items():
+            resolved[k] = v
+            if isinstance(v, dict):
+                secret_id = v.get('value_from', '')
+                if secret_id.startswith('arn:aws:secretsmanager:'):
+                    resolved[k] = self.get_secret_value_aws(secret_id)
+                # TODO resolve secrect with Azure, GCP, etc.
+        return resolved
 
     def get_contents(self):
         _, format = os.path.splitext(self.data['url'])
@@ -193,7 +190,7 @@ class ValuesFrom:
 
         params = dict(
             uri=self.data.get('url'),
-            headers=self._get_headers(),
+            headers=self.resolve_secrect(self.data.get('headers', {})),
         )
 
         contents = str(self.resolver.resolve(**params))
