@@ -242,7 +242,21 @@ actions:
 
 Jira delivery support use of a unique template field specified by `jira_template`. If not specified, the mailer will use the default value `default`.
 
-Please be aware that running a policy with the Jira notify action multiple times could lead to duplicated Jira tickets. To prevent such duplication, we highly recommend tagging the reported resources and implementing a filter in the policy until the next alert cycle. Additionally, it is advisable to reduce the execution frequency of the policy to allow ample time for the ticket to be processed. For instance, consider increasing the interval to 2 or more days between successive policy runs.
+Please be aware that running a policy with the Jira notify action multiple times could lead to duplicated Jira tickets. To prevent such duplication, we highly recommend tagging the reported resources and implementing a filter in the policy to filter them out until the next alert cycle. Additionally, it is advisable to reduce the execution frequency of the policy to allow ample time for the ticket to be processed. For instance, consider increasing the interval to 2 or more days between successive policy runs.
+
+```yaml
+    filters:
+      - or:
+          - "tag:c7n_status": absent
+          - type: marked-for-op
+            tag: c7n_status
+            op: notify
+    actions:
+      - type: mark-for-op
+        tag: c7n_status
+        op: notify
+        days: 14
+```
 
 ### Splunk HTTP Event Collector (HEC)
 
