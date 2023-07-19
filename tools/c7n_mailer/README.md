@@ -242,6 +242,8 @@ actions:
 
 Jira delivery support use of a unique template field specified by `jira_template`. If not specified, the mailer will use the default value `default`.
 
+Please be aware that running a policy with the Jira notify action multiple times could lead to duplicated Jira tickets. To prevent such duplication, we highly recommend tagging the reported resources and implementing a filter in the policy until the next alert cycle. Additionally, it is advisable to reduce the execution frequency of the policy to allow ample time for the ticket to be processed. For instance, consider increasing the interval to 2 or more days between successive policy runs.
+
 ### Splunk HTTP Event Collector (HEC)
 
 The Custodian mailer supports delivery to the HTTP Event Collector (HEC) endpoint of a Splunk instance as a separate notification mechanism for the SQS transport method. To enable Splunk HEC integration, you must specify the URL to the HEC endpoint as well as a valid username and token:
