@@ -381,6 +381,9 @@ class MetricsOutput(Metrics):
         super(MetricsOutput, self).__init__(ctx, config)
         self.namespace = self.config.get('namespace', DEFAULT_NAMESPACE)
         self.region = self.config.get('region')
+        self.profile = self.config.get('profile')
+        self.ignore_zero = self.config.get('ignore_zero')
+        self.metrics = self.config.get('metrics') and self.config.get('metrics').split(',')
         self.destination = (
             self.config.scheme == 'aws' and
             self.config.get('netloc') == 'master') and 'master' or None
@@ -410,10 +413,19 @@ class MetricsOutput(Metrics):
     def _put_metrics(self, ns, metrics):
         if self.destination == 'master':
             watch = self.ctx.session_factory(
-                assume=False).client('cloudwatch', region_name=self.region)
+                assume=False, profile=self.profile).client('cloudwatch', region_name=self.region)
         else:
             watch = utils.local_session(
                 self.ctx.session_factory).client('cloudwatch', region_name=self.region)
+
+        # NOTE filter out value is 0 metrics data
+        if self.ignore_zero in ['1', 'true', 'True']:
+            metrics = [m for m in metrics if m.get("Value") != 0]
+        # NOTE filter metrics data by the metric name configured
+        if self.metrics:
+            metrics = [m for m in metrics if m["MetricName"] in self.metrics]
+        if not metrics:
+            return
         return self.retry(
             watch.put_metric_data, Namespace=ns, MetricData=metrics)
 

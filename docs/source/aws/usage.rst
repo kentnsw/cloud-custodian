@@ -35,10 +35,11 @@ flag needs to be specified when running Cloud Custodian::
 
 You can also consolidate metrics into a single account by specifying the ``master``
 location in the cli. Note that this is only applicable when using the ``--assume`` option
-in the cli or when using c7n-org. By default, metrics will be sent to the same account
-that is being executed against::
+in the cli or when using c7n-org. You can use ``profile`` query parameter to specify a
+profile for the cli to access the ``master``. By default, metrics will be sent to the
+same account that is being executed against::
 
-  custodian run -s <output_directory> --metrics aws://master
+  custodian run -s <output_directory> --metrics aws://master?profile=my_profile
 
 Additionally, to use a different namespace other than the default ``CloudMaid``, you can
 add the following query parameter to the metrics flag::
@@ -57,6 +58,12 @@ specify a region::
 
 When running the metrics in a centralized account or when centralizing to a specific
 region, additional account and region dimensions will be included.
+
+Typically, the following 4 metrics are included: ResourceCount, ResourceTime,
+ActionTime, and ApiCalls. Value zero will be recorded as well. To filter the metrics
+and save costs, you can use the ``metrics`` and/or ``ignore_zero`` query parameters::
+
+  custodian run -s . --metrics aws://?ignore_zero=true&metrics=ResourceCount,ApiCalls
 
 
 CloudWatch Logs
