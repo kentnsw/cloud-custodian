@@ -328,7 +328,8 @@ class OutputMetricsTest(BaseTest):
 
     def test_metrics_query_params(self):
         # Test metrics filter when 'metrics' and 'ignore_zero' is present in query parameters
-        conf = Bag({'metrics': 'ResourceCount,ApiCalls', 'scheme': 'aws', 'ignore_zero': 'true'})
+        conf = Bag(
+            {'active_metrics': 'ResourceCount,ApiCalls', 'scheme': 'aws', 'ignore_zero': 'true'})
         ctx = Bag(session_factory=self.replay_flight_data('output-aws-metrics'),
                   options=Bag(account_id='123456789012', region='us-east-1'),
                   policy=Bag(name='test', resource_type='ec2'))
