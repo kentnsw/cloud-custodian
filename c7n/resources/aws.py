@@ -383,7 +383,8 @@ class MetricsOutput(Metrics):
         self.region = self.config.get('region')
         self.profile = self.config.get('profile')
         self.ignore_zero = self.config.get('ignore_zero')
-        self.metrics = self.config.get('metrics') and self.config.get('metrics').split(',')
+        am = self.config.get('active_metrics')
+        self.active_metrics = am and am.split(',')
         self.destination = (
             self.config.scheme == 'aws' and
             self.config.get('netloc') == 'master') and 'master' or None
@@ -422,8 +423,8 @@ class MetricsOutput(Metrics):
         if self.ignore_zero in ['1', 'true', 'True']:
             metrics = [m for m in metrics if m.get("Value") != 0]
         # NOTE filter metrics data by the metric name configured
-        if self.metrics:
-            metrics = [m for m in metrics if m["MetricName"] in self.metrics]
+        if self.active_metrics:
+            metrics = [m for m in metrics if m["MetricName"] in self.active_metrics]
         if not metrics:
             return
         return self.retry(
