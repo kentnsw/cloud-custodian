@@ -36,8 +36,8 @@ flag needs to be specified when running Cloud Custodian::
 You can also consolidate metrics into a single account by specifying the ``master``
 location in the cli. Note that this is only applicable when using the ``--assume`` option
 in the cli or when using c7n-org. You can use ``profile`` query parameter to specify a
-profile for the cli to access the ``master``. By default, metrics will be sent to the
-same account that is being executed against::
+profile for the cli to access the ``master``. By default, when ``master`` is not present,
+metrics will be sent to the same account that is being executed against::
 
   custodian run -s <output_directory> --metrics aws://master?profile=my_profile
 
