@@ -32,9 +32,9 @@ and unnecessary API calls. Please utilize either of the attributes:
    policies:
      - name: service-quota-usage
        resource: aws.service-quota
-       metadata:
-         include_service_codes:
-           - ec2
+       query:
+         - include_service_codes:
+             - ec2
 
 Global Services
   Services like IAM are not region-based. Custodian will put the limit 
