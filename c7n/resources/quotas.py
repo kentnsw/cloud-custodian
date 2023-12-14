@@ -53,8 +53,13 @@ class ServiceQuota(QueryResourceManager):
     def augment(self, resources):
         client = local_session(self.session_factory).client('service-quotas')
         retry = get_retry(('TooManyRequestsException',))
-        excl_sc = set(self.data.get("metadata", {}).get("exclude_service_codes", []))
-        incl_sc = set(self.data.get("metadata", {}).get("include_service_codes", []))
+
+        excl_sc = incl_sc = set()
+        for q in self.data.get("query", []):
+            if q.get("exclude_service_codes"):
+                excl_sc = set(q.get("exclude_service_codes"))
+            elif q.get("include_service_codes"):
+                incl_sc = set(q.get("include_service_codes"))
 
         def get_quotas(client, s):
             def _get_quotas(client, s, attr):

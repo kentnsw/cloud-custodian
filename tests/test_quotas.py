@@ -61,7 +61,7 @@ class TestQuotas(BaseTest):
         p = self.load_policy({
             "name": "service-quota-metaddata-filter",
             "resource": "aws.service-quota",
-            "metadata": {"include_service_codes": ["ec2"]},
+            "query": [{"include_service_codes": ["ec2"]}],
             },
             session_factory=session_factory)
         resources = p.run()
@@ -74,7 +74,7 @@ class TestQuotas(BaseTest):
         p = self.load_policy({
             "name": "service-quota-metaddata-filter",
             "resource": "aws.service-quota",
-            "metadata": {"exclude_service_codes": ["logs"]},
+            "query": [{"exclude_service_codes": ["logs"]}],
             },
             session_factory=session_factory)
         resources = p.run()
