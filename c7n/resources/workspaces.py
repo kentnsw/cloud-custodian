@@ -32,6 +32,7 @@ class Workspace(QueryResourceManager):
         name = id = dimension = 'WorkspaceId'
         universal_taggable = True
         cfn_type = config_type = 'AWS::WorkSpaces::Workspace'
+        permissions_augment = ("workspaces:DescribeTags",)
 
     source_mapping = {
         'describe': DescribeWorkspace,
@@ -170,6 +171,7 @@ class WorkspaceImage(QueryResourceManager):
         arn_type = 'workspaceimage'
         name = id = 'ImageId'
         universal_taggable = True
+        permissions_augment = ("workspaces:DescribeTags",)
 
     augment = universal_augment
 
@@ -459,6 +461,7 @@ class DeregisterWorkspaceDirectory(BaseAction):
                 'and cannot be deregistered: %s ' % ''.join(map(str, exceptions))
             )
 
+
 @resources.register('workspaces-web')
 class WorkspacesWeb(QueryResourceManager):
 
@@ -470,6 +473,7 @@ class WorkspacesWeb(QueryResourceManager):
         arn = id = "portalArn"
 
     augment = universal_augment
+
 
 @WorkspacesWeb.action_registry.register('tag')
 class TagWorkspacesWebResource(Tag):
@@ -493,6 +497,7 @@ class TagWorkspacesWebResource(Tag):
         for r in resources:
             client.tag_resource(resourceArn=r["portalArn"], tags=new_tags)
 
+
 @WorkspacesWeb.action_registry.register('remove-tag')
 class RemoveTagWorkspacesWebResource(RemoveTag):
     """Remove tags from a Workspaces Web portal
@@ -513,6 +518,7 @@ class RemoveTagWorkspacesWebResource(RemoveTag):
     def process_resource_set(self, client, resources, tags):
         for r in resources:
             client.untag_resource(resourceArn=r['portalArn'], tagKeys=tags)
+
 
 @WorkspacesWeb.action_registry.register('delete')
 class DeleteWorkspacesWeb(BaseAction):
@@ -563,3 +569,42 @@ class DeleteWorkspacesWeb(BaseAction):
 
     def delete_portal(self, client, resource):
         client.delete_portal(portalArn=resource['portalArn'])
+
+
+@resources.register('workspaces-bundle')
+class WorkspacesBundle(QueryResourceManager):
+
+    class resource_type(TypeInfo):
+        service = 'workspaces'
+        enum_spec = ('describe_workspace_bundles', 'Bundles', None)
+        arn_type = 'workspacebundle'
+        name = id = 'BundleId'
+        universal_taggable = True
+
+
+@WorkspacesBundle.action_registry.register('delete')
+class DeleteWorkspaceBundle(BaseAction):
+    """
+    Deletes a WorkSpaces Bundle
+
+    :example:
+
+    .. code-block:: yaml
+
+        policies:
+          - name: delete-workspaces-bundle
+            resource: aws.workspaces-bundle
+            actions:
+              - delete
+    """
+
+    schema = type_schema('delete')
+    permissions = ('workspaces:DeleteWorkspaceBundle',)
+
+    def process(self, bundles):
+        client = local_session(self.manager.session_factory).client('workspaces')
+        for bundle in bundles:
+            try:
+                client.delete_workspace_bundle(BundleId=bundle['BundleId'])
+            except client.exceptions.ResourceNotFoundException:
+                self.log.warning("Bundle not found: %s" % bundle['BundleId'])
