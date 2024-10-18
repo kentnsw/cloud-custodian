@@ -54,6 +54,29 @@ class DynamodbTest(BaseTest):
         resources = p.run()
         self.assertEqual(resources[0]["TableName"], "c7n.DynamoDB.01")
 
+    def test_force_delete_dynamodb_tables(self):
+        session_factory = self.replay_flight_data("test_force_delete_dynamodb_tables")
+        client = session_factory().client("dynamodb")
+        self.patch(DeleteTable, "executor_factory", MainThreadExecutor)
+        p = self.load_policy(
+            {
+                "name": "delete-empty-tables",
+                "resource": "dynamodb-table",
+                "filters": [{"TableName": "c7n-test"}],
+                "actions": [
+                    {
+                        "type": "delete",
+                        "force": True
+                    }
+                ],
+            },
+            session_factory=session_factory,
+        )
+        resources = p.run()
+        self.assertEqual(resources[0]["DeletionProtectionEnabled"], True)
+        table = client.describe_table(TableName="c7n-test")["Table"]
+        self.assertEqual(table.get('TableStatus'), 'DELETING')
+
     def test_update_tables(self):
         session_factory = self.replay_flight_data("test_dynamodb_update_table")
         client = session_factory().client("dynamodb")
@@ -120,8 +143,7 @@ class DynamodbTest(BaseTest):
                     {
                         "type": "continuous-backup",
                         "key": "PointInTimeRecoveryDescription.PointInTimeRecoveryStatus",
-                        "value": "ENABLED",
-                        "op": "ne"
+                        "value": "DISABLED",
                     }
                 ]
             },
@@ -132,6 +154,48 @@ class DynamodbTest(BaseTest):
         self.assertEqual(
             resources[0]["c7n:continuous-backup"]["PointInTimeRecoveryDescription"]["PointInTimeRecoveryStatus"], # noqa
             "DISABLED")
+
+    def test_dynamodb_cross_account_filter(self):
+        session_factory = self.replay_flight_data("test_dynamodb_cross_account_filter")
+        p = self.load_policy(
+            {
+                "name": "dynamodb-cross-account",
+                "resource": "dynamodb-table",
+                "filters": ['cross-account'],
+            },
+            session_factory=session_factory,
+        )
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
+        self.assertTrue("c7n:Policy" in resources[0])
+
+    def test_dynamodb_has_statement_filter(self):
+        session_factory = self.replay_flight_data("test_dynamodb_has_statement_filter")
+        p = self.load_policy(
+            {
+                "name": "dynamodb-has-statement",
+                "resource": "dynamodb-table",
+                "filters": [
+                    {
+                        "type": "has-statement",
+                        "statements": [
+                            {
+                                "Effect": "Deny",
+                                "Action": "dynamodb:*",
+                                "Principal": "*",
+                                "Condition":
+                                    {"Bool": {"aws:SecureTransport": "false"}},
+                                "Resource": "{table_arn}"
+                            }
+                        ]
+                    }
+                ],
+            },
+            session_factory=session_factory,
+        )
+        resources = p.run()
+        self.assertEqual(len(resources), 1)
+        self.assertTrue("c7n:Policy" in resources[0])
 
     def test_continuous_backup_action(self):
         session_factory = self.replay_flight_data("test_dynamodb_continuous_backup_action")

@@ -1,7 +1,6 @@
 # Copyright The Cloud Custodian Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-import inspect
 
 from pytest_terraform import terraform
 
@@ -22,10 +21,8 @@ class TestSubnet(OciBaseTest):
         """
         test adding defined_tags tag to subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "add-defined-tag-to-subnet",
@@ -47,10 +44,8 @@ class TestSubnet(OciBaseTest):
         """
         test adding defined_tags tag to subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "add-defined-tag-to-subnet",
@@ -72,10 +67,8 @@ class TestSubnet(OciBaseTest):
         """
         test update defined_tags tag on subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "update-defined-tag-of-subnet",
@@ -83,7 +76,12 @@ class TestSubnet(OciBaseTest):
                 "filters": [
                     {"type": "value", "key": "id", "value": subnet_ocid},
                 ],
-                "actions": [{"type": "update", "defined_tags": self.get_defined_tag("update_tag")}],
+                "actions": [
+                    {
+                        "type": "update",
+                        "defined_tags": self.get_defined_tag("update_tag"),
+                    }
+                ],
             },
             session_factory=session_factory,
         )
@@ -97,10 +95,8 @@ class TestSubnet(OciBaseTest):
         """
         test adding freeform tag to subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "add-tag-freeform-to-subnet",
@@ -122,10 +118,8 @@ class TestSubnet(OciBaseTest):
         """
         test update freeform tag of subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "update-freeform-tag-of-subnet",
@@ -147,10 +141,8 @@ class TestSubnet(OciBaseTest):
         """
         test get freeform tagged subnet
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "get-freeform-tagged-subnet",
@@ -171,10 +163,8 @@ class TestSubnet(OciBaseTest):
         """
         test remove freeform tag
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "subnet-remove-tag",
@@ -198,10 +188,8 @@ class TestSubnet(OciBaseTest):
         """
         test remove defined tag
         """
-        compartment_id, subnet_ocid = self._get_subnet_details(subnet)
-        session_factory = test.oci_session_factory(
-            self.__class__.__name__, inspect.currentframe().f_code.co_name
-        )
+        _, subnet_ocid = self._get_subnet_details(subnet)
+        session_factory = test.oci_session_factory()
         policy = test.load_policy(
             {
                 "name": "subnet-remove-tag",

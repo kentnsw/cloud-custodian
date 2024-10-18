@@ -9,12 +9,14 @@ from contextlib import suppress
 
 from c7n.actions import ActionRegistry, BaseAction
 from c7n.exceptions import PolicyValidationError
-from c7n.filters import FilterRegistry, ValueFilter, MetricsFilter, Filter
+from c7n.filters import (
+    FilterRegistry, ValueFilter, MetricsFilter, WafV2FilterBase,
+    WafClassicRegionalFilterBase)
 from c7n.filters.iamaccess import CrossAccountAccessFilter
 from c7n.filters.related import RelatedResourceFilter
 from c7n.manager import resources, ResourceManager
 from c7n import query, utils
-from c7n.utils import generate_arn, type_schema, get_retry, jmespath_search
+from c7n.utils import generate_arn, type_schema, get_retry, jmespath_search, get_partition
 
 
 ANNOTATION_KEY_MATCHED_METHODS = 'c7n:matched-resource-methods'
@@ -269,13 +271,10 @@ class DescribeRestStage(query.ChildDescribeSource):
     def __init__(self, manager):
         self.manager = manager
         self.query = query.ChildResourceQuery(
-            self.manager.session_factory, self.manager)
-        self.query.capture_parent_id = True
+            self.manager.session_factory, self.manager, capture_parent_id=True)
 
     def get_query(self):
-        query = super(DescribeRestStage, self).get_query()
-        query.capture_parent_id = True
-        return query
+        return super(DescribeRestStage, self).get_query(capture_parent_id=True)
 
     def augment(self, resources):
         results = []
@@ -451,9 +450,7 @@ class RestResource(query.ChildResourceManager):
 class DescribeRestResource(query.ChildDescribeSource):
 
     def get_query(self):
-        query = super(DescribeRestResource, self).get_query()
-        query.capture_parent_id = True
-        return query
+        return super(DescribeRestResource, self).get_query(capture_parent_id=True)
 
     def augment(self, resources):
         results = []
@@ -544,7 +541,7 @@ class StageClientCertificateFilter(RelatedResourceFilter):
 
 
 @RestStage.filter_registry.register('waf-enabled')
-class WafEnabled(Filter):
+class WafEnabled(WafClassicRegionalFilterBase):
     """Filter API Gateway stage by waf-regional web-acl
 
     :example:
@@ -559,36 +556,9 @@ class WafEnabled(Filter):
                     state: false
                     web-acl: test
     """
-    schema = type_schema(
-        'waf-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
 
-    permissions = ('waf:ListWebACLs', 'waf:GetWebACL')
-
-    def process(self, resources, event=None):
-        target_acl = self.data.get('web-acl')
-        state = self.data.get('state', False)
-
-        results = []
-        wafs = self.manager.get_resource_manager('waf-regional').resources()
-        waf_name_arn_map = {w['Name']: w['WebACLArn'] for w in wafs}
-        target_acl_arn = waf_name_arn_map.get(target_acl, target_acl)
-        for r in resources:
-            r_web_acl_arn = r.get('webAclArn')
-            if state:
-                if target_acl_arn is None and r_web_acl_arn and \
-                        r_web_acl_arn in waf_name_arn_map.values():
-                    results.append(r)
-                elif target_acl_arn and r_web_acl_arn == target_acl_arn:
-                    results.append(r)
-            else:
-                if target_acl_arn is None and (not r_web_acl_arn or
-                     r_web_acl_arn and r_web_acl_arn not in waf_name_arn_map.values()):
-                    results.append(r)
-                elif target_acl_arn and r_web_acl_arn != target_acl_arn:
-                    results.append(r)
-        return results
+    def get_associated_web_acl(self, resource):
+        return self.get_web_acl_by_arn(resource.get('webAclArn'))
 
 
 @RestStage.action_registry.register('set-waf')
@@ -664,7 +634,7 @@ class SetWaf(BaseAction):
 
 
 @RestStage.filter_registry.register('wafv2-enabled')
-class WafV2Enabled(Filter):
+class WafV2Enabled(WafV2FilterBase):
     """Filter API Gateway stage by wafv2 web-acl
 
     :example:
@@ -680,33 +650,8 @@ class WafV2Enabled(Filter):
                     web-acl: testv2
     """
 
-    schema = type_schema(
-        'wafv2-enabled', **{
-            'web-acl': {'type': 'string'},
-            'state': {'type': 'boolean'}})
-
-    permissions = ('wafv2:ListWebACLs',)
-
-    def process(self, resources, event=None):
-        target_acl = self.data.get('web-acl', '')
-        state = self.data.get('state', False)
-        results = []
-
-        wafs = self.manager.get_resource_manager('wafv2').resources(augment=False)
-        waf_name_arn_map = {w['Name']: w['ARN'] for w in wafs}
-
-        target_acl_ids = [v for k, v in waf_name_arn_map.items() if
-                          re.match(target_acl, k)]
-        for r in resources:
-            r_web_acl_arn = r.get('webAclArn')
-            if state:
-                if r_web_acl_arn and r_web_acl_arn in target_acl_ids:
-                    results.append(r)
-            else:
-                if not r_web_acl_arn or r_web_acl_arn not in target_acl_ids:
-                    results.append(r)
-
-        return results
+    def get_associated_web_acl(self, resource):
+        return self.get_web_acl_by_arn(resource.get('webAclArn'))
 
 
 @RestStage.action_registry.register('set-wafv2')
@@ -1229,3 +1174,40 @@ class ApiGwV2(query.QueryResourceManager):
             )
 
         return self._generate_arn
+
+
+class StageDescribe(query.ChildDescribeSource):
+
+    def augment(self, resources):
+        # convert tags from {'Key': 'Value'} to standard aws format
+        for r in resources:
+            r['Tags'] = [
+                {'Key': k, 'Value': v} for k, v in r.pop('Tags', {}).items()]
+        return resources
+
+
+@resources.register("apigwv2-stage")
+class ApiGatewayV2Stage(query.ChildResourceManager):
+    class resource_type(query.TypeInfo):
+        service = "apigatewayv2"
+        enum_spec = ('get_stages', 'Items', None)
+        parent_spec = ('aws.apigwv2', 'ApiId', True)
+        arn_type = "/apis"
+        id = name = "StageName"
+        cfn_type = config_type = "AWS::ApiGatewayV2::Stage"
+        universal_taggable = object()
+        permission_prefix = 'apigateway'
+        permissions_enum = ('apigateway:GET',)
+
+    source_mapping = {
+        "describe-child": StageDescribe,
+        "config": query.ConfigSource
+    }
+
+    def get_arns(self, resources):
+        partition = get_partition(self.config.region)
+        return [
+            "arn:{}:apigateway:{}::/apis/{}/stages/{}".format(
+                partition, self.config.region, r['c7n:parent-id'], r['StageName']
+            )
+            for r in resources]

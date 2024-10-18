@@ -6,29 +6,14 @@ import time
 
 import oci
 
-from c7n.config import Config
 from c7n.schema import generate
-from c7n.testing import C7N_FUNCTIONAL, CustodianTestCore
+from c7n.testing import C7N_FUNCTIONAL
 
 FILTERED_FIELDS = ["metadata"]
 
 
-class OciBaseTest(CustodianTestCore):
+class OciBaseTest:
     custodian_schema = generate()
-
-    def load_policy(self, data, *args, **kw):
-        if "config" not in kw:
-            config = Config.empty(
-                **{
-                    "region": kw.pop("region", "us-ashburn-1"),
-                    "account_id": kw.pop("account_id", "1"),
-                    "output_dir": "null://",
-                    "log_group": "null://",
-                    "cache": False,
-                }
-            )
-            kw["config"] = config
-        return super().load_policy(data, *args, **kw)
 
     def get_defined_tag(self, test_type):
         return {
@@ -57,7 +42,7 @@ class OciBaseTest(CustodianTestCore):
             return oci.util.to_dict(resources.data)
 
 
-## common functions
+# common functions
 def replace_ocid(data):
     return re.sub(r'\.oc1\..*?"', '.oc1..<unique_ID>"', data)
 
